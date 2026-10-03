@@ -4,7 +4,18 @@
 
 let reporteDataCache = [];
 let bancasCache = [];
-let ticketsCache = []; // Caché local para filtrado rápido en historial de tickets
+let ticketsCache = []; // Caché local de tickets para el historial
+
+/**
+ * Auxiliar para obtener fecha local en YYYY-MM-DD
+ */
+function getHoyYMD() {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
 
 /**
  * Inicializa el módulo de Balances Financieros
@@ -21,17 +32,6 @@ export async function initReportesModule() {
 
     await cargarFiltrosDesplegables();
     await generarReporte();
-}
-
-/**
- * Auxiliar para obtener fecha local en YYYY-MM-DD
- */
-function getHoyYMD() {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
 }
 
 /**
@@ -68,10 +68,9 @@ async function cargarFiltrosDesplegables() {
         console.warn("Error cargando bancas:", e);
     }
 
-    // 2. CARGAR SUPERVISORES EXCLUSIVOS
+    // 2. CARGAR SUPERVISORES
     try {
         const supervisores = new Set();
-        
         const { data: usuarios } = await supabase.from('usuarios').select('*');
         if (usuarios) {
             usuarios.forEach(u => {
@@ -121,8 +120,6 @@ async function cargarFiltrosDesplegables() {
                     const nom = l.nombre || l.nombre_loteria || l.titulo || l.sorteo_nombre || `Lotería #${l.id}`;
                     selLoteria.innerHTML += `<option value="${l.id}">${nom}</option>`;
                 });
-            } else {
-                selLoteria.innerHTML = '<option value="todas">Todas las loterías (0 registradas)</option>';
             }
         }
     } catch (e) {
@@ -177,6 +174,10 @@ export async function generarReporte() {
         const agrupado = {};
 
         resultados.forEach(t => {
+            // Se omiten tickets cancelados en el cálculo financiero de balance activo si aplica
+            const estado = String(t.status || t.estado || 'pendiente').toLowerCase();
+            if (estado === 'cancelado' || estado === 'anulado') return;
+
             const fechaObj = new Date(t.created_at);
             const fechaKey = fechaObj.toLocaleDateString('es-PA', {
                 weekday: 'short',
@@ -324,7 +325,7 @@ export function exportarReportePDF() {
 }
 
 // =================================================================
-// MÓDULO DE HISTORIAL DE TICKETS (DESDE / HASTA / HOY)
+// MÓDULO DE HISTORIAL DE TICKETS (INCLUYE CANCELADOS Y ACCIONES)
 // =================================================================
 
 /**
@@ -340,11 +341,9 @@ export async function initTicketsHistoryModule() {
     const searchInput = document.getElementById('tickets-search-input');
     const statusFilter = document.getElementById('tickets-status-filter');
 
-    // Por defecto cargar fecha de HOY
     if (dateFrom && !dateFrom.value) dateFrom.value = hoyStr;
     if (dateTo && !dateTo.value) dateTo.value = hoyStr;
 
-    // Escuchadores de eventos
     if (dateFrom) dateFrom.onchange = () => cargarHistorialTickets();
     if (dateTo) dateTo.onchange = () => cargarHistorialTickets();
     if (statusFilter) statusFilter.onchange = () => filtrarYRenderizarTicketsLocal();
@@ -363,7 +362,7 @@ export async function initTicketsHistoryModule() {
 }
 
 /**
- * Consulta Supabase o AppState para obtener los tickets según el rango de fecha seleccionado
+ * Consulta Supabase o AppState para obtener TODOS los tickets (incluyendo cancelados)
  */
 export async function cargarHistorialTickets() {
     const tbody = document.getElementById('tickets-table-body') || document.getElementById('tickets-list-body');
@@ -371,21 +370,19 @@ export async function cargarHistorialTickets() {
     const dateToVal = document.getElementById('tickets-date-to')?.value || getHoyYMD();
 
     if (tbody) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-emerald-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Cargando tickets...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-emerald-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Cargando historial de tickets...</td></tr>`;
     }
 
     const supabase = window.supabase;
 
-    // Si Supabase está disponible, consultar la BD
     if (supabase) {
         try {
-            let query = supabase.from('tickets')
+            const { data, error } = await supabase.from('tickets')
                 .select('*')
                 .gte('created_at', `${dateFromVal}T00:00:00`)
                 .lte('created_at', `${dateToVal}T23:59:59`)
                 .order('created_at', { ascending: false });
 
-            const { data, error } = await query;
             if (!error && data) {
                 ticketsCache = data;
                 filtrarYRenderizarTicketsLocal();
@@ -396,7 +393,6 @@ export async function cargarHistorialTickets() {
         }
     }
 
-    // Fallback: Filtrar localmente en AppState.tickets
     const startDate = new Date(`${dateFromVal}T00:00:00`);
     const endDate = new Date(`${dateToVal}T23:59:59`);
     const localTickets = window.AppState?.tickets || [];
@@ -411,7 +407,7 @@ export async function cargarHistorialTickets() {
 }
 
 /**
- * Aplica los filtros secundarios (Búsqueda por folio y Estado) sobre el caché cargado
+ * Filtra localmente por folio/búsqueda y estado
  */
 function filtrarYRenderizarTicketsLocal() {
     const searchVal = (document.getElementById('tickets-search-input')?.value || '').toLowerCase().trim();
@@ -420,14 +416,21 @@ function filtrarYRenderizarTicketsLocal() {
     let filtrados = [...ticketsCache];
 
     if (statusVal !== 'all') {
-        filtrados = filtrados.filter(t => (t.status || t.estado || 'pendiente').toLowerCase() === statusVal.toLowerCase());
+        filtrados = filtrados.filter(t => {
+            const st = String(t.status || t.estado || 'pendiente').toLowerCase();
+            if (statusVal === 'cancelado') return st === 'cancelado' || st === 'anulado';
+            if (statusVal === 'premiado') return st === 'premiado' || st === 'ganador';
+            if (statusVal === 'no_premiado') return st === 'no_premiado' || st === 'perdedor';
+            return st === statusVal;
+        });
     }
 
     if (searchVal !== '') {
         filtrados = filtrados.filter(t => {
-            const folio = String(t.folio || t.ticket_id || '').toLowerCase();
+            const folio = String(t.folio || t.ticket_id || t.id || '').toLowerCase();
+            const banca = String(t.banca_nombre || t.vendedor || '').toLowerCase();
             const items = JSON.stringify(t.items || t.apuestas || '').toLowerCase();
-            return folio.includes(searchVal) || items.includes(searchVal);
+            return folio.includes(searchVal) || banca.includes(searchVal) || items.includes(searchVal);
         });
     }
 
@@ -435,7 +438,7 @@ function filtrarYRenderizarTicketsLocal() {
 }
 
 /**
- * Renderiza los tickets filtrados en el DOM
+ * Renderiza la tabla de tickets manteniendo exactitud con los 8 encabezados
  */
 function renderizarTablaTickets(lista) {
     const tbody = document.getElementById('tickets-table-body') || document.getElementById('tickets-list-body');
@@ -444,49 +447,143 @@ function renderizarTablaTickets(lista) {
     if (!lista || lista.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="text-center py-8 text-slate-400">
-                    No se encontraron tickets emitidos en el rango de fechas o filtros seleccionados.
+                <td colspan="8" class="text-center py-8 text-slate-400">
+                    No se encontraron tickets registrados en el rango de fechas o filtros seleccionados.
                 </td>
             </tr>`;
         return;
     }
 
     tbody.innerHTML = lista.map(t => {
-        const fecha = new Date(t.created_at || t.createdAt).toLocaleString('es-PA');
-        const folio = t.folio || t.id || 'N/A';
-        const total = parseFloat(t.monto_total || t.monto || t.total || 0).toFixed(2);
-        const estado = (t.status || t.estado || 'pendiente').toLowerCase();
+        const fechaObj = new Date(t.created_at || t.createdAt);
+        const fecha = isNaN(fechaObj) ? 'N/A' : fechaObj.toLocaleString('es-PA', { dateStyle: 'short', timeStyle: 'short' });
+        const folio = t.folio || t.ticket_id || t.id || 'N/A';
+        const bancaNombre = t.banca_nombre || t.vendedor || `Banca #${t.banca_id || '1'}`;
+        const cantJugadas = Array.isArray(t.items) ? t.items.length : (Array.isArray(t.apuestas) ? t.apuestas.length : 1);
+        
+        const montoVenta = parseFloat(t.monto_total || t.monto || t.total || 0).toFixed(2);
+        const montoPremio = parseFloat(t.premio_monto || t.premio || 0).toFixed(2);
+        const estado = String(t.status || t.estado || 'pendiente').toLowerCase();
 
         let badgeClass = 'bg-amber-900/50 text-amber-300 border-amber-700/50';
-        if (estado === 'premiado' || estado === 'ganador') badgeClass = 'bg-emerald-900/50 text-emerald-300 border-emerald-700/50';
-        if (estado === 'cancelado' || estado === 'anulado') badgeClass = 'bg-rose-900/50 text-rose-300 border-rose-700/50';
-        if (estado === 'no_premiado') badgeClass = 'bg-slate-700 text-slate-400 border-slate-600';
+        let estadoLabel = 'PENDIENTE';
+
+        if (estado === 'premiado' || estado === 'ganador') {
+            badgeClass = 'bg-emerald-900/50 text-emerald-300 border-emerald-700/50';
+            estadoLabel = 'PREMIADO';
+        } else if (estado === 'cancelado' || estado === 'anulado') {
+            badgeClass = 'bg-rose-900/50 text-rose-300 border-rose-700/50';
+            estadoLabel = 'CANCELADO';
+        } else if (estado === 'no_premiado' || estado === 'perdedor') {
+            badgeClass = 'bg-slate-700 text-slate-400 border-slate-600';
+            estadoLabel = 'NO PREMIADO';
+        }
 
         return `
             <tr class="border-b border-slate-700/40 hover:bg-slate-700/30 transition-all">
                 <td class="p-3 font-mono text-emerald-400 font-bold text-xs">${folio}</td>
                 <td class="p-3 text-xs text-slate-300">${fecha}</td>
-                <td class="p-3 text-xs text-slate-200">${t.banca_nombre || t.vendedor || `Banca #${t.banca_id || '1'}`}</td>
-                <td class="p-3 text-center text-xs font-mono text-slate-300">${(t.items || t.apuestas || []).length || 1} ap.</td>
-                <td class="p-3 text-right font-mono font-bold text-white text-xs">$${total}</td>
+                <td class="p-3 text-xs text-slate-200">${bancaNombre}</td>
+                <td class="p-3 text-center text-xs font-mono text-slate-300">${cantJugadas} ap.</td>
+                <td class="p-3 text-right font-mono font-bold text-white text-xs">$${montoVenta}</td>
+                <td class="p-3 text-right font-mono font-bold text-emerald-400 text-xs">$${montoPremio}</td>
                 <td class="p-3 text-center">
-                    <span class="px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider ${badgeClass}">
-                        ${estado}
+                    <span class="px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider ${badgeClass}">
+                        ${estadoLabel}
                     </span>
                 </td>
                 <td class="p-3 text-center">
-                    <button onclick="if(typeof showTicketModal === 'function') showTicketModal('${folio}')" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs px-2.5 py-1 rounded-lg transition-colors">
-                        <i class="fa-solid fa-eye mr-1"></i> Ver
-                    </button>
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button onclick="window.verTicketHistorial('${folio}')" title="Ver Detalle" class="bg-slate-700 hover:bg-slate-600 text-slate-200 p-1.5 rounded-lg transition-colors text-xs">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                        <button onclick="window.imprimirTicketHistorial('${folio}')" title="Reimprimir" class="bg-emerald-700/80 hover:bg-emerald-600 text-white p-1.5 rounded-lg transition-colors text-xs">
+                            <i class="fa-solid fa-print"></i>
+                        </button>
+                        <button onclick="window.compartirWhatsAppHistorial('${folio}')" title="Enviar WhatsApp" class="bg-green-600 hover:bg-green-500 text-white p-1.5 rounded-lg transition-colors text-xs">
+                            <i class="fa-brands fa-whatsapp"></i>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
     }).join('');
 }
 
-// Detectar apertura de la sección de tickets para cargar datos automáticamente
+// =================================================================
+// FUNCIONES GLOBALES DE ACCIONES EN TICKET (VER, IMPRIMIR, WHATSAPP)
+// =================================================================
+
+window.verTicketHistorial = function(folio) {
+    const ticket = ticketsCache.find(t => String(t.folio || t.ticket_id || t.id) === String(folio));
+    if (!ticket) {
+        alert("No se encontró el detalle del ticket seleccionado.");
+        return;
+    }
+
+    if (typeof window.showTicketModal === 'function') {
+        try {
+            // Asegurar estructura con items / apuestas
+            const ticketModalData = {
+                ...ticket,
+                items: ticket.items || ticket.apuestas || []
+            };
+            window.showTicketModal(ticketModalData);
+            return;
+        } catch (e) {
+            console.warn("Fallo showTicketModal por defecto, abriendo visualizador seguro:", e);
+        }
+    }
+
+    // Modal alternativo si showTicketModal presenta fallas
+    const itemsStr = (ticket.items || ticket.apuestas || [])
+        .map(i => `• ${i.numero || i.jugada || ''} (${i.tipo || 'Directo'}) - $${parseFloat(i.monto || 0).toFixed(2)}`)
+        .join('\n') || 'Sin detalles de apuestas.';
+
+    alert(`🎟️ TICKET #${ticket.folio || ticket.id}\nFecha: ${ticket.created_at}\nMonto: $${parseFloat(ticket.monto_total || ticket.monto || 0).toFixed(2)}\nEstado: ${(ticket.status || ticket.estado || 'PENDIENTE').toUpperCase()}\n\nJUGADAS:\n${itemsStr}`);
+};
+
+window.imprimirTicketHistorial = function(folio) {
+    const ticket = ticketsCache.find(t => String(t.folio || t.ticket_id || t.id) === String(folio));
+    if (!ticket) return alert("Ticket no encontrado.");
+
+    if (typeof window.imprimirTicketPOS === 'function') {
+        window.imprimirTicketPOS(ticket);
+    } else {
+        window.print();
+    }
+};
+
+window.compartirWhatsAppHistorial = function(folio) {
+    const ticket = ticketsCache.find(t => String(t.folio || t.ticket_id || t.id) === String(folio));
+    if (!ticket) return alert("Ticket no encontrado.");
+
+    const total = parseFloat(ticket.monto_total || ticket.monto || ticket.total || 0).toFixed(2);
+    const fecha = new Date(ticket.created_at || ticket.createdAt).toLocaleString('es-PA');
+    const estado = (ticket.status || ticket.estado || 'pendiente').toUpperCase();
+
+    let text = `🎟️ *COMPROBANTE DE TICKET - BUXYLOTO*\n`;
+    text += `*Folio:* #${ticket.folio || ticket.id}\n`;
+    text += `*Fecha:* ${fecha}\n`;
+    text += `*Estado:* ${estado}\n`;
+    text += `*Monto Total:* $${total}\n\n`;
+    text += `*Detalle de Jugadas:*\n`;
+
+    const items = ticket.items || ticket.apuestas || [];
+    if (items.length > 0) {
+        items.forEach(i => {
+            text += `• N° ${i.numero || i.jugada} - $${parseFloat(i.monto || 0).toFixed(2)} (${i.tipo || 'Directo'})\n`;
+        });
+    }
+
+    text += `\n¡Gracias por su preferencia! 🎰`;
+
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+};
+
+// Detectar apertura de secciones
 document.addEventListener('DOMContentLoaded', () => {
-    // Observador para sección de Reportes
     const reportSection = document.getElementById('section-reports');
     if (reportSection) {
         const observer = new MutationObserver((mutations) => {
@@ -499,7 +596,6 @@ document.addEventListener('DOMContentLoaded', () => {
         observer.observe(reportSection, { attributes: true });
     }
 
-    // Observador para sección de Tickets
     const ticketSection = document.getElementById('section-tickets');
     if (ticketSection) {
         const observerTickets = new MutationObserver((mutations) => {
@@ -513,7 +609,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Exponer funciones globalmente
+// Exportaciones globales
 window.initReportesModule = initReportesModule;
 window.generarReporte = generarReporte;
 window.limpiarFiltrosReportes = limpiarFiltrosReportes;

@@ -3043,20 +3043,21 @@ window.initPOSCart = initPOSCart;
             });
         }
 
-        function reprintTicket(folio) {
-            const t = AppState.tickets.find(x => x.folio === folio);
-            if (t) showTicketModal(t);
-        }
-
-        function cancelTicket(folio) {
-            if (confirm(`¿Desea cancelar el ticket ${folio}?`)) {
-                const t = AppState.tickets.find(x => x.folio === folio);
-                if (t) {
-                    t.status = 'cancelado';
-                    saveState();
-                }
+       async function cancelTicket(folio) {
+    // Invoca la función con sincronización en Supabase alojada en pos.js
+    if (typeof window.cancelarTicketPOS === 'function') {
+        await window.cancelarTicketPOS(folio);
+    } else {
+        // Fallback local en caso de que pos.js no se haya cargado
+        if (confirm(`¿Desea cancelar el ticket ${folio}?`)) {
+            const t = AppState.tickets?.find(x => x.folio === folio);
+            if (t) {
+                t.status = 'cancelado';
+                if (typeof saveState === 'function') saveState();
             }
         }
+    }
+}
 
         function renderResultsTable() {
     const tbody = document.getElementById('results-table-body') || document.getElementById('tabla-historial-resultados');
@@ -3557,6 +3558,13 @@ const supabase = createClient('https://ruruabsbkvfbudnqkjby.supabase.co', 'eyJhb
 
 <!-- 4. Lógica de Dashboard (cargada como módulo si usa export/import) -->
 <script type="module" src="js/dashboard.js"></script>
+<script>
+  // Helper global para restringir campos de entrada a solo números
+  window.inputNumbers = function(input) {
+    if (!input) return;
+    input.value = input.value.replace(/[^0-9]/g, '');
+  };
+</script>
 
 <!-- 5. Event Listeners e Inicialización Global de Módulos (POS y Control de Riesgos) -->
 <script type="module">

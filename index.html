@@ -2409,12 +2409,17 @@ window.initPOSCart = initPOSCart;
         }
 
         function showTicketModal(ticket) {
-    const cfg = AppState.ticketConfig || DEFAULT_STATE.ticketConfig;
-    const banca = AppState.bancas.find(b => b.id === ticket.bancaId);
-    const loteriaNames = ticket.loteriaIds.map(lId => {
-        const l = AppState.loterias.find(lot => lot.id === lId);
-        return l ? l.name : '';
-    }).join(' | ');
+    if (!ticket) return;
+
+    // Normalizar items/apuestas/jugadas para evitar el TypeError (.map)
+    let items = ticket.items || ticket.apuestas || ticket.jugadas || ticket.detalles || [];
+    if (typeof items === 'string') {
+        try { items = JSON.parse(items); } catch(e) { items = []; }
+    }
+    if (!Array.isArray(items)) items = [];
+    ticket.items = items;
+
+    // ... Continúa el resto del código de showTicketModal ...
 
     document.getElementById('ticket-view-company-name').textContent = cfg.companyName;
     document.getElementById('ticket-view-logo-icon').className = `fa-solid ${cfg.iconClass} text-emerald-600 text-base mr-1`;

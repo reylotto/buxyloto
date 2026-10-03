@@ -627,7 +627,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
 };
 /**
  * Cancela/Anula un ticket por su Codigo de Ticket, Folio o ID en Supabase
- * @param {string|number} folioOrId Código de ticket (ej. BX-682613) o ID
+ * @param {string|number} folioOrId Código de ticket (ej. BX-419776) o ID numérico
  */
 export async function cancelarTicketPOS(folioOrId) {
     if (!folioOrId) {
@@ -644,7 +644,6 @@ export async function cancelarTicketPOS(folioOrId) {
         let exito = false;
 
         if (supabase) {
-            // Actualizar todas las variaciones de la columna estatus/estado para sincronizar con Supabase
             const payload = { 
                 estatus: 'CANCELADO',
                 status: 'CANCELADO',
@@ -652,7 +651,13 @@ export async function cancelarTicketPOS(folioOrId) {
                 updated_at: new Date().toISOString()
             };
 
-            const queryFilter = `codigo_ticket.eq.${folioOrId},folio.eq.${folioOrId},id.eq.${folioOrId}`;
+            // Evaluar si es numérico puro para incluir o excluir la columna ID
+            const esNumeroPuro = !isNaN(folioOrId) && !isNaN(parseFloat(folioOrId));
+            
+            let queryFilter = `codigo_ticket.eq.${folioOrId},folio.eq.${folioOrId}`;
+            if (esNumeroPuro) {
+                queryFilter += `,id.eq.${folioOrId}`;
+            }
 
             const { data, error } = await supabase
                 .from('tickets')
@@ -668,7 +673,7 @@ export async function cancelarTicketPOS(folioOrId) {
             }
         }
 
-        // Actualizar copia local en el estado de la aplicación
+        // Sincronizar estado local en memoria
         if (window.AppState && Array.isArray(window.AppState.tickets)) {
             const ticketLocal = window.AppState.tickets.find(t => 
                 String(t.codigo_ticket) === String(folioOrId) ||

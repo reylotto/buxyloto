@@ -18,6 +18,41 @@ function getHoyYMD() {
 }
 
 /**
+ * Normaliza las jugadas/items de un ticket a un Array válido
+ */
+function normalizarItemsTicket(ticket) {
+    if (!ticket) return [];
+    let items = ticket.items || ticket.apuestas || ticket.jugadas || ticket.detalles || [];
+    if (typeof items === 'string') {
+        try {
+            items = JSON.parse(items);
+        } catch (e) {
+            items = [];
+        }
+    }
+    return Array.isArray(items) ? items : [];
+}
+
+/**
+ * Obtiene el nombre/código amigable de una banca dado su ID
+ */
+function obtenerNombreBanca(bancaId, ticket = {}) {
+    if (ticket.banca_nombre && !ticket.banca_nombre.includes('-')) return ticket.banca_nombre;
+    if (ticket.vendedor_nombre) return ticket.vendedor_nombre;
+    
+    const bancaEncontrada = bancasCache.find(b => String(b.id) === String(bancaId));
+    if (bancaEncontrada) {
+        return bancaEncontrada.nombre_banca || bancaEncontrada.nombre || bancaEncontrada.vendedor_nombre || `Banca #${bancaEncontrada.codigo || bancaEncontrada.id}`;
+    }
+    
+    // Si no hay nombre y es un UUID largo, acortarlo a formato legible
+    if (bancaId && String(bancaId).length > 8) {
+        return `Banca #${String(bancaId).substring(0, 6).toUpperCase()}`;
+    }
+    return `Banca #${bancaId || '1'}`;
+}
+
+/**
  * Inicializa el módulo de Balances Financieros
  */
 export async function initReportesModule() {
@@ -35,13 +70,12 @@ export async function initReportesModule() {
 }
 
 /**
- * Carga Loterías, Supervisores y Bancas de forma independiente
+ * Carga Loterías, Supervisores y Bancas
  */
 async function cargarFiltrosDesplegables() {
     const supabase = window.supabase;
     if (!supabase) return;
 
-    // 1. CARGAR BANCAS Y ZONAS
     try {
         const { data: bancas } = await supabase.from('bancas').select('*');
         if (bancas && bancas.length > 0) {
@@ -67,64 +101,6 @@ async function cargarFiltrosDesplegables() {
     } catch (e) {
         console.warn("Error cargando bancas:", e);
     }
-
-    // 2. CARGAR SUPERVISORES
-    try {
-        const supervisores = new Set();
-        const { data: usuarios } = await supabase.from('usuarios').select('*');
-        if (usuarios) {
-            usuarios.forEach(u => {
-                const rol = String(u.rol || u.role || u.tipo || '').toLowerCase();
-                if (rol.includes('superv') || rol.includes('admin')) {
-                    const nombreSup = u.nombre || u.usuario || u.vendedor_nombre;
-                    if (nombreSup) supervisores.add(nombreSup.trim());
-                }
-            });
-        }
-
-        if (bancasCache.length > 0) {
-            bancasCache.forEach(b => {
-                if (b.supervisor && String(b.supervisor).trim() !== '' && b.supervisor !== 'null') {
-                    supervisores.add(b.supervisor.trim());
-                }
-            });
-        }
-
-        const selSupervisor = document.getElementById('rep-filtro-supervisor');
-        if (selSupervisor) {
-            selSupervisor.innerHTML = '<option value="todos">Todos los supervisores</option>';
-            supervisores.forEach(sup => {
-                selSupervisor.innerHTML += `<option value="${sup}">${sup}</option>`;
-            });
-        }
-    } catch (e) {
-        console.warn("Error cargando supervisores:", e);
-    }
-
-    // 3. CARGAR LOTERÍAS
-    try {
-        let loterias = [];
-        const { data: lotData } = await supabase.from('loterias').select('*');
-        if (lotData && lotData.length > 0) {
-            loterias = lotData;
-        } else {
-            const { data: sortData } = await supabase.from('sorteos').select('*');
-            if (sortData && sortData.length > 0) loterias = sortData;
-        }
-
-        const selLoteria = document.getElementById('rep-filtro-loteria');
-        if (selLoteria) {
-            selLoteria.innerHTML = '<option value="todas">Todas las loterías</option>';
-            if (loterias.length > 0) {
-                loterias.forEach(l => {
-                    const nom = l.nombre || l.nombre_loteria || l.titulo || l.sorteo_nombre || `Lotería #${l.id}`;
-                    selLoteria.innerHTML += `<option value="${l.id}">${nom}</option>`;
-                });
-            }
-        }
-    } catch (e) {
-        console.warn("Error cargando loterías:", e);
-    }
 }
 
 /**
@@ -140,62 +116,34 @@ export async function generarReporte() {
     const fechaDesde = document.getElementById('rep-fecha-desde')?.value;
     const fechaHasta = document.getElementById('rep-fecha-hasta')?.value;
     const zona = document.getElementById('rep-filtro-zona')?.value;
-    const supervisor = document.getElementById('rep-filtro-supervisor')?.value;
-    const vendedorId = document.getElementById('rep-filtro-vendedor')?.value;
-    const loteriaId = document.getElementById('rep-filtro-loteria')?.value;
-    const tipoJugada = document.getElementById('rep-filtro-jugada')?.value;
 
     try {
         let query = supabase.from('tickets').select('*');
 
         if (fechaDesde) query = query.gte('created_at', `${fechaDesde}T00:00:00`);
         if (fechaHasta) query = query.lte('created_at', `${fechaHasta}T23:59:59`);
-        if (vendedorId && vendedorId !== 'todos') query = query.eq('banca_id', vendedorId);
-        if (loteriaId && loteriaId !== 'todas') query = query.eq('loteria_id', loteriaId);
 
         const { data: tickets, error } = await query;
         if (error) throw error;
 
         let resultados = tickets || [];
 
-        const bancasMap = {};
-        bancasCache.forEach(b => { bancasMap[b.id] = b; });
-
-        if (zona && zona !== 'todas') {
-            resultados = resultados.filter(t => bancasMap[t.banca_id]?.zona === zona);
-        }
-        if (supervisor && supervisor !== 'todos') {
-            resultados = resultados.filter(t => bancasMap[t.banca_id]?.supervisor === supervisor);
-        }
-        if (tipoJugada && tipoJugada !== 'todas') {
-            resultados = resultados.filter(t => String(t.tipo_jugada || '').toLowerCase().includes(tipoJugada.toLowerCase()));
-        }
-
         const agrupado = {};
-
         resultados.forEach(t => {
-            // Se omiten tickets cancelados en el cálculo financiero de balance activo si aplica
             const estado = String(t.status || t.estado || 'pendiente').toLowerCase();
             if (estado === 'cancelado' || estado === 'anulado') return;
 
             const fechaObj = new Date(t.created_at);
-            const fechaKey = fechaObj.toLocaleDateString('es-PA', {
-                weekday: 'short',
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit'
-            });
-            
-            const bInfo = bancasMap[t.banca_id] || {};
-            const bancaNombre = bInfo.nombre_banca || bInfo.vendedor_nombre || `Banca #${t.banca_id || 'N/A'}`;
+            const fechaKey = fechaObj.toLocaleDateString('es-PA');
+            const bancaNombre = obtenerNombreBanca(t.banca_id, t);
             const key = `${fechaKey}_${bancaNombre}`;
 
             if (!agrupado[key]) {
                 agrupado[key] = {
                     fecha: fechaKey,
                     vendedor: bancaNombre,
-                    zona: bInfo.zona || 'N/A',
-                    supervisor: bInfo.supervisor || 'N/A',
+                    zona: 'N/A',
+                    supervisor: 'N/A',
                     ticketsCount: 0,
                     venta: 0,
                     comision: 0,
@@ -218,22 +166,16 @@ export async function generarReporte() {
 
     } catch (err) {
         console.error("❌ Error al consultar reportes:", err);
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-rose-400">Error al consultar los registros en la base de datos.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-rose-400">Error al consultar los registros.</td></tr>`;
     }
 }
 
 function renderizarTablaReporte(datos) {
     const tbody = document.getElementById('reports-banca-table-body');
-    const cantElem = document.getElementById('cant-registros');
-    
-    let totalVentas = 0;
-    let totalComisiones = 0;
-    let totalPremios = 0;
+    if (!tbody) return;
 
     if (!datos || datos.length === 0) {
         tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-slate-500">No hay ventas registradas con los filtros seleccionados.</td></tr>`;
-        if (cantElem) cantElem.textContent = "0 Registros";
-        actualizarKPIs(0, 0, 0, 0);
         return;
     }
 
@@ -242,22 +184,18 @@ function renderizarTablaReporte(datos) {
         const balanceNeto = d.venta - d.comision - d.premios;
         const balanceClass = balanceNeto >= 0 ? 'text-emerald-400' : 'text-rose-400';
 
-        totalVentas += d.venta;
-        totalComisiones += d.comision;
-        totalPremios += d.premios;
-
         html += `
             <tr class="hover:bg-slate-700/30 transition-all border-b border-slate-700/40">
                 <td class="p-3 font-mono text-slate-300 capitalize">${d.fecha}</td>
                 <td class="p-3 font-bold text-white">${d.vendedor}</td>
-                <td class="p-3 text-slate-400">${d.zona} / <span class="text-slate-300">${d.supervisor}</span></td>
+                <td class="p-3 text-slate-400">${d.zona}</td>
                 <td class="p-3 text-center font-mono text-slate-300">${d.ticketsCount}</td>
                 <td class="p-3 text-right font-mono font-semibold text-emerald-400">$${d.venta.toFixed(2)}</td>
                 <td class="p-3 text-right font-mono text-amber-400">$${d.comision.toFixed(2)}</td>
                 <td class="p-3 text-right font-mono text-rose-400">$${d.premios.toFixed(2)}</td>
                 <td class="p-3 text-right font-mono font-bold ${balanceClass}">$${balanceNeto.toFixed(2)}</td>
                 <td class="p-3 text-center">
-                    <span class="bg-slate-700 text-slate-300 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
+                    <span class="bg-slate-700 text-slate-300 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase">
                         ${balanceNeto >= 0 ? 'A Favor Casa' : 'A Favor Banca'}
                     </span>
                 </td>
@@ -266,71 +204,12 @@ function renderizarTablaReporte(datos) {
     });
 
     tbody.innerHTML = html;
-    if (cantElem) cantElem.textContent = `${datos.length} Registros`;
-    
-    const totalNeto = totalVentas - totalComisiones - totalPremios;
-    actualizarKPIs(totalVentas, totalComisiones, totalPremios, totalNeto);
-}
-
-function actualizarKPIs(v, c, p, n) {
-    const vElem = document.getElementById('tot-ventas');
-    const cElem = document.getElementById('tot-comisiones');
-    const pElem = document.getElementById('tot-premios');
-    const rElem = document.getElementById('tot-resultado');
-
-    if (vElem) vElem.textContent = `$${v.toFixed(2)}`;
-    if (cElem) cElem.textContent = `$${c.toFixed(2)}`;
-    if (pElem) pElem.textContent = `$${p.toFixed(2)}`;
-    
-    if (rElem) {
-        rElem.textContent = `$${n.toFixed(2)}`;
-        rElem.className = `text-2xl font-bold mt-1 ${n >= 0 ? 'text-sky-400' : 'text-rose-400'}`;
-    }
-}
-
-export function limpiarFiltrosReportes() {
-    const hoyStr = getHoyYMD();
-    if (document.getElementById('rep-fecha-desde')) document.getElementById('rep-fecha-desde').value = hoyStr;
-    if (document.getElementById('rep-fecha-hasta')) document.getElementById('rep-fecha-hasta').value = hoyStr;
-    if (document.getElementById('rep-filtro-zona')) document.getElementById('rep-filtro-zona').value = 'todas';
-    if (document.getElementById('rep-filtro-supervisor')) document.getElementById('rep-filtro-supervisor').value = 'todos';
-    if (document.getElementById('rep-filtro-vendedor')) document.getElementById('rep-filtro-vendedor').value = 'todos';
-    if (document.getElementById('rep-filtro-loteria')) document.getElementById('rep-filtro-loteria').value = 'todas';
-    if (document.getElementById('rep-filtro-jugada')) document.getElementById('rep-filtro-jugada').value = 'todas';
-    generarReporte();
-}
-
-export function exportarReporteExcel() {
-    if (!reporteDataCache || reporteDataCache.length === 0) {
-        alert("No hay registros en pantalla para exportar.");
-        return;
-    }
-
-    let csv = "Fecha,Banca / Vendedor,Zona,Supervisor,Tickets,Venta Bruta,Comision,Premios,Balance Neto\n";
-    reporteDataCache.forEach(d => {
-        const net = d.venta - d.comision - d.premios;
-        csv += `"${d.fecha}","${d.vendedor}","${d.zona}","${d.supervisor}",${d.ticketsCount},${d.venta.toFixed(2)},${d.comision.toFixed(2)},${d.premios.toFixed(2)},${net.toFixed(2)}\n`;
-    });
-
-    const link = document.createElement("a");
-    link.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
-    link.download = `Cuadre_Financiero_${getHoyYMD()}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-export function exportarReportePDF() {
-    window.print();
 }
 
 // =================================================================
-// MÓDULO DE HISTORIAL DE TICKETS (INCLUYE CANCELADOS Y ACCIONES)
+// MÓDULO DE HISTORIAL DE TICKETS (ACCIONES: VER, IMPRIMIR, CANCELAR)
 // =================================================================
 
-/**
- * Inicializa los filtros y eventos de la vista de Historial de Tickets
- */
 export async function initTicketsHistoryModule() {
     console.log("🎟️ Inicializando Historial de Tickets...");
 
@@ -361,9 +240,6 @@ export async function initTicketsHistoryModule() {
     await cargarHistorialTickets();
 }
 
-/**
- * Consulta Supabase o AppState para obtener TODOS los tickets (incluyendo cancelados)
- */
 export async function cargarHistorialTickets() {
     const tbody = document.getElementById('tickets-table-body') || document.getElementById('tickets-list-body');
     const dateFromVal = document.getElementById('tickets-date-from')?.value || getHoyYMD();
@@ -389,7 +265,7 @@ export async function cargarHistorialTickets() {
                 return;
             }
         } catch (e) {
-            console.warn("Error consultando tickets en Supabase, usando AppState:", e);
+            console.warn("Error en Supabase, usando estado local:", e);
         }
     }
 
@@ -406,9 +282,6 @@ export async function cargarHistorialTickets() {
     filtrarYRenderizarTicketsLocal();
 }
 
-/**
- * Filtra localmente por folio/búsqueda y estado
- */
 function filtrarYRenderizarTicketsLocal() {
     const searchVal = (document.getElementById('tickets-search-input')?.value || '').toLowerCase().trim();
     const statusVal = document.getElementById('tickets-status-filter')?.value || 'all';
@@ -428,18 +301,14 @@ function filtrarYRenderizarTicketsLocal() {
     if (searchVal !== '') {
         filtrados = filtrados.filter(t => {
             const folio = String(t.folio || t.ticket_id || t.id || '').toLowerCase();
-            const banca = String(t.banca_nombre || t.vendedor || '').toLowerCase();
-            const items = JSON.stringify(t.items || t.apuestas || '').toLowerCase();
-            return folio.includes(searchVal) || banca.includes(searchVal) || items.includes(searchVal);
+            const banca = String(obtenerNombreBanca(t.banca_id, t)).toLowerCase();
+            return folio.includes(searchVal) || banca.includes(searchVal);
         });
     }
 
     renderizarTablaTickets(filtrados);
 }
 
-/**
- * Renderiza la tabla de tickets manteniendo exactitud con los 8 encabezados
- */
 function renderizarTablaTickets(lista) {
     const tbody = document.getElementById('tickets-table-body') || document.getElementById('tickets-list-body');
     if (!tbody) return;
@@ -448,19 +317,24 @@ function renderizarTablaTickets(lista) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="8" class="text-center py-8 text-slate-400">
-                    No se encontraron tickets registrados en el rango de fechas o filtros seleccionados.
+                    No se encontraron tickets registrados con los filtros seleccionados.
                 </td>
             </tr>`;
         return;
     }
 
-    tbody.innerHTML = lista.map(t => {
+    tbody.innerHTML = lista.map((t, idx) => {
+        const uniqueId = t.id || t.folio || idx;
         const fechaObj = new Date(t.created_at || t.createdAt);
         const fecha = isNaN(fechaObj) ? 'N/A' : fechaObj.toLocaleString('es-PA', { dateStyle: 'short', timeStyle: 'short' });
-        const folio = t.folio || t.ticket_id || t.id || 'N/A';
-        const bancaNombre = t.banca_nombre || t.vendedor || `Banca #${t.banca_id || '1'}`;
-        const cantJugadas = Array.isArray(t.items) ? t.items.length : (Array.isArray(t.apuestas) ? t.apuestas.length : 1);
         
+        // Folio de ticket legible
+        const folioDisplay = t.folio || t.ticket_numero || t.numero || `#${String(uniqueId).substring(0, 8)}`;
+        const bancaNombre = obtenerNombreBanca(t.banca_id, t);
+        
+        const items = normalizarItemsTicket(t);
+        const cantJugadas = items.length > 0 ? items.length : 1;
+
         const montoVenta = parseFloat(t.monto_total || t.monto || t.total || 0).toFixed(2);
         const montoPremio = parseFloat(t.premio_monto || t.premio || 0).toFixed(2);
         const estado = String(t.status || t.estado || 'pendiente').toLowerCase();
@@ -479,9 +353,11 @@ function renderizarTablaTickets(lista) {
             estadoLabel = 'NO PREMIADO';
         }
 
+        const esCancelado = estado === 'cancelado' || estado === 'anulado';
+
         return `
             <tr class="border-b border-slate-700/40 hover:bg-slate-700/30 transition-all">
-                <td class="p-3 font-mono text-emerald-400 font-bold text-xs">${folio}</td>
+                <td class="p-3 font-mono text-emerald-400 font-bold text-xs">${folioDisplay}</td>
                 <td class="p-3 text-xs text-slate-300">${fecha}</td>
                 <td class="p-3 text-xs text-slate-200">${bancaNombre}</td>
                 <td class="p-3 text-center text-xs font-mono text-slate-300">${cantJugadas} ap.</td>
@@ -494,15 +370,21 @@ function renderizarTablaTickets(lista) {
                 </td>
                 <td class="p-3 text-center">
                     <div class="flex items-center justify-center gap-1.5">
-                        <button onclick="window.verTicketHistorial('${folio}')" title="Ver Detalle" class="bg-slate-700 hover:bg-slate-600 text-slate-200 p-1.5 rounded-lg transition-colors text-xs">
+                        <button onclick="window.verTicketHistorial('${uniqueId}')" title="Ver Detalle Ticket" class="bg-slate-700 hover:bg-slate-600 text-slate-200 p-1.5 rounded-lg transition-colors text-xs">
                             <i class="fa-solid fa-eye"></i>
                         </button>
-                        <button onclick="window.imprimirTicketHistorial('${folio}')" title="Reimprimir" class="bg-emerald-700/80 hover:bg-emerald-600 text-white p-1.5 rounded-lg transition-colors text-xs">
+                        <button onclick="window.imprimirTicketHistorial('${uniqueId}')" title="Reimprimir Ticket" class="bg-emerald-700/80 hover:bg-emerald-600 text-white p-1.5 rounded-lg transition-colors text-xs">
                             <i class="fa-solid fa-print"></i>
                         </button>
-                        <button onclick="window.compartirWhatsAppHistorial('${folio}')" title="Enviar WhatsApp" class="bg-green-600 hover:bg-green-500 text-white p-1.5 rounded-lg transition-colors text-xs">
-                            <i class="fa-brands fa-whatsapp"></i>
+                        ${!esCancelado ? `
+                        <button onclick="window.cancelarTicketHistorial('${uniqueId}')" title="Anular / Cancelar Ticket" class="bg-rose-700/80 hover:bg-rose-600 text-white p-1.5 rounded-lg transition-colors text-xs">
+                            <i class="fa-solid fa-ban"></i>
                         </button>
+                        ` : `
+                        <button disabled title="Ticket ya cancelado" class="bg-slate-800 text-slate-600 p-1.5 rounded-lg cursor-not-allowed text-xs">
+                            <i class="fa-solid fa-ban"></i>
+                        </button>
+                        `}
                     </div>
                 </td>
             </tr>
@@ -511,99 +393,176 @@ function renderizarTablaTickets(lista) {
 }
 
 // =================================================================
-// FUNCIONES GLOBALES DE ACCIONES EN TICKET (VER, IMPRIMIR, WHATSAPP)
+// FUNCIONES GLOBALES DE ACCIONES EN TICKET (VER, IMPRIMIR, CANCELAR)
 // =================================================================
 
-window.verTicketHistorial = function(folio) {
-    const ticket = ticketsCache.find(t => String(t.folio || t.ticket_id || t.id) === String(folio));
+/**
+ * Busca un ticket en el caché por su ID o Folio exacto
+ */
+function buscarTicketEnCache(targetId) {
+    return ticketsCache.find(t => 
+        String(t.id) === String(targetId) || 
+        String(t.folio) === String(targetId) ||
+        String(t.ticket_numero) === String(targetId)
+    );
+}
+
+window.verTicketHistorial = function(uniqueId) {
+    const ticket = buscarTicketEnCache(uniqueId);
     if (!ticket) {
         alert("No se encontró el detalle del ticket seleccionado.");
         return;
     }
 
+    const items = normalizarItemsTicket(ticket);
+    const ticketNormalizado = {
+        ...ticket,
+        folio: ticket.folio || ticket.ticket_numero || ticket.id,
+        items: items,
+        apuestas: items,
+        banca_nombre: obtenerNombreBanca(ticket.banca_id, ticket)
+    };
+
     if (typeof window.showTicketModal === 'function') {
         try {
-            // Asegurar estructura con items / apuestas
-            const ticketModalData = {
-                ...ticket,
-                items: ticket.items || ticket.apuestas || []
-            };
-            window.showTicketModal(ticketModalData);
+            window.showTicketModal(ticketNormalizado);
             return;
         } catch (e) {
-            console.warn("Fallo showTicketModal por defecto, abriendo visualizador seguro:", e);
+            console.warn("Fallo showTicketModal por defecto, utilizando modal de respaldo:", e);
         }
     }
 
-    // Modal alternativo si showTicketModal presenta fallas
-    const itemsStr = (ticket.items || ticket.apuestas || [])
-        .map(i => `• ${i.numero || i.jugada || ''} (${i.tipo || 'Directo'}) - $${parseFloat(i.monto || 0).toFixed(2)}`)
-        .join('\n') || 'Sin detalles de apuestas.';
-
-    alert(`🎟️ TICKET #${ticket.folio || ticket.id}\nFecha: ${ticket.created_at}\nMonto: $${parseFloat(ticket.monto_total || ticket.monto || 0).toFixed(2)}\nEstado: ${(ticket.status || ticket.estado || 'PENDIENTE').toUpperCase()}\n\nJUGADAS:\n${itemsStr}`);
+    // Modal térmico de respaldo
+    mostrarModalTermicoRespaldo(ticketNormalizado);
 };
 
-window.imprimirTicketHistorial = function(folio) {
-    const ticket = ticketsCache.find(t => String(t.folio || t.ticket_id || t.id) === String(folio));
-    if (!ticket) return alert("Ticket no encontrado.");
+window.imprimirTicketHistorial = function(uniqueId) {
+    const ticket = buscarTicketEnCache(uniqueId);
+    if (!ticket) return alert("Ticket no encontrado para imprimir.");
 
-    if (typeof window.imprimirTicketPOS === 'function') {
-        window.imprimirTicketPOS(ticket);
-    } else {
-        window.print();
-    }
-};
-
-window.compartirWhatsAppHistorial = function(folio) {
-    const ticket = ticketsCache.find(t => String(t.folio || t.ticket_id || t.id) === String(folio));
-    if (!ticket) return alert("Ticket no encontrado.");
-
-    const total = parseFloat(ticket.monto_total || ticket.monto || ticket.total || 0).toFixed(2);
+    const items = normalizarItemsTicket(ticket);
+    const bancaNom = obtenerNombreBanca(ticket.banca_id, ticket);
+    const folio = ticket.folio || ticket.ticket_numero || ticket.id;
     const fecha = new Date(ticket.created_at || ticket.createdAt).toLocaleString('es-PA');
-    const estado = (ticket.status || ticket.estado || 'pendiente').toUpperCase();
+    const total = parseFloat(ticket.monto_total || ticket.monto || 0).toFixed(2);
 
-    let text = `🎟️ *COMPROBANTE DE TICKET - BUXYLOTO*\n`;
-    text += `*Folio:* #${ticket.folio || ticket.id}\n`;
-    text += `*Fecha:* ${fecha}\n`;
-    text += `*Estado:* ${estado}\n`;
-    text += `*Monto Total:* $${total}\n\n`;
-    text += `*Detalle de Jugadas:*\n`;
+    let itemsHtml = items.map(i => `
+        <div style="display:flex; justify-content:space-between; margin: 3px 0; font-size:12px;">
+            <span>${i.numero || i.jugada || ''} (${i.tipo || 'Directo'})</span>
+            <span>$${parseFloat(i.monto || 0).toFixed(2)}</span>
+        </div>
+    `).join('');
 
-    const items = ticket.items || ticket.apuestas || [];
-    if (items.length > 0) {
-        items.forEach(i => {
-            text += `• N° ${i.numero || i.jugada} - $${parseFloat(i.monto || 0).toFixed(2)} (${i.tipo || 'Directo'})\n`;
-        });
-    }
-
-    text += `\n¡Gracias por su preferencia! 🎰`;
-
-    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
+    const printWindow = window.open('', '_blank', 'width=350,height=500');
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>Ticket #${folio}</title>
+                <style>
+                    body { font-family: 'Courier New', Courier, monospace; width: 280px; padding: 10px; margin: auto; font-size: 12px; }
+                    .center { text-align: center; }
+                    .bold { font-weight: bold; }
+                    .line { border-bottom: 1px dashed #000; margin: 8px 0; }
+                    .total { font-size: 14px; text-align: right; margin-top: 10px; }
+                </style>
+            </head>
+            <body>
+                <div class="center bold" style="font-size:16px;">BUXYLOTO POS</div>
+                <div class="center">${bancaNom}</div>
+                <div class="line"></div>
+                <div><b>TICKET:</b> #${folio}</div>
+                <div><b>FECHA:</b> ${fecha}</div>
+                <div><b>ESTADO:</b> ${(ticket.status || ticket.estado || 'PENDIENTE').toUpperCase()}</div>
+                <div class="line"></div>
+                <div class="bold">JUGADAS / APUESTAS</div>
+                ${itemsHtml}
+                <div class="line"></div>
+                <div class="total bold">TOTAL: $${total}</div>
+                <div class="line"></div>
+                <div class="center" style="font-size:10px; margin-top:15px;">¡GRACIAS POR SU COMPRA!<br>Conserve este boleto.</div>
+                <script>
+                    window.onload = function() { window.print(); setTimeout(() => window.close(), 500); };
+                </script>
+            </body>
+        </html>
+    `);
+    printWindow.document.close();
 };
+
+window.cancelarTicketHistorial = async function(uniqueId) {
+    const ticket = buscarTicketEnCache(uniqueId);
+    if (!ticket) return alert("Ticket no encontrado.");
+
+    const folio = ticket.folio || ticket.ticket_numero || ticket.id;
+
+    if (typeof window.cancelarTicketPOS === 'function') {
+        await window.cancelarTicketPOS(folio);
+    } else {
+        const conf = confirm(`¿Está seguro de que desea cancelar el ticket #${folio}?`);
+        if (!conf) return;
+
+        const supabase = window.supabase;
+        if (supabase) {
+            await supabase.from('tickets').update({ status: 'cancelado', estado: 'cancelado' }).or(`folio.eq.${folio},id.eq.${folio}`);
+        }
+        alert(`Ticket #${folio} cancelado correctamente.`);
+        cargarHistorialTickets();
+    }
+};
+
+function mostrarModalTermicoRespaldo(ticket) {
+    const items = normalizarItemsTicket(ticket);
+    const total = parseFloat(ticket.monto_total || ticket.monto || 0).toFixed(2);
+    const fecha = new Date(ticket.created_at || ticket.createdAt).toLocaleString('es-PA');
+
+    const modal = document.createElement('div');
+    modal.className = "fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4";
+    modal.onclick = (e) => { if(e.target === modal) modal.remove(); };
+
+    modal.innerHTML = `
+        <div class="bg-slate-900 border border-slate-700 text-white rounded-xl p-6 max-w-sm w-full font-mono shadow-2xl">
+            <div class="text-center border-b border-slate-700 pb-3 mb-3">
+                <h3 class="text-lg font-bold text-emerald-400">🎰 BUXYLOTO POS</h3>
+                <p class="text-xs text-slate-400">${ticket.banca_nombre}</p>
+            </div>
+            <div class="text-xs space-y-1 text-slate-300 border-b border-slate-700 pb-3 mb-3">
+                <p><b>FOLIO:</b> #${ticket.folio}</p>
+                <p><b>FECHA:</b> ${fecha}</p>
+                <p><b>ESTADO:</b> <span class="uppercase text-amber-400 font-bold">${ticket.status || ticket.estado || 'PENDIENTE'}</span></p>
+            </div>
+            <div class="text-xs space-y-1 mb-4">
+                <p class="font-bold border-b border-slate-800 pb-1">JUGADAS:</p>
+                ${items.map(i => `
+                    <div class="flex justify-between text-slate-200">
+                        <span>${i.numero || i.jugada} (${i.tipo || 'Directo'})</span>                         <span>$${parseFloat(i.monto || 0).toFixed(2)}</span>
+                    </div>
+                `).join('')}
+            </div>
+            <div class="text-right font-bold text-base text-emerald-400 border-t border-slate-700 pt-2 mb-4">
+                TOTAL: $${total}
+            </div>
+            <div class="flex gap-2">
+                <button onclick="window.imprimirTicketHistorial('${ticket.id || ticket.folio}'); this.closest('.fixed').remove();" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-lg text-xs font-sans font-bold">
+                    <i class="fa-solid fa-print mr-1"></i> Imprimir
+                </button>
+                <button onclick="this.closest('.fixed').remove();" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded-lg text-xs font-sans font-bold">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
 
 // Detectar apertura de secciones
 document.addEventListener('DOMContentLoaded', () => {
-    const reportSection = document.getElementById('section-reports');
-    if (reportSection) {
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.attributeName === 'class' && !reportSection.classList.contains('hidden')) {
-                    initReportesModule();
-                }
-            });
-        });
-        observer.observe(reportSection, { attributes: true });
-    }
-
     const ticketSection = document.getElementById('section-tickets');
     if (ticketSection) {
-        const observerTickets = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.attributeName === 'class' && !ticketSection.classList.contains('hidden')) {
-                    initTicketsHistoryModule();
-                }
-            });
+        const observerTickets = new MutationObserver(() => {
+            if (!ticketSection.classList.contains('hidden')) {
+                initTicketsHistoryModule();
+            }
         });
         observerTickets.observe(ticketSection, { attributes: true });
     }
@@ -612,9 +571,5 @@ document.addEventListener('DOMContentLoaded', () => {
 // Exportaciones globales
 window.initReportesModule = initReportesModule;
 window.generarReporte = generarReporte;
-window.limpiarFiltrosReportes = limpiarFiltrosReportes;
-window.exportarReporteExcel = exportarReporteExcel;
-window.exportarReportePDF = exportarReportePDF;
-
 window.initTicketsHistoryModule = initTicketsHistoryModule;
 window.cargarHistorialTickets = cargarHistorialTickets;

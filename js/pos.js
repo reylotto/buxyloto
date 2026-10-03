@@ -631,7 +631,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
  */
 export async function cancelarTicketPOS(folioOrId) {
     if (!folioOrId) {
-        alert("Por favor ingrese un número de folio válido.");
+        alert("Por favor ingrese un número de folio o ID válido.");
         return;
     }
 
@@ -644,28 +644,37 @@ export async function cancelarTicketPOS(folioOrId) {
         let exito = false;
 
         if (supabase) {
-            // Datos a actualizar
             const payload = { 
                 status: 'CANCELADO',
-                estado: 'CANCELADO'
+                estado: 'CANCELADO',
+                updated_at: new Date().toISOString()
             };
 
-            // Intentar actualizar en Supabase
-            const { data, error } = await supabase
+            // 1. Intentar actualizar por folio o por id
+            let res = await supabase
                 .from('tickets')
                 .update(payload)
                 .or(`folio.eq.${folioOrId},id.eq.${folioOrId}`)
                 .select();
 
-            if (error) {
-                console.error("❌ Error al actualizar cancelación en Supabase:", error);
-            } else if (data && data.length > 0) {
+            // 2. Fallback: Si la consulta por folio falla, intentar directo por id
+            if (res.error && res.error.code === '42703') {
+                res = await supabase
+                    .from('tickets')
+                    .update(payload)
+                    .eq('id', folioOrId)
+                    .select();
+            }
+
+            if (!res.error && res.data && res.data.length > 0) {
                 console.log(`✅ Ticket #${folioOrId} marcado como CANCELADO en Supabase.`);
                 exito = true;
+            } else if (res.error) {
+                console.error("❌ Error al actualizar cancelación en Supabase:", res.error);
             }
         }
 
-        // Actualizar copia en el estado local si existe
+        // Sincronizar copia local en AppState
         if (window.AppState && Array.isArray(window.AppState.tickets)) {
             const ticketLocal = window.AppState.tickets.find(t => 
                 String(t.folio) === String(folioOrId) || String(t.id) === String(folioOrId)
@@ -679,7 +688,6 @@ export async function cancelarTicketPOS(folioOrId) {
 
         if (exito) {
             alert(`Ticket #${folioOrId} ha sido cancelado exitosamente.`);
-            
             if (typeof window.cargarHistorialTickets === 'function') {
                 window.cargarHistorialTickets();
             }

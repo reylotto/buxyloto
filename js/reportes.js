@@ -62,6 +62,7 @@ function normalizarItemsTicket(ticket) {
  * Obtiene el nombre/código amigable de una banca dado su ID o ticket
  */
 function obtenerNombreBanca(bancaId, ticket = {}) {
+    // 1. Si el ticket ya guardó un nombre de banca explícito
     if (ticket.banca_nombre && !ticket.banca_nombre.includes('-')) return ticket.banca_nombre;
     if (ticket.nombre_banca) return ticket.nombre_banca;
     if (ticket.vendedor_nombre) return ticket.vendedor_nombre;
@@ -75,18 +76,20 @@ function obtenerNombreBanca(bancaId, ticket = {}) {
 
     if (idBuscar) {
         const bancaEncontrada = listaBancas.find(b => 
-            String(b.id) === String(idBuscar) || 
-            String(b.codigo || b.code) === String(idBuscar)
+            String(b.id).toLowerCase() === String(idBuscar).toLowerCase() || 
+            String(b.codigo || b.code || b.numero).toLowerCase() === String(idBuscar).toLowerCase()
         );
         if (bancaEncontrada) {
-            return bancaEncontrada.nombre_banca || bancaEncontrada.nombre || bancaEncontrada.vendedor_nombre || `Banca #${bancaEncontrada.codigo || bancaEncontrada.id}`;
+            return bancaEncontrada.nombre_banca || bancaEncontrada.nombre || bancaEncontrada.vendedor_nombre || `Banca ${bancaEncontrada.codigo || bancaEncontrada.id}`;
         }
     }
     
-    if (idBuscar && String(idBuscar).length > 8) {
-        return `Banca #${String(idBuscar).substring(0, 6).toUpperCase()}`;
+    // Si la banca tiene número o código en el ticket
+    if (ticket.banca_numero || ticket.numero_banca) {
+        return `Banca ${ticket.banca_numero || ticket.numero_banca}`;
     }
-    return `Banca #${idBuscar || '1'}`;
+
+    return `Banca ${idBuscar || '1'}`;
 }
 
 /**

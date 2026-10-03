@@ -37,10 +37,23 @@ export function obtenerLimiteActualPOS() {
 window.obtenerLimiteActualPOS = obtenerLimiteActualPOS;
 
 export function setModoPOS(modo) {
-    window.modoJuegoActual = String(modo).toLowerCase();
+    const m = String(modo).toLowerCase();
+    window.modoJuegoActual = m;
+
     const inputNum = document.getElementById('pos-input-numbers');
-    if (inputNum) inputNum.value = '';
-    console.log(`🎮 Modo POS establecido en: ${window.modoJuegoActual.toUpperCase()}`);
+    if (inputNum) {
+        inputNum.value = ''; // Limpiar entrada
+        
+        // Ajustar maxlength del HTML permitiendo guiones adicionales (ej. 12-34 o 12-34-56)
+        if (m.includes('pale') || m.includes('palé')) {
+            inputNum.maxLength = 5; // 4 dígitos + 1 guión
+        } else if (m.includes('tripleta')) {
+            inputNum.maxLength = 8; // 6 dígitos + 2 guiones
+        } else {
+            inputNum.maxLength = 2; // Directo (2 dígitos)
+        }
+    }
+    console.log(`🎮 Modo POS activo: ${window.modoJuegoActual.toUpperCase()}`);
 }
 window.setModoPOS = setModoPOS;
 

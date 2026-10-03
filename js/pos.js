@@ -2,7 +2,13 @@
 // MÓDULO POS Y VENTA DELEGADA CON TICKET DIGITAL Y SUPABASE (js/pos.js)
 // ==========================================================
 
+// Variable global de modalidad activa
+window.modoJuegoActual = window.modoJuegoActual || 'directo';
+window.jugadasActuales = window.jugadasActuales || [];
+
+// ----------------------------------------------------------
 // 1. INICIALIZACIÓN DEL MÓDULO POS
+// ----------------------------------------------------------
 export function initPOSModule() {
     console.log("🚀 Módulo POS Inicializado correctamente.");
     ejecutarCargaConReintento();
@@ -20,7 +26,48 @@ function ejecutarCargaConReintento(intentos = 0) {
 }
 
 // ----------------------------------------------------------
-// 2. CARGA DE VENDEDORES Y BANCAS
+// 2. CONTROL DE MODALIDAD Y LÍMITE DE DÍGITOS
+// ----------------------------------------------------------
+export function obtenerLimiteActualPOS() {
+    const modo = (window.modoJuegoActual || 'directo').toLowerCase();
+    if (modo.includes('pale') || modo.includes('palé')) return 4;
+    if (modo.includes('tripleta')) return 6;
+    return 2; // Directo por defecto
+}
+window.obtenerLimiteActualPOS = obtenerLimiteActualPOS;
+
+export function setModoPOS(modo) {
+    window.modoJuegoActual = String(modo).toLowerCase();
+    const inputNum = document.getElementById('pos-input-numbers');
+    if (inputNum) inputNum.value = '';
+    console.log(`🎮 Modo POS establecido en: ${window.modoJuegoActual.toUpperCase()}`);
+}
+window.setModoPOS = setModoPOS;
+
+export function validarJugadaCompleta(num, modo) {
+    const digitos = String(num || '').replace(/\D/g, '');
+    const m = (modo || window.modoJuegoActual || 'directo').toLowerCase();
+    let requeridos = 2;
+    let nombreModo = "Directo";
+
+    if (m.includes('pale') || m.includes('palé')) {
+        requeridos = 4;
+        nombreModo = "Palé";
+    } else if (m.includes('tripleta')) {
+        requeridos = 6;
+        nombreModo = "Tripleta";
+    }
+
+    if (digitos.length !== requeridos) {
+        alert(`⚠️ JUGADA INCOMPLETA: Un ${nombreModo} debe tener EXACTAMENTE ${requeridos} dígitos.`);
+        return false;
+    }
+    return true;
+}
+window.validarJugadaCompleta = validarJugadaCompleta;
+
+// ----------------------------------------------------------
+// 3. CARGA DE VENDEDORES Y BANCAS
 // ----------------------------------------------------------
 export async function cargarListaVendedores() {
     const selectVendedor = document.getElementById('select-vendedor-asignado');
@@ -69,14 +116,13 @@ export function obtenerIdVendedorAsignado() {
 window.obtenerIdVendedorAsignado = obtenerIdVendedorAsignado;
 
 // ----------------------------------------------------------
-// 3. CARGA DE SORTEOS EN LA INTERFAZ DE VENTA POS (CON FILTRADO DE SEGURIDAD)
+// 4. CARGA DE SORTEOS EN LA INTERFAZ DE VENTA POS
 // ----------------------------------------------------------
 export async function cargarSorteosPOS() {
     try {
         const supabase = window.supabase;
         if (!supabase) return;
 
-        // Consultar todos los sorteos
         const { data: sorteos, error } = await supabase
             .from('sorteos')
             .select('*')
@@ -94,30 +140,26 @@ export async function cargarSorteosPOS() {
 
         const ahora = new Date();
 
-        // Filtrar estrictamente los sorteos disponibles para la venta
         const sorteosDisponibles = sorteos.filter(s => {
             const estatus = String(s.estatus || s.estado || '').toLowerCase();
 
-            // REGLA A: Si ya fue cerrado, escrutado o finalizado, ocultar
             if (estatus === 'cerrado' || estatus === 'finalizado' || estatus === 'escrutado') {
                 return false;
             }
 
-            // REGLA B: Si ya tiene números ganadores registrados en p1 o primer_premio, ocultar
             const tieneP1 = s.p1 && String(s.p1).trim() !== '' && String(s.p1).trim() !== '--';
             const tienePremio = s.primer_premio && String(s.primer_premio).trim() !== '';
             if (tieneP1 || tienePremio) {
                 return false;
             }
 
-            // REGLA C: Validar hora límite de cierre
             if (s.hora_cierre) {
                 const [horas, minutos] = s.hora_cierre.split(':');
                 const fechaCierre = new Date();
                 fechaCierre.setHours(parseInt(horas, 10), parseInt(minutos, 10), 0, 0);
 
                 if (ahora >= fechaCierre) {
-                    return false; // Ya pasó la hora límite de cierre
+                    return false;
                 }
             }
 
@@ -142,7 +184,6 @@ export async function cargarSorteosPOS() {
             contCheckboxes.appendChild(label);
         });
 
-        // Listener para actualizar resumen cuando cambie la selección
         contCheckboxes.removeEventListener('change', actualizarResumenSorteos);
         contCheckboxes.addEventListener('change', actualizarResumenSorteos);
 
@@ -151,7 +192,7 @@ export async function cargarSorteosPOS() {
     }
 }
 window.cargarSorteosPOS = cargarSorteosPOS;
-window.renderizarSorteosPOS = cargarSorteosPOS; // Alias para compatibilidad con app.js
+window.renderizarSorteosPOS = cargarSorteosPOS;
 
 function actualizarResumenSorteos() {
     const seleccionados = document.querySelectorAll('input[name="pos-sorteos-selected"]:checked');
@@ -171,10 +212,8 @@ function actualizarResumenSorteos() {
 window.actualizarResumenSorteos = actualizarResumenSorteos;
 
 // ----------------------------------------------------------
-// 4. GESTIÓN DEL CARRITO DE JUGADAS LOCAL
+// 5. GESTIÓN DEL CARRITO DE JUGADAS LOCAL
 // ----------------------------------------------------------
-window.jugadasActuales = [];
-
 function agregarJugadaAlCarrito(e) {
     if (e) e.preventDefault();
     const inputNumero = document.getElementById('pos-input-numbers');
@@ -182,17 +221,27 @@ function agregarJugadaAlCarrito(e) {
 
     const num = inputNumero ? inputNumero.value.trim() : '';
     const mnt = inputMonto ? parseFloat(inputMonto.value) : 0;
+    const modo = window.modoJuegoActual || 'directo';
 
     if (!num) {
-        alert("⚠️️ Ingrese un número para la jugada.");
+        alert("⚠️ Ingrese un número para la jugada.");
         return;
     }
+
+    if (!validarJugadaCompleta(num, modo)) {
+        return;
+    }
+
     if (isNaN(mnt) || mnt <= 0) {
         alert("⚠️ Ingrese un monto válido.");
         return;
     }
 
-    window.jugadasActuales.push({ numero: num, monto: mnt });
+    window.jugadasActuales.push({ 
+        numero: num, 
+        monto: mnt,
+        tipo: modo
+    });
 
     if (inputNumero) inputNumero.value = '';
     renderizarCarrito();
@@ -226,6 +275,7 @@ function renderizarCarrito() {
             <div class="flex justify-between items-center bg-slate-800 p-2.5 rounded-lg border border-slate-700 text-xs">
                 <div>
                     <span class="font-mono font-bold text-emerald-400 text-sm">#${j.numero}</span>
+                    <span class="text-[10px] text-slate-400 uppercase ml-2">(${j.tipo || 'directo'})</span>
                 </div>
                 <div class="flex items-center gap-3">
                     <span class="font-mono font-bold text-white">$${j.monto.toFixed(2)}</span>
@@ -248,11 +298,81 @@ window.eliminarJugada = function(index) {
 };
 
 // ----------------------------------------------------------
-// 5. ACTIVACIÓN DE EVENTOS E INTERFAZ POS
+// 6. TECLADO NUMÉRICO ANTI-DUPLICACIÓN (MANDATORIO)
+// ----------------------------------------------------------
+let ultimoToqueTeclado = 0;
+
+if (!window.posKeypadGlobalHandlerInit) {
+    window.posKeypadGlobalHandlerInit = true;
+
+    // Listener global en fase de captura para evitar duplicados táctiles
+    document.addEventListener('pointerdown', (e) => {
+        const btn = e.target.closest('.pos-keypad-btn, #btn-pos-clear-input');
+        if (!btn) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const ahora = Date.now();
+        if (ahora - ultimoToqueTeclado < 220) return; // Anti-doble pulsación (220ms)
+        ultimoToqueTeclado = ahora;
+
+        const inputNum = document.getElementById('pos-input-numbers');
+        if (!inputNum) return;
+
+        if (btn.id === 'btn-pos-clear-input') {
+            inputNum.value = '';
+            return;
+        }
+
+        const maxDigitos = obtenerLimiteActualPOS();
+        const action = btn.dataset.action;
+        const val = btn.textContent.trim();
+        const soloNumeros = inputNum.value.replace(/\D/g, '');
+
+        if (action === 'backspace') {
+            inputNum.value = inputNum.value.slice(0, -1);
+        } else if (action === 'dash') {
+            if (inputNum.value.length > 0 && !inputNum.value.endsWith('-')) {
+                inputNum.value += '-';
+            }
+        } else if (!action) {
+            if (soloNumeros.length < maxDigitos) {
+                inputNum.value += val;
+            }
+        }
+    }, { capture: true });
+
+    // Cancelar el clic tradicional que los celulares emiten tras pointerdown
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.pos-keypad-btn, #btn-pos-clear-input')) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    }, { capture: true });
+}
+
+// ----------------------------------------------------------
+// 7. ACTIVACIÓN DE EVENTOS E INTERFAZ POS
 // ----------------------------------------------------------
 export function activarEventosPOS() {
-    // Botón Agregar Jugada (+)
-    const btnAdd = document.getElementById('btn-pos-add-item');
+    // Escuchar cambio de modalidad en pestañas/selectores
+    document.querySelectorAll('[data-modo], .tab-modo, .btn-modo, select#pos-select-modo').forEach(elem => {
+        const cambiarModo = () => {
+            const txt = (elem.value || elem.dataset.modo || elem.textContent || '').toLowerCase();
+            if (txt.includes('pale') || txt.includes('palé')) setModoPOS('pale');
+            else if (txt.includes('tripleta')) setModoPOS('tripleta');
+            else setModoPOS('directo');
+        };
+
+        elem.removeEventListener('click', cambiarModo);
+        elem.removeEventListener('change', cambiarModo);
+        elem.addEventListener('click', cambiarModo);
+        elem.addEventListener('change', cambiarModo);
+    });
+
+    // Botón Agregar Jugada (+ / Agregar)
+    const btnAdd = document.getElementById('btn-pos-add-item') || document.getElementById('btn-pos-add') || document.getElementById('btn-agregar-jugada');
     if (btnAdd) {
         const newBtnAdd = btnAdd.cloneNode(true);
         btnAdd.replaceWith(newBtnAdd);
@@ -262,168 +382,42 @@ export function activarEventosPOS() {
     // Botón Marcar Todos los Sorteos
     const btnSelectAll = document.getElementById('btn-select-all-loterias');
     if (btnSelectAll) {
-        btnSelectAll.addEventListener('click', (e) => {
+        btnSelectAll.onclick = (e) => {
             e.preventDefault();
             document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = true);
             actualizarResumenSorteos();
-        });
+        };
     }
 
     // Botón Limpiar Sorteos
     const btnClearAll = document.getElementById('btn-clear-all-loterias');
     if (btnClearAll) {
-        btnClearAll.addEventListener('click', (e) => {
+        btnClearAll.onclick = (e) => {
             e.preventDefault();
             document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = false);
             actualizarResumenSorteos();
-        });
+        };
     }
 
     // Botón Vaciar Carrito
     const btnClearCart = document.getElementById('btn-pos-clear-cart');
     if (btnClearCart) {
-        btnClearCart.addEventListener('click', (e) => {
+        btnClearCart.onclick = (e) => {
             e.preventDefault();
             window.jugadasActuales = [];
             renderizarCarrito();
-        });
+        };
     }
 
     // Botones de Monto Rápido
     document.querySelectorAll('.btn-quick-amount').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.onclick = (e) => {
             e.preventDefault();
             const amt = btn.dataset.amt;
             const inputAmount = document.getElementById('pos-input-amount');
             if (inputAmount && amt) inputAmount.value = amt;
-        });
+        };
     });
-
-    // 1. Función para detectar el límite dinámico según lo visible en la pantalla
-function obtenerLimiteActualPOS() {
-    // Si hay una variable global establecida
-    if (window.modoJuegoActual === 'pale') return 4;
-    if (window.modoJuegoActual === 'tripleta') return 6;
-
-    // Buscar el selector o botón activo en el DOM si la variable no existe
-    const activo = document.querySelector('.modo-btn-active, [data-modo].active, select#pos-select-modo');
-    if (activo) {
-        const val = (activo.value || activo.dataset.modo || activo.textContent || '').toLowerCase();
-        if (val.includes('pale') || val.includes('palé')) return 4;
-        if (val.includes('tripleta')) return 6;
-    }
-    
-    return 2; // Directo por defecto
-}
-
-// 2. Escuchar cambios en los botones o selector de modalidad (Directo, Palé, Tripleta)
-document.querySelectorAll('[data-modo], .tab-modo, .btn-modo, select#pos-select-modo').forEach(elem => {
-    const cambiarModo = () => {
-        const txt = (elem.value || elem.dataset.modo || elem.textContent || '').toLowerCase();
-        if (txt.includes('pale') || txt.includes('palé')) window.modoJuegoActual = 'pale';
-        else if (txt.includes('tripleta')) window.modoJuegoActual = 'tripleta';
-        else window.modoJuegoActual = 'directo';
-
-        const inputNum = document.getElementById('pos-input-numbers');
-        if (inputNum) inputNum.value = ''; // Limpiar el input al cambiar de modo
-    };
-
-    elem.addEventListener('click', cambiarModo);
-    elem.addEventListener('change', cambiarModo);
-});
-
-// =================================================================
-// TECLADO NUMÉRICO BLINDADO (DELEGACIÓN ÚNICA + CANDADO DE 300ms)
-// =================================================================
-let ultimoToqueTeclado = 0;
-
-// Buscar el contenedor padre del teclado numérico
-const contenedorTeclado = document.querySelector('.pos-keypad-btn')?.parentElement?.parentElement || document;
-
-contenedorTeclado.addEventListener('click', (e) => {
-    // Buscar si el clic vino de un botón del teclado
-    const btn = e.target.closest('.pos-keypad-btn');
-    if (!btn) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Bloqueo estricto: Si pasaron menos de 300ms desde el último toque, ignorar
-    const ahora = Date.now();
-    if (ahora - ultimoToqueTeclado < 300) return;
-    ultimoToqueTeclado = ahora;
-
-    const inputNum = document.getElementById('pos-input-numbers');
-    if (!inputNum) return;
-
-    // Límite de dígitos según modalidad activa
-    const modo = window.modoJuegoActual || 'directo';
-    let maxDigitos = 2;
-    if (modo === 'pale') maxDigitos = 4;
-    if (modo === 'tripleta') maxDigitos = 6;
-
-    const action = btn.dataset.action;
-    const val = btn.textContent.trim();
-    const soloNumeros = inputNum.value.replace(/\D/g, '');
-
-    if (action === 'backspace') {
-        inputNum.value = inputNum.value.slice(0, -1);
-    } else if (action === 'dash') {
-        if (inputNum.value.length > 0 && !inputNum.value.endsWith('-')) {
-            inputNum.value += '-';
-        }
-    } else if (!action) {
-        if (soloNumeros.length < maxDigitos) {
-            inputNum.value += val;
-        }
-    }
-}, true); // Use capture phase para ganar prioridad sobre otros scripts
-
-
-// =================================================================
-// 2. VALIDACIÓN ESTRICTA: DÍGITOS EXACTOS AL AGREGAR JUGADA
-// =================================================================
-function validarJugadaCompleta() {
-    const inputNum = document.getElementById('pos-input-numbers');
-    if (!inputNum) return false;
-
-    const digitos = inputNum.value.replace(/\D/g, ''); // Extraer solo los números
-    const modo = window.modoJuegoActual || 'directo';
-
-    if (modo === 'directo' && digitos.length !== 2) {
-        alert('⚠️ JUGADA INCOMPLETA: Un Directo debe tener EXACTAMENTE 2 dígitos (Ej: 05).');
-        return false;
-    }
-
-    if (modo === 'pale' && digitos.length !== 4) {
-        alert('⚠️ JUGADA INCOMPLETA: Un Palé debe tener EXACTAMENTE 4 dígitos (Ej: 12-85).');
-        return false;
-    }
-
-    if (modo === 'tripleta' && digitos.length !== 6) {
-        alert('⚠️ JUGADA INCOMPLETA: Una Tripleta debe tener EXACTAMENTE 6 dígitos (Ej: 12-85-90).');
-        return false;
-    }
-
-    return true; // La jugada cumple con la cantidad exacta de dígitos
-}
-
-// Vincula esta función antes de guardar o procesar el ticket:
-// Ejemplo: al hacer clic en 'Agregar Jugada' o '+'
-const btnAgregarJugada = document.getElementById('btn-pos-add') || document.getElementById('btn-agregar-jugada');
-if (btnAgregarJugada) {
-    btnAgregarJugada.onclick = function(e) {
-        e.preventDefault();
-        
-        // Si no cumple con los dígitos exactos, se detiene la ejecución
-        if (!validarJugadaCompleta()) {
-            return;
-        }
-
-        // ... Tu lógica actual para agregar la jugada al ticket ...
-        console.log("✅ Jugada válida agregada correctamente.");
-    };
-}
 
     // Botón Principal: EMITIR TICKET
     const btnEmitir = document.getElementById('btn-pos-process-ticket');
@@ -439,7 +433,7 @@ if (btnAgregarJugada) {
 window.activarEventosPOS = activarEventosPOS;
 
 // ----------------------------------------------------------
-// 6. REGISTRO Y EMISIÓN EN SUPABASE
+// 8. REGISTRO Y EMISIÓN EN SUPABASE
 // ----------------------------------------------------------
 window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
     const supabase = window.supabase;
@@ -467,9 +461,13 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         const inputMnt = document.getElementById('pos-input-amount');
         const num = inputNum ? inputNum.value.trim() : '';
         const mnt = inputMnt ? parseFloat(inputMnt.value) : 0;
+        const modo = window.modoJuegoActual || 'directo';
 
         if (num && mnt > 0) {
-            jugadas.push({ numero: num, monto: mnt });
+            if (!validarJugadaCompleta(num, modo)) {
+                return;
+            }
+            jugadas.push({ numero: num, monto: mnt, tipo: modo });
         }
     }
 
@@ -490,7 +488,6 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
             const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
             const sorteoIdParsed = isNaN(sItem.id) ? sItem.id : parseInt(sItem.id, 10);
 
-            // Payload estándar completo
             const payloadTicket = {
                 codigo: codigoTicket,
                 codigo_ticket: codigoTicket,
@@ -512,12 +509,10 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
 
             console.log("📡 Registrando venta en Supabase:", payloadTicket);
 
-            // 1. Intento principal en la tabla 'tickets'
             let response = await supabase.from('tickets').insert([payloadTicket]).select();
             let ticketGuardado = response.data ? response.data[0] : null;
             let error = response.error;
 
-            // 2. Si falla por conflicto de columnas, intentar con esquema simplificado
             if (error) {
                 console.warn("Intentando esquema simplificado en 'tickets':", error.message);
                 const payloadLimpio = {
@@ -534,7 +529,6 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
                     error = null;
                     ticketGuardado = res2.data ? res2.data[0] : null;
                 } else {
-                    // 3. Reintento en la tabla 'ventas'
                     console.warn("Intentando en tabla 'ventas':", res2.error.message);
                     const resVentas = await supabase.from('ventas').insert([payloadLimpio]).select();
                     if (!resVentas.error) {
@@ -552,7 +546,6 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
                 return;
             }
 
-           // 4. Inserción opcional en tabla auxiliar 'jugadas'
             if (ticketGuardado && ticketGuardado.id) {
                 const idTicketNum = parseInt(ticketGuardado.id, 10);
 
@@ -590,7 +583,6 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
 
         alert(`🎉 ¡Venta realizada con éxito!\n\n🎟️ Tickets generados: ${ticketsProcesados.length}\n💰 Total: $${montoTotal.toFixed(2)}`);
 
-        // Resetear la interfaz del POS
         window.jugadasActuales = [];
         renderizarCarrito();
 
@@ -602,7 +594,6 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = false);
         actualizarResumenSorteos();
 
-        // Actualizar automáticamente los historiales de ventas disponibles
         if (typeof window.cargarHistorialTickets === 'function') {
             window.cargarHistorialTickets();
         } else if (typeof window.cargarVentas === 'function') {

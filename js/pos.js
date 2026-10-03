@@ -643,15 +643,17 @@ export async function cancelarTicketPOS(folioOrId) {
     try {
         let exito = false;
 
-        // 1. Si Supabase está conectado, actualizar la base de datos en la nube
         if (supabase) {
+            // Datos a actualizar
+            const payload = { 
+                status: 'CANCELADO',
+                estado: 'CANCELADO'
+            };
+
+            // Intentar actualizar en Supabase
             const { data, error } = await supabase
                 .from('tickets')
-                .update({ 
-                    status: 'CANCELADO',
-                    estado: 'CANCELADO',
-                    updated_at: new Date().toISOString()
-                })
+                .update(payload)
                 .or(`folio.eq.${folioOrId},id.eq.${folioOrId}`)
                 .select();
 
@@ -663,7 +665,7 @@ export async function cancelarTicketPOS(folioOrId) {
             }
         }
 
-        // 2. Actualizar la copia en el estado local de la aplicación (AppState)
+        // Actualizar copia en el estado local si existe
         if (window.AppState && Array.isArray(window.AppState.tickets)) {
             const ticketLocal = window.AppState.tickets.find(t => 
                 String(t.folio) === String(folioOrId) || String(t.id) === String(folioOrId)
@@ -678,24 +680,20 @@ export async function cancelarTicketPOS(folioOrId) {
         if (exito) {
             alert(`Ticket #${folioOrId} ha sido cancelado exitosamente.`);
             
-            // 3. Recargar la tabla del historial de tickets si está abierta la pestaña
             if (typeof window.cargarHistorialTickets === 'function') {
                 window.cargarHistorialTickets();
             }
-            
-            // 4. Actualizar métricas del dashboard si aplica
             if (typeof window.actualizarResumenDashboard === 'function') {
                 window.actualizarResumenDashboard();
             }
         } else {
-            alert("No se pudo encontrar el ticket para cancelar en la base de datos ni en el almacenamiento local.");
+            alert("No se pudo encontrar el ticket especificado para cancelar.");
         }
 
     } catch (err) {
         console.error("❌ Error inesperado al cancelar ticket:", err);
-        alert("Ocurrió un error al procesar la cancelación del ticket.");
+        alert("Ocurrió un error al procesar la cancelación.");
     }
 }
 
-// Exponer la función de cancelación globalmente para usarla desde botones u onclick
 window.cancelarTicketPOS = cancelarTicketPOS;

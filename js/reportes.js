@@ -18,6 +18,31 @@ function getHoyYMD() {
 }
 
 /**
+ * Garantiza que bancasCache esté cargado independientemente del orden de navegación
+ */
+async function asegurarBancasCache() {
+    if (bancasCache.length > 0) return bancasCache;
+
+    if (window.AppState && Array.isArray(window.AppState.bancas) && window.AppState.bancas.length > 0) {
+        bancasCache = window.AppState.bancas;
+        return bancasCache;
+    }
+
+    const supabase = window.supabase;
+    if (supabase) {
+        try {
+            const { data: bancas } = await supabase.from('bancas').select('*');
+            if (bancas && bancas.length > 0) {
+                bancasCache = bancas;
+            }
+        } catch (e) {
+            console.warn("Error al cargar caché de bancas:", e);
+        }
+    }
+    return bancasCache;
+}
+
+/**
  * Normaliza las jugadas/items de un ticket a un Array válido
  */
 function normalizarItemsTicket(ticket) {
@@ -34,22 +59,34 @@ function normalizarItemsTicket(ticket) {
 }
 
 /**
- * Obtiene el nombre/código amigable de una banca dado su ID
+ * Obtiene el nombre/código amigable de una banca dado su ID o ticket
  */
 function obtenerNombreBanca(bancaId, ticket = {}) {
     if (ticket.banca_nombre && !ticket.banca_nombre.includes('-')) return ticket.banca_nombre;
+    if (ticket.nombre_banca) return ticket.nombre_banca;
     if (ticket.vendedor_nombre) return ticket.vendedor_nombre;
-    
-    const bancaEncontrada = bancasCache.find(b => String(b.id) === String(bancaId));
-    if (bancaEncontrada) {
-        return bancaEncontrada.nombre_banca || bancaEncontrada.nombre || bancaEncontrada.vendedor_nombre || `Banca #${bancaEncontrada.codigo || bancaEncontrada.id}`;
+    if (ticket.banca && typeof ticket.banca === 'string' && !ticket.banca.includes('-')) return ticket.banca;
+
+    const listaBancas = (bancasCache && bancasCache.length > 0) 
+        ? bancasCache 
+        : (window.AppState && window.AppState.bancas) || [];
+
+    const idBuscar = bancaId || ticket.banca_id || ticket.banca;
+
+    if (idBuscar) {
+        const bancaEncontrada = listaBancas.find(b => 
+            String(b.id) === String(idBuscar) || 
+            String(b.codigo || b.code) === String(idBuscar)
+        );
+        if (bancaEncontrada) {
+            return bancaEncontrada.nombre_banca || bancaEncontrada.nombre || bancaEncontrada.vendedor_nombre || `Banca #${bancaEncontrada.codigo || bancaEncontrada.id}`;
+        }
     }
     
-    // Si no hay nombre y es un UUID largo, acortarlo a formato legible
-    if (bancaId && String(bancaId).length > 8) {
-        return `Banca #${String(bancaId).substring(0, 6).toUpperCase()}`;
+    if (idBuscar && String(idBuscar).length > 8) {
+        return `Banca #${String(idBuscar).substring(0, 6).toUpperCase()}`;
     }
-    return `Banca #${bancaId || '1'}`;
+    return `Banca #${idBuscar || '1'}`;
 }
 
 /**
@@ -73,33 +110,26 @@ export async function initReportesModule() {
  * Carga Loterías, Supervisores y Bancas
  */
 async function cargarFiltrosDesplegables() {
-    const supabase = window.supabase;
-    if (!supabase) return;
+    await asegurarBancasCache();
 
-    try {
-        const { data: bancas } = await supabase.from('bancas').select('*');
-        if (bancas && bancas.length > 0) {
-            bancasCache = bancas;
-            const selVendedor = document.getElementById('rep-filtro-vendedor');
-            const selZona = document.getElementById('rep-filtro-zona');
+    if (bancasCache && bancasCache.length > 0) {
+        const selVendedor = document.getElementById('rep-filtro-vendedor');
+        const selZona = document.getElementById('rep-filtro-zona');
 
-            if (selVendedor) {
-                selVendedor.innerHTML = '<option value="todos">Todos los vendedores</option>';
-                bancas.forEach(b => {
-                    const nom = b.nombre_banca || b.vendedor_nombre || b.nombre || `Banca #${b.id}`;
-                    selVendedor.innerHTML += `<option value="${b.id}">${nom}</option>`;
-                });
-            }
-
-            if (selZona) {
-                const zonas = new Set();
-                bancas.forEach(b => { if (b.zona && String(b.zona).trim() !== '') zonas.add(b.zona.trim()); });
-                selZona.innerHTML = '<option value="todas">Todas las zonas</option>';
-                zonas.forEach(z => selZona.innerHTML += `<option value="${z}">${z}</option>`);
-            }
+        if (selVendedor) {
+            selVendedor.innerHTML = '<option value="todos">Todos los vendedores</option>';
+            bancasCache.forEach(b => {
+                const nom = b.nombre_banca || b.vendedor_nombre || b.nombre || `Banca #${b.id}`;
+                selVendedor.innerHTML += `<option value="${b.id}">${nom}</option>`;
+            });
         }
-    } catch (e) {
-        console.warn("Error cargando bancas:", e);
+
+        if (selZona) {
+            const zonas = new Set();
+            bancasCache.forEach(b => { if (b.zona && String(b.zona).trim() !== '') zonas.add(b.zona.trim()); });
+            selZona.innerHTML = '<option value="todas">Todas las zonas</option>';
+            zonas.forEach(z => selZona.innerHTML += `<option value="${z}">${z}</option>`);
+        }
     }
 }
 
@@ -109,32 +139,37 @@ async function cargarFiltrosDesplegables() {
 export async function generarReporte() {
     const supabase = window.supabase;
     const tbody = document.getElementById('reports-banca-table-body');
-    if (!supabase || !tbody) return;
+    if (!tbody) return;
 
     tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-emerald-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Consultando ventas en Supabase...</td></tr>`;
 
     const fechaDesde = document.getElementById('rep-fecha-desde')?.value;
     const fechaHasta = document.getElementById('rep-fecha-hasta')?.value;
-    const zona = document.getElementById('rep-filtro-zona')?.value;
+
+    await asegurarBancasCache();
 
     try {
-        let query = supabase.from('tickets').select('*');
+        let query = supabase ? supabase.from('tickets').select('*') : null;
+        let resultados = [];
 
-        if (fechaDesde) query = query.gte('created_at', `${fechaDesde}T00:00:00`);
-        if (fechaHasta) query = query.lte('created_at', `${fechaHasta}T23:59:59`);
+        if (query) {
+            if (fechaDesde) query = query.gte('created_at', `${fechaDesde}T00:00:00`);
+            if (fechaHasta) query = query.lte('created_at', `${fechaHasta}T23:59:59`);
 
-        const { data: tickets, error } = await query;
-        if (error) throw error;
-
-        let resultados = tickets || [];
+            const { data: tickets, error } = await query;
+            if (error) throw error;
+            resultados = tickets || [];
+        } else {
+            resultados = window.AppState?.tickets || [];
+        }
 
         const agrupado = {};
         resultados.forEach(t => {
             const estado = String(t.status || t.estado || 'pendiente').toLowerCase();
             if (estado === 'cancelado' || estado === 'anulado') return;
 
-            const fechaObj = new Date(t.created_at);
-            const fechaKey = fechaObj.toLocaleDateString('es-PA');
+            const fechaObj = new Date(t.created_at || t.createdAt);
+            const fechaKey = isNaN(fechaObj) ? getHoyYMD() : fechaObj.toLocaleDateString('es-PA');
             const bancaNombre = obtenerNombreBanca(t.banca_id, t);
             const key = `${fechaKey}_${bancaNombre}`;
 
@@ -249,6 +284,8 @@ export async function cargarHistorialTickets() {
         tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-emerald-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Cargando historial de tickets...</td></tr>`;
     }
 
+    await asegurarBancasCache();
+
     const supabase = window.supabase;
 
     if (supabase) {
@@ -328,7 +365,6 @@ function renderizarTablaTickets(lista) {
         const fechaObj = new Date(t.created_at || t.createdAt);
         const fecha = isNaN(fechaObj) ? 'N/A' : fechaObj.toLocaleString('es-PA', { dateStyle: 'short', timeStyle: 'short' });
         
-        // Folio de ticket legible
         const folioDisplay = t.folio || t.ticket_numero || t.numero || `#${String(uniqueId).substring(0, 8)}`;
         const bancaNombre = obtenerNombreBanca(t.banca_id, t);
         
@@ -359,7 +395,7 @@ function renderizarTablaTickets(lista) {
             <tr class="border-b border-slate-700/40 hover:bg-slate-700/30 transition-all">
                 <td class="p-3 font-mono text-emerald-400 font-bold text-xs">${folioDisplay}</td>
                 <td class="p-3 text-xs text-slate-300">${fecha}</td>
-                <td class="p-3 text-xs text-slate-200">${bancaNombre}</td>
+                <td class="p-3 text-xs text-slate-200 font-semibold">${bancaNombre}</td>
                 <td class="p-3 text-center text-xs font-mono text-slate-300">${cantJugadas} ap.</td>
                 <td class="p-3 text-right font-mono font-bold text-white text-xs">$${montoVenta}</td>
                 <td class="p-3 text-right font-mono font-bold text-emerald-400 text-xs">$${montoPremio}</td>
@@ -396,9 +432,6 @@ function renderizarTablaTickets(lista) {
 // FUNCIONES GLOBALES DE ACCIONES EN TICKET (VER, IMPRIMIR, CANCELAR)
 // =================================================================
 
-/**
- * Busca un ticket en el caché por su ID o Folio exacto
- */
 function buscarTicketEnCache(targetId) {
     return ticketsCache.find(t => 
         String(t.id) === String(targetId) || 
@@ -432,7 +465,6 @@ window.verTicketHistorial = function(uniqueId) {
         }
     }
 
-    // Modal térmico de respaldo
     mostrarModalTermicoRespaldo(ticketNormalizado);
 };
 
@@ -446,46 +478,41 @@ window.imprimirTicketHistorial = function(uniqueId) {
     const fecha = new Date(ticket.created_at || ticket.createdAt).toLocaleString('es-PA');
     const total = parseFloat(ticket.monto_total || ticket.monto || 0).toFixed(2);
 
-    let itemsHtml = items.map(i => `
-        <div style="display:flex; justify-content:space-between; margin: 3px 0; font-size:12px;">
-            <span>${i.numero || i.jugada || ''} (${i.tipo || 'Directo'})</span>
-            <span>$${parseFloat(i.monto || 0).toFixed(2)}</span>
-        </div>
-    `).join('');
+    let itemsHtml = items.map(i => {
+        const num = i.numero || i.jugada || '';
+        const tipo = i.tipo || 'Directo';
+        const monto = parseFloat(i.monto || 0).toFixed(2);
+        return '<div style="display:flex; justify-content:space-between; margin: 3px 0; font-size:12px;"><span>' + num + ' (' + tipo + ')</span><span>$' + monto + '</span></div>';
+    }).join('');
 
     const printWindow = window.open('', '_blank', 'width=350,height=500');
-    printWindow.document.write(`
-        <html>
-            <head>
-                <title>Ticket #${folio}</title>
-                <style>
-                    body { font-family: 'Courier New', Courier, monospace; width: 280px; padding: 10px; margin: auto; font-size: 12px; }
-                    .center { text-align: center; }
-                    .bold { font-weight: bold; }
-                    .line { border-bottom: 1px dashed #000; margin: 8px 0; }
-                    .total { font-size: 14px; text-align: right; margin-top: 10px; }
-                </style>
-            </head>
-            <body>
-                <div class="center bold" style="font-size:16px;">BUXYLOTO POS</div>
-                <div class="center">${bancaNom}</div>
-                <div class="line"></div>
-                <div><b>TICKET:</b> #${folio}</div>
-                <div><b>FECHA:</b> ${fecha}</div>
-                <div><b>ESTADO:</b> ${(ticket.status || ticket.estado || 'PENDIENTE').toUpperCase()}</div>
-                <div class="line"></div>
-                <div class="bold">JUGADAS / APUESTAS</div>
-                ${itemsHtml}
-                <div class="line"></div>
-                <div class="total bold">TOTAL: $${total}</div>
-                <div class="line"></div>
-                <div class="center" style="font-size:10px; margin-top:15px;">¡GRACIAS POR SU COMPRA!<br>Conserve este boleto.</div>
-                <script>
-                    window.onload = function() { window.print(); setTimeout(() => window.close(), 500); };
-                </script>
-            </body>
-        </html>
-    `);
+    if (!printWindow) return alert("Por favor permita las ventanas emergentes (popups) para imprimir.");
+
+    printWindow.document.write(
+        '<!DOCTYPE html><html><head><title>Ticket #' + folio + '</title>' +
+        '<style>' +
+        'body { font-family: "Courier New", Courier, monospace; width: 280px; padding: 10px; margin: auto; font-size: 12px; }' +
+        '.center { text-align: center; }' +
+        '.bold { font-weight: bold; }' +
+        '.line { border-bottom: 1px dashed #000; margin: 8px 0; }' +
+        '.total { font-size: 14px; text-align: right; margin-top: 10px; }' +
+        '</style></head><body>' +
+        '<div class="center bold" style="font-size:16px;">BUXYLOTO POS</div>' +
+        '<div class="center">' + bancaNom + '</div>' +
+        '<div class="line"></div>' +
+        '<div><b>TICKET:</b> #' + folio + '</div>' +
+        '<div><b>FECHA:</b> ' + fecha + '</div>' +
+        '<div><b>ESTADO:</b> ' + String(ticket.status || ticket.estado || 'PENDIENTE').toUpperCase() + '</div>' +
+        '<div class="line"></div>' +
+        '<div class="bold">JUGADAS / APUESTAS</div>' +
+        itemsHtml +
+        '<div class="line"></div>' +
+        '<div class="total bold">TOTAL: $' + total + '</div>' +
+        '<div class="line"></div>' +
+        '<div class="center" style="font-size:10px; margin-top:15px;">¡GRACIAS POR SU COMPRA!<br>Conserve este boleto.</div>' +
+        '<script>window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };<\/script>' +
+        '</body></html>'
+    );
     printWindow.document.close();
 };
 
@@ -503,7 +530,7 @@ window.cancelarTicketHistorial = async function(uniqueId) {
 
         const supabase = window.supabase;
         if (supabase) {
-            await supabase.from('tickets').update({ status: 'cancelado', estado: 'cancelado' }).or(`folio.eq.${folio},id.eq.${folio}`);
+            await supabase.from('tickets').update({ status: 'CANCELADO', estado: 'CANCELADO' }).or(`folio.eq.${folio},id.eq.${folio}`);
         }
         alert(`Ticket #${folio} cancelado correctamente.`);
         cargarHistorialTickets();
@@ -511,41 +538,49 @@ window.cancelarTicketHistorial = async function(uniqueId) {
 };
 
 function mostrarModalTermicoRespaldo(ticket) {
+    if (!ticket) return;
+
     const items = normalizarItemsTicket(ticket);
-    const total = parseFloat(ticket.monto_total || ticket.monto || 0).toFixed(2);
-    const fecha = new Date(ticket.created_at || ticket.createdAt).toLocaleString('es-PA');
+    const total = parseFloat(ticket.monto_total || ticket.monto || ticket.total || 0).toFixed(2);
+    const fecha = ticket.created_at || ticket.createdAt ? new Date(ticket.created_at || ticket.createdAt).toLocaleString('es-PA') : new Date().toLocaleString('es-PA');
+    const bancaNom = ticket.banca_nombre || obtenerNombreBanca(ticket.banca_id, ticket);
 
     const modal = document.createElement('div');
     modal.className = "fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4";
-    modal.onclick = (e) => { if(e.target === modal) modal.remove(); };
+    modal.onclick = (e) => { 
+        if (e.target === modal) modal.remove(); 
+    };
+
+    const itemsRows = items.map(i => {
+        const num = i.numero || i.jugada || '';
+        const tipo = i.tipo || 'Directo';
+        const monto = parseFloat(i.monto || 0).toFixed(2);
+        return '<div class="flex justify-between text-slate-200"><span>' + num + ' (' + tipo + ')</span><span>$' + monto + '</span></div>';
+    }).join('');
 
     modal.innerHTML = `
         <div class="bg-slate-900 border border-slate-700 text-white rounded-xl p-6 max-w-sm w-full font-mono shadow-2xl">
             <div class="text-center border-b border-slate-700 pb-3 mb-3">
                 <h3 class="text-lg font-bold text-emerald-400">🎰 BUXYLOTO POS</h3>
-                <p class="text-xs text-slate-400">${ticket.banca_nombre}</p>
+                <p class="text-xs text-slate-400">${bancaNom}</p>
             </div>
             <div class="text-xs space-y-1 text-slate-300 border-b border-slate-700 pb-3 mb-3">
-                <p><b>FOLIO:</b> #${ticket.folio}</p>
+                <p><b>FOLIO:</b> #${ticket.folio || ticket.id || ''}</p>
                 <p><b>FECHA:</b> ${fecha}</p>
                 <p><b>ESTADO:</b> <span class="uppercase text-amber-400 font-bold">${ticket.status || ticket.estado || 'PENDIENTE'}</span></p>
             </div>
             <div class="text-xs space-y-1 mb-4">
                 <p class="font-bold border-b border-slate-800 pb-1">JUGADAS:</p>
-                ${items.map(i => `
-                    <div class="flex justify-between text-slate-200">
-                        <span>${i.numero || i.jugada} (${i.tipo || 'Directo'})</span>                         <span>$${parseFloat(i.monto || 0).toFixed(2)}</span>
-                    </div>
-                `).join('')}
+                ${itemsRows}
             </div>
             <div class="text-right font-bold text-base text-emerald-400 border-t border-slate-700 pt-2 mb-4">
                 TOTAL: $${total}
             </div>
             <div class="flex gap-2">
-                <button onclick="window.imprimirTicketHistorial('${ticket.id || ticket.folio}'); this.closest('.fixed').remove();" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-lg text-xs font-sans font-bold">
+                <button id="btn-modal-print-respaldo" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-lg text-xs font-sans font-bold">
                     <i class="fa-solid fa-print mr-1"></i> Imprimir
                 </button>
-                <button onclick="this.closest('.fixed').remove();" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded-lg text-xs font-sans font-bold">
+                <button id="btn-modal-close-respaldo" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded-lg text-xs font-sans font-bold">
                     Cerrar
                 </button>
             </div>
@@ -553,6 +588,21 @@ function mostrarModalTermicoRespaldo(ticket) {
     `;
 
     document.body.appendChild(modal);
+
+    const btnPrint = document.getElementById('btn-modal-print-respaldo');
+    if (btnPrint) {
+        btnPrint.onclick = () => {
+            window.imprimirTicketHistorial(ticket.id || ticket.folio);
+            modal.remove();
+        };
+    }
+
+    const btnClose = document.getElementById('btn-modal-close-respaldo');
+    if (btnClose) {
+        btnClose.onclick = () => {
+            modal.remove();
+        };
+    }
 }
 
 // Detectar apertura de secciones

@@ -299,34 +299,37 @@ export function activarEventosPOS() {
         });
     });
 
-    // Teclado Numérico
-    document.querySelectorAll('.pos-keypad-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            const inputNum = document.getElementById('pos-input-numbers');
-            if (!inputNum) return;
+    // Teclado Numérico (Fix para evitar triple escritura)
+document.querySelectorAll('.pos-keypad-btn').forEach(btn => {
+    btn.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation(); // Evita que el toque rebote a elementos padre
 
-            const action = btn.dataset.action;
-            const val = btn.textContent.trim();
+        const inputNum = document.getElementById('pos-input-numbers');
+        if (!inputNum) return;
 
-            if (action === 'backspace') {
-                inputNum.value = inputNum.value.slice(0, -1);
-            } else if (action === 'dash') {
-                inputNum.value += '-';
-            } else if (!action) {
-                inputNum.value += val;
-            }
-        });
-    });
+        const action = this.dataset.action;
+        const val = this.textContent.trim();
 
-    const btnClearInput = document.getElementById('btn-pos-clear-input');
-    if (btnClearInput) {
-        btnClearInput.addEventListener('click', (e) => {
-            e.preventDefault();
-            const inputNum = document.getElementById('pos-input-numbers');
-            if (inputNum) inputNum.value = '';
-        });
-    }
+        if (action === 'backspace') {
+            inputNum.value = inputNum.value.slice(0, -1);
+        } else if (action === 'dash') {
+            inputNum.value += '-';
+        } else if (!action) {
+            inputNum.value += val;
+        }
+    };
+});
+
+const btnClearInput = document.getElementById('btn-pos-clear-input');
+if (btnClearInput) {
+    btnClearInput.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const inputNum = document.getElementById('pos-input-numbers');
+        if (inputNum) inputNum.value = '';
+    };
+}
 
     // Botón Principal: EMITIR TICKET
     const btnEmitir = document.getElementById('btn-pos-process-ticket');

@@ -21,8 +21,8 @@ export async function initGeolocalizacionModule() {
         return;
     }
 
-    // 1. Evitar reinicialización si el mapa ya existe en el DOM
-    if (mapaTerminales) {
+    // 1. Si el mapa ya existe en la variable, solo reajustamos el tamaño y cargamos los datos
+    if (mapaTerminales && mapContainer._leaflet_id) {
         setTimeout(() => {
             if (mapaTerminales) mapaTerminales.invalidateSize();
         }, 200);
@@ -30,12 +30,21 @@ export async function initGeolocalizacionModule() {
         return;
     }
 
+    // 2. BLINDAJE: Si Leaflet dejó el contenedor marcado pero la variable se perdió, destruimos la instancia previa
+    if (mapContainer._leaflet_id) {
+        if (mapaTerminales) {
+            try { mapaTerminales.remove(); } catch (e) { console.warn(e); }
+        }
+        mapContainer._leaflet_id = null;
+        mapaTerminales = null;
+    }
+
     try {
         // Coordenadas centrales: Ciudad de Panamá [Latitud, Longitud]
         const panamaCoords = [8.9824, -79.5199];
 
         // Crear instancia del mapa Leaflet
-        mapaTerminales = L.map(mapContainer.id, {
+        mapaTerminales = L.map(mapContainer, {
             center: panamaCoords,
             zoom: 12,
             zoomControl: true
@@ -52,7 +61,7 @@ export async function initGeolocalizacionModule() {
             if (mapaTerminales) mapaTerminales.invalidateSize();
         }, 300);
 
-        // 2. Cargar bancas y dibujarlas en el mapa
+        // 3. Cargar bancas y dibujarlas en el mapa
         await cargarBancasEnMapa();
 
     } catch (err) {
@@ -178,7 +187,6 @@ export async function cargarBancasEnMapa() {
 document.addEventListener('DOMContentLoaded', () => {
     const geoSection = document.getElementById('section-geo');
     if (geoSection) {
-        // Vigila cuándo la sección quita la clase 'hidden' para inicializar el mapa
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 if (mutation.attributeName === 'class') {
@@ -193,5 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Exponer globalmente para que index.html y otros módulos puedan llamarla sin colisiones
 window.initGeolocalizacionModule = initGeolocalizacionModule;
+window.initMap = initGeolocalizacionModule;
 window.cargarBancasEnMapa = cargarBancasEnMapa;

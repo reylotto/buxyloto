@@ -1,7 +1,10 @@
 // ==========================================================
 // MÓDULO POS Y VENTA DELEGADA CON TICKET DIGITAL Y SUPABASE (js/pos.js)
 // ==========================================================
-
+// Agregar en la primera línea de js/pos.js
+window.inputNumbers = '';
+window.inputNumbers = '';
+let inputNumbers = '';
 // Variable global de modalidad activa
 window.modoJuegoActual = window.modoJuegoActual || 'directo';
 window.jugadasActuales = window.jugadasActuales || [];
@@ -624,7 +627,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
 };
 /**
  * Cancela/Anula un ticket por su Folio o ID y lo sincroniza con Supabase y el Historial.
- * @param {string|number} folioOrId - Folio o ID único del ticket
+ * @param {string|number} folioOrId Folio o ID único del ticket
  */
 export async function cancelarTicketPOS(folioOrId) {
     if (!folioOrId) {
@@ -645,15 +648,16 @@ export async function cancelarTicketPOS(folioOrId) {
             const { data, error } = await supabase
                 .from('tickets')
                 .update({ 
-                    status: 'cancelado',
-                    estado: 'cancelado',
+                    status: 'CANCELADO',
+                    estado: 'CANCELADO',
                     updated_at: new Date().toISOString()
                 })
-                .or(`folio.eq.${folioOrId},id.eq.${folioOrId}`);
+                .or(`folio.eq.${folioOrId},id.eq.${folioOrId}`)
+                .select();
 
             if (error) {
                 console.error("❌ Error al actualizar cancelación en Supabase:", error);
-            } else {
+            } else if (data && data.length > 0) {
                 console.log(`✅ Ticket #${folioOrId} marcado como CANCELADO en Supabase.`);
                 exito = true;
             }
@@ -665,8 +669,8 @@ export async function cancelarTicketPOS(folioOrId) {
                 String(t.folio) === String(folioOrId) || String(t.id) === String(folioOrId)
             );
             if (ticketLocal) {
-                ticketLocal.status = 'cancelado';
-                ticketLocal.estado = 'cancelado';
+                ticketLocal.status = 'CANCELADO';
+                ticketLocal.estado = 'CANCELADO';
                 exito = true;
             }
         }
@@ -684,7 +688,7 @@ export async function cancelarTicketPOS(folioOrId) {
                 window.actualizarResumenDashboard();
             }
         } else {
-            alert("No se pudo encontrar el ticket para cancelar.");
+            alert("No se pudo encontrar el ticket para cancelar en la base de datos ni en el almacenamiento local.");
         }
 
     } catch (err) {

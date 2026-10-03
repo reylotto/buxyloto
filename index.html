@@ -45,6 +45,22 @@
 
     <!-- Estilos Personalizados -->
     <style>
+        /* Corrección para visibilidad y capas del menú móvil */
+        aside, #sidebar, .sidebar {
+            z-index: 99999 !important;
+            background-color: #0f172a !important;
+            opacity: 1 !important;
+        }
+
+        aside a, #sidebar a, .sidebar a, aside span, #sidebar span, aside button, #sidebar button {
+            color: #ffffff !important;
+        }
+
+        #sidebar-overlay, .sidebar-backdrop, .overlay, #mobileOverlay {
+            z-index: 99990 !important;
+        }
+
+        /* Tus estilos actuales */
         .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
             height: 6px;

@@ -62,7 +62,6 @@ function normalizarItemsTicket(ticket) {
  * Obtiene el nombre/código amigable de una banca dado su ID o ticket
  */
 function obtenerNombreBanca(bancaId, ticket = {}) {
-    // 1. Si el ticket ya guardó un nombre de banca explícito
     if (ticket.banca_nombre && !ticket.banca_nombre.includes('-')) return ticket.banca_nombre;
     if (ticket.nombre_banca) return ticket.nombre_banca;
     if (ticket.vendedor_nombre) return ticket.vendedor_nombre;
@@ -77,19 +76,22 @@ function obtenerNombreBanca(bancaId, ticket = {}) {
     if (idBuscar) {
         const bancaEncontrada = listaBancas.find(b => 
             String(b.id).toLowerCase() === String(idBuscar).toLowerCase() || 
-            String(b.codigo || b.code || b.numero).toLowerCase() === String(idBuscar).toLowerCase()
+            String(b.codigo || b.code || b.numero || '').toLowerCase() === String(idBuscar).toLowerCase()
         );
         if (bancaEncontrada) {
             return bancaEncontrada.nombre_banca || bancaEncontrada.nombre || bancaEncontrada.vendedor_nombre || `Banca ${bancaEncontrada.codigo || bancaEncontrada.id}`;
         }
     }
-    
-    // Si la banca tiene número o código en el ticket
+
     if (ticket.banca_numero || ticket.numero_banca) {
         return `Banca ${ticket.banca_numero || ticket.numero_banca}`;
     }
 
-    return `Banca ${idBuscar || '1'}`;
+    if (idBuscar && String(idBuscar).length > 8) {
+        return `Banca ${String(idBuscar).substring(0, 6).toUpperCase()}`;
+    }
+
+    return `Banca ${idBuscar || 'Central'}`;
 }
 
 /**
@@ -168,7 +170,7 @@ export async function generarReporte() {
 
         const agrupado = {};
         resultados.forEach(t => {
-            const estado = String(t.status || t.estado || 'pendiente').toLowerCase();
+            const estado = String(t.estatus || t.status || t.estado || 'pendiente').toLowerCase();
             if (estado === 'cancelado' || estado === 'anulado') return;
 
             const fechaObj = new Date(t.created_at || t.createdAt);
@@ -330,7 +332,7 @@ function filtrarYRenderizarTicketsLocal() {
 
     if (statusVal !== 'all') {
         filtrados = filtrados.filter(t => {
-            const st = String(t.status || t.estado || 'pendiente').toLowerCase();
+            const st = String(t.estatus || t.status || t.estado || 'pendiente').toLowerCase();
             if (statusVal === 'cancelado') return st === 'cancelado' || st === 'anulado';
             if (statusVal === 'premiado') return st === 'premiado' || st === 'ganador';
             if (statusVal === 'no_premiado') return st === 'no_premiado' || st === 'perdedor';
@@ -340,7 +342,7 @@ function filtrarYRenderizarTicketsLocal() {
 
     if (searchVal !== '') {
         filtrados = filtrados.filter(t => {
-            const folio = String(t.folio || t.ticket_id || t.id || '').toLowerCase();
+            const folio = String(t.codigo_ticket || t.folio || t.ticket_id || t.id || '').toLowerCase();
             const banca = String(obtenerNombreBanca(t.banca_id, t)).toLowerCase();
             return folio.includes(searchVal) || banca.includes(searchVal);
         });
@@ -364,19 +366,20 @@ function renderizarTablaTickets(lista) {
     }
 
     tbody.innerHTML = lista.map((t, idx) => {
-        const uniqueId = t.id || t.folio || idx;
+        const uniqueId = t.codigo_ticket || t.folio || t.id || idx;
         const fechaObj = new Date(t.created_at || t.createdAt);
         const fecha = isNaN(fechaObj) ? 'N/A' : fechaObj.toLocaleString('es-PA', { dateStyle: 'short', timeStyle: 'short' });
         
-        const folioDisplay = t.folio || t.ticket_numero || t.numero || `#${String(uniqueId).substring(0, 8)}`;
+        // Prioridad absoluta al Código de Ticket de la BD (ej. BX-682613)
+        const folioDisplay = t.codigo_ticket || t.folio || t.ticket_numero || `#${t.id || uniqueId}`;
         const bancaNombre = obtenerNombreBanca(t.banca_id, t);
         
         const items = normalizarItemsTicket(t);
         const cantJugadas = items.length > 0 ? items.length : 1;
 
         const montoVenta = parseFloat(t.monto_total || t.monto || t.total || 0).toFixed(2);
-        const montoPremio = parseFloat(t.premio_monto || t.premio || 0).toFixed(2);
-        const estado = String(t.status || t.estado || 'pendiente').toLowerCase();
+        const montoPremio = parseFloat(t.monto_premio || t.premio_monto || t.premio || 0).toFixed(2);
+        const estado = String(t.estatus || t.status || t.estado || 'pendiente').toLowerCase();
 
         let badgeClass = 'bg-amber-900/50 text-amber-300 border-amber-700/50';
         let estadoLabel = 'PENDIENTE';
@@ -437,6 +440,7 @@ function renderizarTablaTickets(lista) {
 
 function buscarTicketEnCache(targetId) {
     return ticketsCache.find(t => 
+        String(t.codigo_ticket) === String(targetId) ||
         String(t.id) === String(targetId) || 
         String(t.folio) === String(targetId) ||
         String(t.ticket_numero) === String(targetId)
@@ -453,7 +457,7 @@ window.verTicketHistorial = function(uniqueId) {
     const items = normalizarItemsTicket(ticket);
     const ticketNormalizado = {
         ...ticket,
-        folio: ticket.folio || ticket.ticket_numero || ticket.id,
+        folio: ticket.codigo_ticket || ticket.folio || ticket.ticket_numero || ticket.id,
         items: items,
         apuestas: items,
         banca_nombre: obtenerNombreBanca(ticket.banca_id, ticket)
@@ -477,7 +481,7 @@ window.imprimirTicketHistorial = function(uniqueId) {
 
     const items = normalizarItemsTicket(ticket);
     const bancaNom = obtenerNombreBanca(ticket.banca_id, ticket);
-    const folio = ticket.folio || ticket.ticket_numero || ticket.id;
+    const folio = ticket.codigo_ticket || ticket.folio || ticket.ticket_numero || ticket.id;
     const fecha = new Date(ticket.created_at || ticket.createdAt).toLocaleString('es-PA');
     const total = parseFloat(ticket.monto_total || ticket.monto || 0).toFixed(2);
 
@@ -505,7 +509,7 @@ window.imprimirTicketHistorial = function(uniqueId) {
         '<div class="line"></div>' +
         '<div><b>TICKET:</b> #' + folio + '</div>' +
         '<div><b>FECHA:</b> ' + fecha + '</div>' +
-        '<div><b>ESTADO:</b> ' + String(ticket.status || ticket.estado || 'PENDIENTE').toUpperCase() + '</div>' +
+        '<div><b>ESTADO:</b> ' + String(ticket.estatus || ticket.status || ticket.estado || 'PENDIENTE').toUpperCase() + '</div>' +
         '<div class="line"></div>' +
         '<div class="bold">JUGADAS / APUESTAS</div>' +
         itemsHtml +
@@ -523,19 +527,19 @@ window.cancelarTicketHistorial = async function(uniqueId) {
     const ticket = buscarTicketEnCache(uniqueId);
     if (!ticket) return alert("Ticket no encontrado.");
 
-    const folio = ticket.folio || ticket.ticket_numero || ticket.id;
+    const folioTarget = ticket.codigo_ticket || ticket.folio || ticket.ticket_numero || ticket.id;
 
     if (typeof window.cancelarTicketPOS === 'function') {
-        await window.cancelarTicketPOS(folio);
+        await window.cancelarTicketPOS(folioTarget);
     } else {
-        const conf = confirm(`¿Está seguro de que desea cancelar el ticket #${folio}?`);
+        const conf = confirm(`¿Está seguro de que desea cancelar el ticket #${folioTarget}?`);
         if (!conf) return;
 
         const supabase = window.supabase;
         if (supabase) {
-            await supabase.from('tickets').update({ status: 'CANCELADO', estado: 'CANCELADO' }).or(`folio.eq.${folio},id.eq.${folio}`);
+            await supabase.from('tickets').update({ estatus: 'CANCELADO', status: 'CANCELADO', estado: 'CANCELADO' }).or(`codigo_ticket.eq.${folioTarget},folio.eq.${folioTarget},id.eq.${folioTarget}`);
         }
-        alert(`Ticket #${folio} cancelado correctamente.`);
+        alert(`Ticket #${folioTarget} cancelado correctamente.`);
         cargarHistorialTickets();
     }
 };
@@ -547,6 +551,7 @@ function mostrarModalTermicoRespaldo(ticket) {
     const total = parseFloat(ticket.monto_total || ticket.monto || ticket.total || 0).toFixed(2);
     const fecha = ticket.created_at || ticket.createdAt ? new Date(ticket.created_at || ticket.createdAt).toLocaleString('es-PA') : new Date().toLocaleString('es-PA');
     const bancaNom = ticket.banca_nombre || obtenerNombreBanca(ticket.banca_id, ticket);
+    const folioCode = ticket.codigo_ticket || ticket.folio || ticket.id || '';
 
     const modal = document.createElement('div');
     modal.className = "fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4";
@@ -568,9 +573,9 @@ function mostrarModalTermicoRespaldo(ticket) {
                 <p class="text-xs text-slate-400">${bancaNom}</p>
             </div>
             <div class="text-xs space-y-1 text-slate-300 border-b border-slate-700 pb-3 mb-3">
-                <p><b>FOLIO:</b> #${ticket.folio || ticket.id || ''}</p>
+                <p><b>FOLIO:</b> ${folioCode}</p>
                 <p><b>FECHA:</b> ${fecha}</p>
-                <p><b>ESTADO:</b> <span class="uppercase text-amber-400 font-bold">${ticket.status || ticket.estado || 'PENDIENTE'}</span></p>
+                <p><b>ESTADO:</b> <span class="uppercase text-amber-400 font-bold">${ticket.estatus || ticket.status || ticket.estado || 'PENDIENTE'}</span></p>
             </div>
             <div class="text-xs space-y-1 mb-4">
                 <p class="font-bold border-b border-slate-800 pb-1">JUGADAS:</p>
@@ -595,7 +600,7 @@ function mostrarModalTermicoRespaldo(ticket) {
     const btnPrint = document.getElementById('btn-modal-print-respaldo');
     if (btnPrint) {
         btnPrint.onclick = () => {
-            window.imprimirTicketHistorial(ticket.id || ticket.folio);
+            window.imprimirTicketHistorial(folioCode);
             modal.remove();
         };
     }

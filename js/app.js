@@ -768,46 +768,37 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // =================================================================
-// FUNCIÓN GLOBAL Y LISTENER DE CIERRE DE SESIÓN (LOGOUT)
+// CIERRE DE SESIÓN DEFINITIVO (MUESTRA LOGIN Y LIMPIA SESIÓN)
 // =================================================================
 async function cerrarSesion() {
-    console.log("🔒 Cerrando sesión de usuario...");
+    console.log("🔒 Cerrando sesión...");
+
     try {
-        const client = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-        
+        // 1. Ocultar inmediatamente la interfaz del POS/Dashboard
+        const mainApp = document.getElementById('app-content') || document.getElementById('main-layout') || document.querySelector('main');
+        const loginScreen = document.getElementById('login-screen') || document.getElementById('auth-container') || document.getElementById('login-modal');
+
+        if (mainApp) mainApp.classList.add('hidden');
+        if (loginScreen) loginScreen.classList.remove('hidden');
+
+        // 2. Cerrar sesión en Supabase
+        const client = window.supabaseClient || window.supabase;
         if (client && client.auth) {
             await client.auth.signOut();
         }
     } catch (err) {
-        console.warn("Aviso al desconectar de Supabase:", err);
+        console.warn("Aviso durante el cierre de sesión:", err);
     } finally {
-        // Limpieza total del almacenamiento local
+        // 3. Borrar llaves de acceso en el navegador
         localStorage.clear();
         sessionStorage.clear();
 
-        // Redirigir limpiando el historial para volver al login inicial
-        window.location.replace(window.location.origin);
+        // 4. Redirigir a la URL raíz sin caché
+        window.location.replace(window.location.origin + '?logout=' + Date.now());
     }
 }
 
-// Hacer disponible globalmente para los botones HTML
 window.cerrarSesion = cerrarSesion;
-
-// Exponer globalmente
-window.cerrarSesion = cerrarSesion;
-
-// Registrar listener por ID cuando cargue el DOM
-document.addEventListener('DOMContentLoaded', () => {
-    // Busca cualquier variante de botón de cerrar sesión (escritorio o móvil)
-    const botonesLogout = document.querySelectorAll('#btn-logout, #logout-btn, .btn-logout');
-    
-    botonesLogout.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            cerrarSesion();
-        });
-    });
-});
 // ==========================================================
 // RECARGA AUTOMÁTICA AL HACER CLIC EN DASHBOARD ADMIN
 // ==========================================================

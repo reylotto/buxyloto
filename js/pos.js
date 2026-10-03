@@ -333,48 +333,51 @@ document.querySelectorAll('[data-modo], .tab-modo, .btn-modo, select#pos-select-
 });
 
 // =================================================================
-// 1. TECLADO NUMÉRICO ANTI-DUPLICACIÓN (DEBOUNCE DE 150ms)
+// TECLADO NUMÉRICO BLINDADO (DELEGACIÓN ÚNICA + CANDADO DE 300ms)
 // =================================================================
-let tecladoBloqueado = false; // Candado para evitar doble toque táctil
+let ultimoToqueTeclado = 0;
 
-document.querySelectorAll('.pos-keypad-btn').forEach(btn => {
-    // Usar 'pointerdown' o 'click' pero protegido por el candado de tiempo
-    btn.onclick = function(e) {
-        e.preventDefault();
-        e.stopPropagation();
+// Buscar el contenedor padre del teclado numérico
+const contenedorTeclado = document.querySelector('.pos-keypad-btn')?.parentElement?.parentElement || document;
 
-        // Si se presionó hace menos de 150ms, ignorar el segundo toque
-        if (tecladoBloqueado) return;
-        tecladoBloqueado = true;
-        setTimeout(() => { tecladoBloqueado = false; }, 150);
+contenedorTeclado.addEventListener('click', (e) => {
+    // Buscar si el clic vino de un botón del teclado
+    const btn = e.target.closest('.pos-keypad-btn');
+    if (!btn) return;
 
-        const inputNum = document.getElementById('pos-input-numbers');
-        if (!inputNum) return;
+    e.preventDefault();
+    e.stopPropagation();
 
-        // Determinar límite según la modalidad activa
-        const modo = window.modoJuegoActual || 'directo';
-        let maxDigitos = 2; // Directo
-        if (modo === 'pale') maxDigitos = 4;
-        if (modo === 'tripleta') maxDigitos = 6;
+    // Bloqueo estricto: Si pasaron menos de 300ms desde el último toque, ignorar
+    const ahora = Date.now();
+    if (ahora - ultimoToqueTeclado < 300) return;
+    ultimoToqueTeclado = ahora;
 
-        const action = this.dataset.action;
-        const val = this.textContent.trim();
-        const soloNumeros = inputNum.value.replace(/\D/g, '');
+    const inputNum = document.getElementById('pos-input-numbers');
+    if (!inputNum) return;
 
-        if (action === 'backspace') {
-            inputNum.value = inputNum.value.slice(0, -1);
-        } else if (action === 'dash') {
-            if (inputNum.value.length > 0 && !inputNum.value.endsWith('-')) {
-                inputNum.value += '-';
-            }
-        } else if (!action) {
-            // Solo agregar si no supera el límite de la modalidad
-            if (soloNumeros.length < maxDigitos) {
-                inputNum.value += val;
-            }
+    // Límite de dígitos según modalidad activa
+    const modo = window.modoJuegoActual || 'directo';
+    let maxDigitos = 2;
+    if (modo === 'pale') maxDigitos = 4;
+    if (modo === 'tripleta') maxDigitos = 6;
+
+    const action = btn.dataset.action;
+    const val = btn.textContent.trim();
+    const soloNumeros = inputNum.value.replace(/\D/g, '');
+
+    if (action === 'backspace') {
+        inputNum.value = inputNum.value.slice(0, -1);
+    } else if (action === 'dash') {
+        if (inputNum.value.length > 0 && !inputNum.value.endsWith('-')) {
+            inputNum.value += '-';
         }
-    };
-});
+    } else if (!action) {
+        if (soloNumeros.length < maxDigitos) {
+            inputNum.value += val;
+        }
+    }
+}, true); // Use capture phase para ganar prioridad sobre otros scripts
 
 
 // =================================================================

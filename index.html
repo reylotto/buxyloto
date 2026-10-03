@@ -1922,170 +1922,217 @@
     }
 }
 
-        function initUserDropdown() {
-            const btnMenu = document.getElementById('user-menu-button');
-            const menuDropdown = document.getElementById('user-dropdown-menu');
-            const roleSwitch = document.getElementById('user-role-switch');
-            const btnProfile = document.getElementById('btn-user-profile');
+function initUserDropdown() {
+    const btnMenu = document.getElementById('user-menu-button');
+    const menuDropdown = document.getElementById('user-dropdown-menu');
+    const roleSwitch = document.getElementById('user-role-switch');
+    const btnProfile = document.getElementById('btn-user-profile');
 
-            btnMenu.addEventListener('click', (e) => {
-                e.stopPropagation();
-                menuDropdown.classList.toggle('hidden');
-            });
+    if (btnMenu && menuDropdown) {
+        btnMenu.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menuDropdown.classList.toggle('hidden');
+        });
 
-            document.addEventListener('click', () => {
-                menuDropdown.classList.add('hidden');
-            });
+        document.addEventListener('click', () => {
+            menuDropdown.classList.add('hidden');
+        });
+    }
 
-            btnProfile.addEventListener('click', (e) => {
-                e.preventDefault();
-                menuDropdown.classList.add('hidden');
+    if (btnProfile && menuDropdown) {
+        btnProfile.addEventListener('click', (e) => {
+            e.preventDefault();
+            menuDropdown.classList.add('hidden');
 
-                if (AppState.currentUser.role !== 'admin') {
-                    alert('Acceso no autorizado: Solamente el Administrador Central puede modificar la contraseña y la información del usuario en esta consola.');
-                    return;
-                }
+            if (AppState?.currentUser?.role !== 'admin') {
+                alert('Acceso no autorizado: Solamente el Administrador Central puede modificar la contraseña y la información del usuario en esta consola.');
+                return;
+            }
 
-                document.getElementById('profile-name').value = AppState.currentUser.name;
-                document.getElementById('profile-username').value = AppState.currentUser.username;
-                document.getElementById('profile-new-password').value = '';
-                document.getElementById('profile-confirm-password').value = '';
+            const nameEl = document.getElementById('profile-name');
+            const userEl = document.getElementById('profile-username');
+            const passEl = document.getElementById('profile-new-password');
+            const confirmEl = document.getElementById('profile-confirm-password');
+            const modalEl = document.getElementById('modal-profile');
 
-                document.getElementById('modal-profile').classList.remove('hidden');
-            });
+            if (nameEl) nameEl.value = AppState.currentUser.name || '';
+            if (userEl) userEl.value = AppState.currentUser.username || '';
+            if (passEl) passEl.value = '';
+            if (confirmEl) confirmEl.value = '';
 
-            roleSwitch.value = AppState.currentUser.role;
-            roleSwitch.addEventListener('change', (e) => {
-                const newRole = e.target.value;
-                AppState.currentUser.role = newRole;
+            if (modalEl) modalEl.classList.remove('hidden');
+        });
+    }
 
-                updateRoleUI();
-                saveState();
-            });
+    if (roleSwitch && AppState?.currentUser) {
+        roleSwitch.value = AppState.currentUser.role;
+        roleSwitch.addEventListener('change', (e) => {
+            const newRole = e.target.value;
+            AppState.currentUser.role = newRole;
 
-            document.getElementById('form-admin-profile').addEventListener('submit', (e) => {
-                e.preventDefault();
-                if (AppState.currentUser.role !== 'admin') {
-                    alert('Permisos insuficientes.');
-                    return;
-                }
+            updateRoleUI();
+            if (typeof saveState === 'function') saveState();
+        });
+    }
 
-                const newName = document.getElementById('profile-name').value.trim();
-                const newUsername = document.getElementById('profile-username').value.trim();
-                const newPass = document.getElementById('profile-new-password').value;
-                const confirmPass = document.getElementById('profile-confirm-password').value;
+    const formProfile = document.getElementById('form-admin-profile');
+    if (formProfile) {
+        formProfile.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (AppState?.currentUser?.role !== 'admin') {
+                alert('Permisos insuficientes.');
+                return;
+            }
 
-                if (newPass !== '' && newPass !== confirmPass) {
-                    alert('Las contraseñas no coinciden.');
-                    return;
-                }
+            const newName = document.getElementById('profile-name')?.value.trim() || '';
+            const newUsername = document.getElementById('profile-username')?.value.trim() || '';
+            const newPass = document.getElementById('profile-new-password')?.value || '';
+            const confirmPass = document.getElementById('profile-confirm-password')?.value || '';
 
+            if (newPass !== '' && newPass !== confirmPass) {
+                alert('Las contraseñas no coinciden.');
+                return;
+            }
+
+            if (AppState?.users) {
                 const adminUserObj = AppState.users.find(u => u.id === AppState.currentUser.id || u.role === 'admin');
                 if (adminUserObj) {
                     adminUserObj.name = newName;
                     adminUserObj.username = newUsername;
                     if (newPass !== '') adminUserObj.password = newPass;
                 }
+            }
 
+            if (AppState?.currentUser) {
                 AppState.currentUser.name = newName;
                 AppState.currentUser.username = newUsername;
-
-                document.getElementById('modal-profile').classList.add('hidden');
-                alert('¡Información del Administrador Central actualizada exitosamente!');
-                saveState();
-            });
-        }
-
-        function updateRoleUI() {
-            const user = AppState.currentUser;
-            document.getElementById('header-user-name').textContent = user.name;
-            document.getElementById('header-user-role').textContent = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Operador Banca');
-            document.getElementById('dropdown-user-name').textContent = user.name;
-            document.getElementById('dropdown-user-role').textContent = user.role.toUpperCase();
-
-            const adminElements = document.querySelectorAll('.admin-only');
-            adminElements.forEach(el => {
-                if (user.role === 'admin') el.classList.remove('hidden');
-                else el.classList.add('hidden');
-            });
-
-            if (user.role === 'banca' && user.bancaId) {
-                const selectBanca = document.getElementById('pos-banca-select');
-                if (selectBanca) selectBanca.value = user.bancaId;
             }
-        }
 
-        function initTicketConfigForm() {
-            const form = document.getElementById('form-ticket-custom');
-            form.addEventListener('submit', (e) => {
+            const modalEl = document.getElementById('modal-profile');
+            if (modalEl) modalEl.classList.add('hidden');
+
+            alert('¡Información del Administrador Central actualizada exitosamente!');
+            if (typeof saveState === 'function') saveState();
+        });
+    }
+}
+
+function updateRoleUI() {
+    if (!AppState?.currentUser) return;
+    const user = AppState.currentUser;
+    const hName = document.getElementById('header-user-name');
+    const hRole = document.getElementById('header-user-role');
+    const dName = document.getElementById('dropdown-user-name');
+    const dRole = document.getElementById('dropdown-user-role');
+
+    if (hName) hName.textContent = user.name || '';
+    if (hRole) hRole.textContent = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Operador Banca');
+    if (dName) dName.textContent = user.name || '';
+    if (dRole) dRole.textContent = (user.role || '').toUpperCase();
+
+    const adminElements = document.querySelectorAll('.admin-only');
+    adminElements.forEach(el => {
+        if (user.role === 'admin') el.classList.remove('hidden');
+        else el.classList.add('hidden');
+    });
+
+    if (user.role === 'banca' && user.bancaId) {
+        const selectBanca = document.getElementById('pos-banca-select');
+        if (selectBanca) selectBanca.value = user.bancaId;
+    }
+}
+
+function initTicketConfigForm() {
+    const form = document.getElementById('form-ticket-custom');
+    if (form) {
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            AppState.ticketConfig = {
+                companyName: document.getElementById('cfg-ticket-title')?.value.trim() || '',
+                iconClass: document.getElementById('cfg-ticket-icon')?.value.trim() || '',
+                phone: document.getElementById('cfg-ticket-phone')?.value.trim() || '',
+                footerMessage: document.getElementById('cfg-ticket-footer')?.value.trim() || ''
+            };
+            if (typeof saveState === 'function') saveState();
+            alert('¡Configuración del ticket térmico actualizada con éxito!');
+        });
+    }
+}
+
+function loadTicketConfigFormValues() {
+    const cfg = AppState?.ticketConfig || (typeof DEFAULT_STATE !== 'undefined' ? DEFAULT_STATE.ticketConfig : {});
+    if (!cfg) return;
+    const titleEl = document.getElementById('cfg-ticket-title');
+    const iconEl = document.getElementById('cfg-ticket-icon');
+    const phoneEl = document.getElementById('cfg-ticket-phone');
+    const footerEl = document.getElementById('cfg-ticket-footer');
+
+    if (titleEl) titleEl.value = cfg.companyName || '';
+    if (iconEl) iconEl.value = cfg.iconClass || '';
+    if (phoneEl) phoneEl.value = cfg.phone || '';
+    if (footerEl) footerEl.value = cfg.footerMessage || '';
+}
+
+function initPOSCart() {
+    if (typeof window.CurrentCart === 'undefined') {
+        window.CurrentCart = { mod: 'directo', items: [], loteriaIds: [] };
+    }
+
+    const modBtns = document.querySelectorAll('.pos-mod-btn');
+    const inputNumbers = document.getElementById('pos-input-numbers');
+    const inputAmount = document.getElementById('pos-input-amount');
+
+    if (modBtns && modBtns.length > 0) {
+        modBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
                 e.preventDefault();
-                AppState.ticketConfig = {
-                    companyName: document.getElementById('cfg-ticket-title').value.trim(),
-                    iconClass: document.getElementById('cfg-ticket-icon').value.trim(),
-                    phone: document.getElementById('cfg-ticket-phone').value.trim(),
-                    footerMessage: document.getElementById('cfg-ticket-footer').value.trim()
-                };
-                saveState();
-                alert('¡Configuración del ticket térmico actualizada con éxito!');
-            });
-        }
 
-        function loadTicketConfigFormValues() {
-            const cfg = AppState.ticketConfig || DEFAULT_STATE.ticketConfig;
-            document.getElementById('cfg-ticket-title').value = cfg.companyName;
-            document.getElementById('cfg-ticket-icon').value = cfg.iconClass;
-            document.getElementById('cfg-ticket-phone').value = cfg.phone;
-            document.getElementById('cfg-ticket-footer').value = cfg.footerMessage;
-        }
-
-        function initPOSCart() {
-            const modBtns = document.querySelectorAll('.pos-mod-btn');
-            const inputNumbers = document.getElementById('pos-input-numbers');
-            const inputAmount = document.getElementById('pos-input-amount');
-            const btnAdd = document.getElementById('btn-pos-add-item');
-            const btnClearCart = document.getElementById('btn-pos-clear-cart');
-            const btnProcess = document.getElementById('btn-pos-process-ticket');
-
-            modBtns.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    modBtns.forEach(b => b.classList.remove('active', 'bg-emerald-600', 'text-slate-950', 'border-emerald-500'));
-                    modBtns.forEach(b => b.classList.add('bg-slate-700', 'text-slate-300', 'border-slate-600'));
-
-                    btn.classList.add('active', 'bg-emerald-600', 'text-slate-950', 'border-emerald-500');
-                    btn.classList.remove('bg-slate-700', 'text-slate-300', 'border-slate-600');
-
-                    CurrentCart.mod = btn.getAttribute('data-mod');
-                    updatePOSModLabel();
-                    inputNumbers.value = '';
+                modBtns.forEach(b => {
+                    b.classList.remove('active', 'bg-emerald-600', 'text-slate-950', 'border-emerald-500');
+                    b.classList.add('bg-slate-700', 'text-slate-300', 'border-slate-600');
                 });
-            });
 
-            document.querySelectorAll('.btn-quick-amount').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    inputAmount.value = btn.getAttribute('data-amt') + '.00';
-                });
-            });
+                btn.classList.add('active', 'bg-emerald-600', 'text-slate-950', 'border-emerald-500');
+                btn.classList.remove('bg-slate-700', 'text-slate-300', 'border-slate-600');
 
-            document.querySelectorAll('.pos-keypad-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const action = btn.getAttribute('data-action');
-                    const text = btn.textContent.trim();
+                const mod = btn.getAttribute('data-mod') || 'directo';
+                window.CurrentCart.mod = mod;
 
-                    if (action === 'clear') inputNumbers.value = '';
-                    else if (action === 'backspace') inputNumbers.value = inputNumbers.value.slice(0, -1);
-                    else if (action === 'dash') inputNumbers.value += '-';
-                    else {
-                        const rawClean = (inputNumbers.value + text).replace(/-/g, '');
-                        const maxDigits = CurrentCart.mod === 'directo' ? 2 : (CurrentCart.mod === 'pale' ? 4 : 6);
-                        
-                        if (rawClean.length <= maxDigits) {
-                            inputNumbers.value += text;
-                        } else {
-                            alert(`La modalidad ${CurrentCart.mod.toUpperCase()} solo permite un máximo de ${maxDigits} dígitos.`);
-                        }
-                    }
-                });
+                // Sincronizar modalidad con pos.js para actualizar limite de dígitos
+                if (typeof window.setModoPOS === 'function') {
+                    window.setModoPOS(mod);
+                } else {
+                    window.modoJuegoActual = mod;
+                }
+
+                if (typeof window.updatePOSModLabel === 'function') {
+                    window.updatePOSModLabel();
+                }
+
+                if (inputNumbers) inputNumbers.value = '';
             });
+        });
+    }
+
+    document.querySelectorAll('.btn-quick-amount').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const amt = btn.getAttribute('data-amt');
+            if (inputAmount && amt) {
+                inputAmount.value = amt + '.00';
+            }
+        });
+    });
+
+    const btnClearInput = document.getElementById('btn-pos-clear-input');
+    if (btnClearInput) {
+        btnClearInput.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (inputNumbers) inputNumbers.value = '';
+        });
+    }
+}
+window.initPOSCart = initPOSCart;
 
             document.getElementById('btn-pos-clear-input').addEventListener('click', () => {
                 inputNumbers.value = '';
@@ -2252,7 +2299,7 @@
                 CurrentCart.items = [];
                 renderPOSCart();
             });
-        }
+        
 
         function updateSelectedLoteriasCart() {
             const checkboxes = document.querySelectorAll('.pos-loteria-chk:checked');

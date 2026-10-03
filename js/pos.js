@@ -299,47 +299,72 @@ export function activarEventosPOS() {
         });
     });
 
-    // Teclado Numérico - Solución Definitiva (1 solo dígito por toque)
+    // Variable global para controlar la modalidad seleccionada (o léela de tus botones de modo)
+// Modos válidos: 'directo' (2 dígitos), 'pale' (4 dígitos), 'tripleta' (6 dígitos)
+
+// 1. Teclado Numérico con límite dinámico de dígitos por modalidad
 document.querySelectorAll('.pos-keypad-btn').forEach(btn => {
-    // 1. Clonar el botón borra cualquier listener acumulado de app.js, mobile.js o document
     const newBtn = btn.cloneNode(true);
     btn.parentNode.replaceChild(newBtn, btn);
 
-    // 2. Asignar un único listener blindado
     newBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        e.stopImmediatePropagation(); // Evita que se ejecute una segunda vez en otros scripts
+        e.stopImmediatePropagation();
 
         const inputNum = document.getElementById('pos-input-numbers');
         if (!inputNum) return;
 
+        // Detectar modo activo (o leerlo de la interfaz)
+        const modoActivo = window.modoJuegoActual || 'directo'; 
+        
+        // Reglas de límites
+        let maxDigitos = 2; // Directo por defecto
+        if (modoActivo === 'pale') maxDigitos = 4;
+        if (modoActivo === 'tripleta') maxDigitos = 6;
+
         const action = newBtn.dataset.action;
         const val = newBtn.textContent.trim();
+
+        // Contar solo los dígitos numéricos (ignorando guiones)
+        const soloNumeros = inputNum.value.replace(/\D/g, '');
 
         if (action === 'backspace') {
             inputNum.value = inputNum.value.slice(0, -1);
         } else if (action === 'dash') {
-            inputNum.value += '-';
+            // Permitir guión solo para separar pares en Palé o Tripleta
+            if (inputNum.value.length > 0 && !inputNum.value.endsWith('-')) {
+                inputNum.value += '-';
+            }
         } else if (!action) {
-            inputNum.value += val;
+            // Solo agregar el número si NO ha superado el máximo permitido
+            if (soloNumeros.length < maxDigitos) {
+                inputNum.value += val;
+            }
         }
     });
 });
 
-// Botón Limpiar Entrada (Blindado)
-const btnClearInput = document.getElementById('btn-pos-clear-input');
-if (btnClearInput) {
-    const newClearBtn = btnClearInput.cloneNode(true);
-    btnClearInput.parentNode.replaceChild(newClearBtn, btnClearInput);
+// 2. Validación estricta antes de procesar o guardar la jugada
+function validarReglasJugada(numeroIngresado, modoJuego) {
+    const digitos = numeroIngresado.replace(/\D/g, ''); // Extraer solo números
 
-    newClearBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        const inputNum = document.getElementById('pos-input-numbers');
-        if (inputNum) inputNum.value = '';
-    });
+    if (modoJuego === 'directo' && digitos.length !== 2) {
+        alert('⚠️ ERROR: Un Directo debe tener EXACTAMENTE 2 dígitos (Ej: 05, 84).');
+        return false;
+    }
+
+    if (modoJuego === 'pale' && digitos.length !== 4) {
+        alert('⚠️ ERROR: Un Palé debe tener EXACTAMENTE 4 dígitos / 2 pares (Ej: 12-85).');
+        return false;
+    }
+
+    if (modoJuego === 'tripleta' && digitos.length !== 6) {
+        alert('⚠️ ERROR: Una Tripleta debe tener EXACTAMENTE 6 dígitos / 3 pares (Ej: 12-85-90).');
+        return false;
+    }
+
+    return true; // Pasa la validación
 }
 
     // Botón Principal: EMITIR TICKET

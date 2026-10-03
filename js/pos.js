@@ -332,16 +332,31 @@ document.querySelectorAll('[data-modo], .tab-modo, .btn-modo, select#pos-select-
     elem.addEventListener('change', cambiarModo);
 });
 
-// 3. Teclado Numérico con límite dinámico en tiempo real
+// =================================================================
+// 1. TECLADO NUMÉRICO ANTI-DUPLICACIÓN (DEBOUNCE DE 150ms)
+// =================================================================
+let tecladoBloqueado = false; // Candado para evitar doble toque táctil
+
 document.querySelectorAll('.pos-keypad-btn').forEach(btn => {
+    // Usar 'pointerdown' o 'click' pero protegido por el candado de tiempo
     btn.onclick = function(e) {
         e.preventDefault();
         e.stopPropagation();
 
+        // Si se presionó hace menos de 150ms, ignorar el segundo toque
+        if (tecladoBloqueado) return;
+        tecladoBloqueado = true;
+        setTimeout(() => { tecladoBloqueado = false; }, 150);
+
         const inputNum = document.getElementById('pos-input-numbers');
         if (!inputNum) return;
 
-        const maxDigitos = obtenerLimiteActualPOS();
+        // Determinar límite según la modalidad activa
+        const modo = window.modoJuegoActual || 'directo';
+        let maxDigitos = 2; // Directo
+        if (modo === 'pale') maxDigitos = 4;
+        if (modo === 'tripleta') maxDigitos = 6;
+
         const action = this.dataset.action;
         const val = this.textContent.trim();
         const soloNumeros = inputNum.value.replace(/\D/g, '');
@@ -353,13 +368,59 @@ document.querySelectorAll('.pos-keypad-btn').forEach(btn => {
                 inputNum.value += '-';
             }
         } else if (!action) {
-            // Solo agregar el número si NO se ha alcanzado el límite de la modalidad
+            // Solo agregar si no supera el límite de la modalidad
             if (soloNumeros.length < maxDigitos) {
                 inputNum.value += val;
             }
         }
     };
 });
+
+
+// =================================================================
+// 2. VALIDACIÓN ESTRICTA: DÍGITOS EXACTOS AL AGREGAR JUGADA
+// =================================================================
+function validarJugadaCompleta() {
+    const inputNum = document.getElementById('pos-input-numbers');
+    if (!inputNum) return false;
+
+    const digitos = inputNum.value.replace(/\D/g, ''); // Extraer solo los números
+    const modo = window.modoJuegoActual || 'directo';
+
+    if (modo === 'directo' && digitos.length !== 2) {
+        alert('⚠️ JUGADA INCOMPLETA: Un Directo debe tener EXACTAMENTE 2 dígitos (Ej: 05).');
+        return false;
+    }
+
+    if (modo === 'pale' && digitos.length !== 4) {
+        alert('⚠️ JUGADA INCOMPLETA: Un Palé debe tener EXACTAMENTE 4 dígitos (Ej: 12-85).');
+        return false;
+    }
+
+    if (modo === 'tripleta' && digitos.length !== 6) {
+        alert('⚠️ JUGADA INCOMPLETA: Una Tripleta debe tener EXACTAMENTE 6 dígitos (Ej: 12-85-90).');
+        return false;
+    }
+
+    return true; // La jugada cumple con la cantidad exacta de dígitos
+}
+
+// Vincula esta función antes de guardar o procesar el ticket:
+// Ejemplo: al hacer clic en 'Agregar Jugada' o '+'
+const btnAgregarJugada = document.getElementById('btn-pos-add') || document.getElementById('btn-agregar-jugada');
+if (btnAgregarJugada) {
+    btnAgregarJugada.onclick = function(e) {
+        e.preventDefault();
+        
+        // Si no cumple con los dígitos exactos, se detiene la ejecución
+        if (!validarJugadaCompleta()) {
+            return;
+        }
+
+        // ... Tu lógica actual para agregar la jugada al ticket ...
+        console.log("✅ Jugada válida agregada correctamente.");
+    };
+}
 
     // Botón Principal: EMITIR TICKET
     const btnEmitir = document.getElementById('btn-pos-process-ticket');

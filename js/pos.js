@@ -299,17 +299,23 @@ export function activarEventosPOS() {
         });
     });
 
-    // Teclado Numérico (Fix para evitar triple escritura)
+    // Teclado Numérico - Solución Definitiva (1 solo dígito por toque)
 document.querySelectorAll('.pos-keypad-btn').forEach(btn => {
-    btn.onclick = function(e) {
+    // 1. Clonar el botón borra cualquier listener acumulado de app.js, mobile.js o document
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+
+    // 2. Asignar un único listener blindado
+    newBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        e.stopPropagation(); // Evita que el toque rebote a elementos padre
+        e.stopPropagation();
+        e.stopImmediatePropagation(); // Evita que se ejecute una segunda vez en otros scripts
 
         const inputNum = document.getElementById('pos-input-numbers');
         if (!inputNum) return;
 
-        const action = this.dataset.action;
-        const val = this.textContent.trim();
+        const action = newBtn.dataset.action;
+        const val = newBtn.textContent.trim();
 
         if (action === 'backspace') {
             inputNum.value = inputNum.value.slice(0, -1);
@@ -318,17 +324,22 @@ document.querySelectorAll('.pos-keypad-btn').forEach(btn => {
         } else if (!action) {
             inputNum.value += val;
         }
-    };
+    });
 });
 
+// Botón Limpiar Entrada (Blindado)
 const btnClearInput = document.getElementById('btn-pos-clear-input');
 if (btnClearInput) {
-    btnClearInput.onclick = function(e) {
+    const newClearBtn = btnClearInput.cloneNode(true);
+    btnClearInput.parentNode.replaceChild(newClearBtn, btnClearInput);
+
+    newClearBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         const inputNum = document.getElementById('pos-input-numbers');
         if (inputNum) inputNum.value = '';
-    };
+    });
 }
 
     // Botón Principal: EMITIR TICKET

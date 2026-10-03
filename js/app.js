@@ -771,31 +771,27 @@ document.addEventListener('DOMContentLoaded', () => {
 // FUNCIÓN GLOBAL Y LISTENER DE CIERRE DE SESIÓN (LOGOUT)
 // =================================================================
 async function cerrarSesion() {
+    console.log("🔒 Cerrando sesión de usuario...");
     try {
-        const supabase = typeof window.getSupabaseClient === 'function' 
-            ? window.getSupabaseClient() 
-            : (window.supabaseClient || window.supabase);
-
-        if (supabase && supabase.auth) {
-            await supabase.auth.signOut();
+        const client = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+        
+        if (client && client.auth) {
+            await client.auth.signOut();
         }
-
-        // Limpieza total de almacenamiento
+    } catch (err) {
+        console.warn("Aviso al desconectar de Supabase:", err);
+    } finally {
+        // Limpieza total del almacenamiento local
         localStorage.clear();
         sessionStorage.clear();
 
-        console.log("🔒 Sesión cerrada con éxito. Redirigiendo al login...");
-
-        // Redirigir limpiando la URL a la raíz del dominio
-        window.location.href = window.location.origin;
-
-    } catch (error) {
-        console.error("Error al cerrar sesión:", error.message);
-        localStorage.clear();
-        sessionStorage.clear();
-        window.location.href = window.location.origin;
+        // Redirigir limpiando el historial para volver al login inicial
+        window.location.replace(window.location.origin);
     }
 }
+
+// Hacer disponible globalmente para los botones HTML
+window.cerrarSesion = cerrarSesion;
 
 // Exponer globalmente
 window.cerrarSesion = cerrarSesion;

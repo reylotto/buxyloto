@@ -299,49 +299,51 @@ export function activarEventosPOS() {
         });
     });
 
-    // Variable global de modalidad
-window.modoJuegoActual = 'directo';
+    // 1. Función para detectar el límite dinámico según lo visible en la pantalla
+function obtenerLimiteActualPOS() {
+    // Si hay una variable global establecida
+    if (window.modoJuegoActual === 'pale') return 4;
+    if (window.modoJuegoActual === 'tripleta') return 6;
 
-// Conectar botones de modalidad (Directo, Palé, Tripleta)
-document.querySelectorAll('[data-modo], .tab-modo, #btn-modo-directo, #btn-modo-pale, #btn-modo-tripleta').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const texto = (this.dataset.modo || this.textContent).toLowerCase();
-        
-        if (texto.includes('pale') || texto.includes('palé')) {
-            window.modoJuegoActual = 'pale';
-        } else if (texto.includes('tripleta')) {
-            window.modoJuegoActual = 'tripleta';
-        } else {
-            window.modoJuegoActual = 'directo';
-        }
-        
-        // Limpiar el input al cambiar de modalidad para evitar confusión
+    // Buscar el selector o botón activo en el DOM si la variable no existe
+    const activo = document.querySelector('.modo-btn-active, [data-modo].active, select#pos-select-modo');
+    if (activo) {
+        const val = (activo.value || activo.dataset.modo || activo.textContent || '').toLowerCase();
+        if (val.includes('pale') || val.includes('palé')) return 4;
+        if (val.includes('tripleta')) return 6;
+    }
+    
+    return 2; // Directo por defecto
+}
+
+// 2. Escuchar cambios en los botones o selector de modalidad (Directo, Palé, Tripleta)
+document.querySelectorAll('[data-modo], .tab-modo, .btn-modo, select#pos-select-modo').forEach(elem => {
+    const cambiarModo = () => {
+        const txt = (elem.value || elem.dataset.modo || elem.textContent || '').toLowerCase();
+        if (txt.includes('pale') || txt.includes('palé')) window.modoJuegoActual = 'pale';
+        else if (txt.includes('tripleta')) window.modoJuegoActual = 'tripleta';
+        else window.modoJuegoActual = 'directo';
+
         const inputNum = document.getElementById('pos-input-numbers');
-        if (inputNum) inputNum.value = '';
-    });
+        if (inputNum) inputNum.value = ''; // Limpiar el input al cambiar de modo
+    };
+
+    elem.addEventListener('click', cambiarModo);
+    elem.addEventListener('change', cambiarModo);
 });
 
-// Teclado Numérico con límite dinámico según modalidad activa
+// 3. Teclado Numérico con límite dinámico en tiempo real
 document.querySelectorAll('.pos-keypad-btn').forEach(btn => {
-    const newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
-
-    newBtn.addEventListener('click', (e) => {
+    btn.onclick = function(e) {
         e.preventDefault();
         e.stopPropagation();
-        e.stopImmediatePropagation();
 
         const inputNum = document.getElementById('pos-input-numbers');
         if (!inputNum) return;
 
-        // Determinar el límite según la modalidad seleccionada
-        const modo = window.modoJuegoActual || 'directo';
-        let maxDigitos = 2; // Directo por defecto
-        if (modo === 'pale') maxDigitos = 4;
-        if (modo === 'tripleta') maxDigitos = 6;
-
-        const action = newBtn.dataset.action;
-        const val = newBtn.textContent.trim();
+        const maxDigitos = obtenerLimiteActualPOS();
+        const action = this.dataset.action;
+        const val = this.textContent.trim();
         const soloNumeros = inputNum.value.replace(/\D/g, '');
 
         if (action === 'backspace') {
@@ -351,12 +353,12 @@ document.querySelectorAll('.pos-keypad-btn').forEach(btn => {
                 inputNum.value += '-';
             }
         } else if (!action) {
-            // Permitir escribir solo si no ha alcanzado el límite de la modalidad
+            // Solo agregar el número si NO se ha alcanzado el límite de la modalidad
             if (soloNumeros.length < maxDigitos) {
                 inputNum.value += val;
             }
         }
-    });
+    };
 });
 
     // Botón Principal: EMITIR TICKET

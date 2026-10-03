@@ -658,7 +658,7 @@
 <!-- SECCIÓN 3: HISTORIAL DE TICKETS -->
 <section id="section-tickets" class="content-section space-y-6 hidden">
     <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-4">
-        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-700 pb-4">
+        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-slate-700 pb-4">
             <div>
                 <h3 class="text-lg font-bold text-white flex items-center gap-2">
                     <i class="fa-solid fa-receipt text-emerald-400"></i>
@@ -666,8 +666,30 @@
                 </h3>
                 <p class="text-xs text-slate-400">Búsqueda, auditoría, cancelación y reimpresión de tickets.</p>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
-                <input type="text" id="tickets-search-input" placeholder="Buscar por Folio o Número..." class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500">
+            
+            <!-- BARRA DE FILTROS Y FECHAS -->
+            <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                <!-- Fecha Desde -->
+                <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase">Desde:</span>
+                    <input type="date" id="tickets-date-from" class="bg-transparent text-xs text-white focus:outline-none">
+                </div>
+
+                <!-- Fecha Hasta -->
+                <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase">Hasta:</span>
+                    <input type="date" id="tickets-date-to" class="bg-transparent text-xs text-white focus:outline-none">
+                </div>
+
+                <!-- Botón Hoy -->
+                <button id="btn-tickets-today" class="bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold text-xs px-3 py-1.5 rounded-xl transition-colors">
+                    Hoy
+                </button>
+
+                <!-- Buscador por Folio -->
+                <input type="text" id="tickets-search-input" placeholder="Buscar por Folio..." class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500">
+
+                <!-- Filtro de Estado -->
                 <select id="tickets-status-filter" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none">
                     <option value="all">Todos los Estados</option>
                     <option value="pendiente">Pendiente</option>

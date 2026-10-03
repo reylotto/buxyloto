@@ -1,17 +1,18 @@
 // =================================================================
-// MÓDULO DE BALANCES FINANCIEROS Y CUADRES ROBUSTO
+// MÓDULO DE BALANCES FINANCIEROS, CUADRES Y HISTORIAL DE TICKETS
 // =================================================================
 
 let reporteDataCache = [];
 let bancasCache = [];
+let ticketsCache = []; // Caché local para filtrado rápido en historial de tickets
 
 /**
- * Inicializa el módulo
+ * Inicializa el módulo de Balances Financieros
  */
 export async function initReportesModule() {
     console.log("📊 Inicializando Módulo de Balances Financieros...");
 
-    const hoyStr = new Date().toISOString().split('T')[0];
+    const hoyStr = getHoyYMD();
     const inputDesde = document.getElementById('rep-fecha-desde');
     const inputHasta = document.getElementById('rep-fecha-hasta');
 
@@ -20,6 +21,17 @@ export async function initReportesModule() {
 
     await cargarFiltrosDesplegables();
     await generarReporte();
+}
+
+/**
+ * Auxiliar para obtener fecha local en YYYY-MM-DD
+ */
+function getHoyYMD() {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 /**
@@ -60,7 +72,6 @@ async function cargarFiltrosDesplegables() {
     try {
         const supervisores = new Set();
         
-        // Intentar obtener de la tabla usuarios
         const { data: usuarios } = await supabase.from('usuarios').select('*');
         if (usuarios) {
             usuarios.forEach(u => {
@@ -72,7 +83,6 @@ async function cargarFiltrosDesplegables() {
             });
         }
 
-        // Revisar columna supervisor en bancas
         if (bancasCache.length > 0) {
             bancasCache.forEach(b => {
                 if (b.supervisor && String(b.supervisor).trim() !== '' && b.supervisor !== 'null') {
@@ -92,7 +102,7 @@ async function cargarFiltrosDesplegables() {
         console.warn("Error cargando supervisores:", e);
     }
 
-    // 3. CARGAR LOTERÍAS (Estrategia doble: 'loterias' o 'sorteos')
+    // 3. CARGAR LOTERÍAS
     try {
         let loterias = [];
         const { data: lotData } = await supabase.from('loterias').select('*');
@@ -121,7 +131,7 @@ async function cargarFiltrosDesplegables() {
 }
 
 /**
- * Consulta de tickets y consolidación de ventas
+ * Consulta de tickets y consolidación de ventas para Balances
  */
 export async function generarReporte() {
     const supabase = window.supabase;
@@ -139,7 +149,6 @@ export async function generarReporte() {
     const tipoJugada = document.getElementById('rep-filtro-jugada')?.value;
 
     try {
-        // Consulta directa a tickets (sin joins para evitar errores 400)
         let query = supabase.from('tickets').select('*');
 
         if (fechaDesde) query = query.gte('created_at', `${fechaDesde}T00:00:00`);
@@ -152,11 +161,9 @@ export async function generarReporte() {
 
         let resultados = tickets || [];
 
-        // Mapear con la información de la banca
         const bancasMap = {};
         bancasCache.forEach(b => { bancasMap[b.id] = b; });
 
-        // Filtros secundarios
         if (zona && zona !== 'todas') {
             resultados = resultados.filter(t => bancasMap[t.banca_id]?.zona === zona);
         }
@@ -167,7 +174,6 @@ export async function generarReporte() {
             resultados = resultados.filter(t => String(t.tipo_jugada || '').toLowerCase().includes(tipoJugada.toLowerCase()));
         }
 
-        // Agrupar resultados por Día y Banca
         const agrupado = {};
 
         resultados.forEach(t => {
@@ -282,7 +288,7 @@ function actualizarKPIs(v, c, p, n) {
 }
 
 export function limpiarFiltrosReportes() {
-    const hoyStr = new Date().toISOString().split('T')[0];
+    const hoyStr = getHoyYMD();
     if (document.getElementById('rep-fecha-desde')) document.getElementById('rep-fecha-desde').value = hoyStr;
     if (document.getElementById('rep-fecha-hasta')) document.getElementById('rep-fecha-hasta').value = hoyStr;
     if (document.getElementById('rep-filtro-zona')) document.getElementById('rep-filtro-zona').value = 'todas';
@@ -307,7 +313,7 @@ export function exportarReporteExcel() {
 
     const link = document.createElement("a");
     link.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
-    link.download = `Cuadre_Financiero_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `Cuadre_Financiero_${getHoyYMD()}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -317,25 +323,202 @@ export function exportarReportePDF() {
     window.print();
 }
 
+// =================================================================
+// MÓDULO DE HISTORIAL DE TICKETS (DESDE / HASTA / HOY)
+// =================================================================
+
+/**
+ * Inicializa los filtros y eventos de la vista de Historial de Tickets
+ */
+export async function initTicketsHistoryModule() {
+    console.log("🎟️ Inicializando Historial de Tickets...");
+
+    const hoyStr = getHoyYMD();
+    const dateFrom = document.getElementById('tickets-date-from');
+    const dateTo = document.getElementById('tickets-date-to');
+    const btnToday = document.getElementById('btn-tickets-today');
+    const searchInput = document.getElementById('tickets-search-input');
+    const statusFilter = document.getElementById('tickets-status-filter');
+
+    // Por defecto cargar fecha de HOY
+    if (dateFrom && !dateFrom.value) dateFrom.value = hoyStr;
+    if (dateTo && !dateTo.value) dateTo.value = hoyStr;
+
+    // Escuchadores de eventos
+    if (dateFrom) dateFrom.onchange = () => cargarHistorialTickets();
+    if (dateTo) dateTo.onchange = () => cargarHistorialTickets();
+    if (statusFilter) statusFilter.onchange = () => filtrarYRenderizarTicketsLocal();
+    if (searchInput) searchInput.oninput = () => filtrarYRenderizarTicketsLocal();
+
+    if (btnToday) {
+        btnToday.onclick = (e) => {
+            e.preventDefault();
+            if (dateFrom) dateFrom.value = hoyStr;
+            if (dateTo) dateTo.value = hoyStr;
+            cargarHistorialTickets();
+        };
+    }
+
+    await cargarHistorialTickets();
+}
+
+/**
+ * Consulta Supabase o AppState para obtener los tickets según el rango de fecha seleccionado
+ */
+export async function cargarHistorialTickets() {
+    const tbody = document.getElementById('tickets-table-body') || document.getElementById('tickets-list-body');
+    const dateFromVal = document.getElementById('tickets-date-from')?.value || getHoyYMD();
+    const dateToVal = document.getElementById('tickets-date-to')?.value || getHoyYMD();
+
+    if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-emerald-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Cargando tickets...</td></tr>`;
+    }
+
+    const supabase = window.supabase;
+
+    // Si Supabase está disponible, consultar la BD
+    if (supabase) {
+        try {
+            let query = supabase.from('tickets')
+                .select('*')
+                .gte('created_at', `${dateFromVal}T00:00:00`)
+                .lte('created_at', `${dateToVal}T23:59:59`)
+                .order('created_at', { ascending: false });
+
+            const { data, error } = await query;
+            if (!error && data) {
+                ticketsCache = data;
+                filtrarYRenderizarTicketsLocal();
+                return;
+            }
+        } catch (e) {
+            console.warn("Error consultando tickets en Supabase, usando AppState:", e);
+        }
+    }
+
+    // Fallback: Filtrar localmente en AppState.tickets
+    const startDate = new Date(`${dateFromVal}T00:00:00`);
+    const endDate = new Date(`${dateToVal}T23:59:59`);
+    const localTickets = window.AppState?.tickets || [];
+
+    ticketsCache = localTickets.filter(t => {
+        if (!t.createdAt && !t.created_at) return false;
+        const d = new Date(t.createdAt || t.created_at);
+        return d >= startDate && d <= endDate;
+    });
+
+    filtrarYRenderizarTicketsLocal();
+}
+
+/**
+ * Aplica los filtros secundarios (Búsqueda por folio y Estado) sobre el caché cargado
+ */
+function filtrarYRenderizarTicketsLocal() {
+    const searchVal = (document.getElementById('tickets-search-input')?.value || '').toLowerCase().trim();
+    const statusVal = document.getElementById('tickets-status-filter')?.value || 'all';
+
+    let filtrados = [...ticketsCache];
+
+    if (statusVal !== 'all') {
+        filtrados = filtrados.filter(t => (t.status || t.estado || 'pendiente').toLowerCase() === statusVal.toLowerCase());
+    }
+
+    if (searchVal !== '') {
+        filtrados = filtrados.filter(t => {
+            const folio = String(t.folio || t.ticket_id || '').toLowerCase();
+            const items = JSON.stringify(t.items || t.apuestas || '').toLowerCase();
+            return folio.includes(searchVal) || items.includes(searchVal);
+        });
+    }
+
+    renderizarTablaTickets(filtrados);
+}
+
+/**
+ * Renderiza los tickets filtrados en el DOM
+ */
+function renderizarTablaTickets(lista) {
+    const tbody = document.getElementById('tickets-table-body') || document.getElementById('tickets-list-body');
+    if (!tbody) return;
+
+    if (!lista || lista.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-8 text-slate-400">
+                    No se encontraron tickets emitidos en el rango de fechas o filtros seleccionados.
+                </td>
+            </tr>`;
+        return;
+    }
+
+    tbody.innerHTML = lista.map(t => {
+        const fecha = new Date(t.created_at || t.createdAt).toLocaleString('es-PA');
+        const folio = t.folio || t.id || 'N/A';
+        const total = parseFloat(t.monto_total || t.monto || t.total || 0).toFixed(2);
+        const estado = (t.status || t.estado || 'pendiente').toLowerCase();
+
+        let badgeClass = 'bg-amber-900/50 text-amber-300 border-amber-700/50';
+        if (estado === 'premiado' || estado === 'ganador') badgeClass = 'bg-emerald-900/50 text-emerald-300 border-emerald-700/50';
+        if (estado === 'cancelado' || estado === 'anulado') badgeClass = 'bg-rose-900/50 text-rose-300 border-rose-700/50';
+        if (estado === 'no_premiado') badgeClass = 'bg-slate-700 text-slate-400 border-slate-600';
+
+        return `
+            <tr class="border-b border-slate-700/40 hover:bg-slate-700/30 transition-all">
+                <td class="p-3 font-mono text-emerald-400 font-bold text-xs">${folio}</td>
+                <td class="p-3 text-xs text-slate-300">${fecha}</td>
+                <td class="p-3 text-xs text-slate-200">${t.banca_nombre || t.vendedor || `Banca #${t.banca_id || '1'}`}</td>
+                <td class="p-3 text-center text-xs font-mono text-slate-300">${(t.items || t.apuestas || []).length || 1} ap.</td>
+                <td class="p-3 text-right font-mono font-bold text-white text-xs">$${total}</td>
+                <td class="p-3 text-center">
+                    <span class="px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider ${badgeClass}">
+                        ${estado}
+                    </span>
+                </td>
+                <td class="p-3 text-center">
+                    <button onclick="if(typeof showTicketModal === 'function') showTicketModal('${folio}')" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs px-2.5 py-1 rounded-lg transition-colors">
+                        <i class="fa-solid fa-eye mr-1"></i> Ver
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Detectar apertura de la sección de tickets para cargar datos automáticamente
 document.addEventListener('DOMContentLoaded', () => {
+    // Observador para sección de Reportes
     const reportSection = document.getElementById('section-reports');
     if (reportSection) {
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
-                if (mutation.attributeName === 'class') {
-                    const isHidden = reportSection.classList.contains('hidden');
-                    if (!isHidden) {
-                        initReportesModule();
-                    }
+                if (mutation.attributeName === 'class' && !reportSection.classList.contains('hidden')) {
+                    initReportesModule();
                 }
             });
         });
         observer.observe(reportSection, { attributes: true });
     }
+
+    // Observador para sección de Tickets
+    const ticketSection = document.getElementById('section-tickets');
+    if (ticketSection) {
+        const observerTickets = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'class' && !ticketSection.classList.contains('hidden')) {
+                    initTicketsHistoryModule();
+                }
+            });
+        });
+        observerTickets.observe(ticketSection, { attributes: true });
+    }
 });
 
+// Exponer funciones globalmente
 window.initReportesModule = initReportesModule;
 window.generarReporte = generarReporte;
 window.limpiarFiltrosReportes = limpiarFiltrosReportes;
 window.exportarReporteExcel = exportarReporteExcel;
 window.exportarReportePDF = exportarReportePDF;
+
+window.initTicketsHistoryModule = initTicketsHistoryModule;
+window.cargarHistorialTickets = cargarHistorialTickets;

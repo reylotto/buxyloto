@@ -784,14 +784,16 @@ async function cerrarSesion() {
         localStorage.clear();
         sessionStorage.clear();
 
-        console.log("🔒 Sesión cerrada con éxito. Redirigiendo...");
+        console.log("🔒 Sesión cerrada con éxito. Redirigiendo al login...");
 
-        // Recargar la página para volver al login limpio
-        window.location.reload();
+        // Redirigir limpiando la URL a la raíz del dominio
+        window.location.href = window.location.origin;
 
     } catch (error) {
         console.error("Error al cerrar sesión:", error.message);
-        window.location.reload();
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.href = window.location.origin;
     }
 }
 
@@ -800,13 +802,15 @@ window.cerrarSesion = cerrarSesion;
 
 // Registrar listener por ID cuando cargue el DOM
 document.addEventListener('DOMContentLoaded', () => {
-    const btnLogout = document.getElementById('btn-logout');
-    if (btnLogout) {
-        btnLogout.addEventListener('click', (e) => {
+    // Busca cualquier variante de botón de cerrar sesión (escritorio o móvil)
+    const botonesLogout = document.querySelectorAll('#btn-logout, #logout-btn, .btn-logout');
+    
+    botonesLogout.forEach(btn => {
+        btn.addEventListener('click', (e) => {
             e.preventDefault();
             cerrarSesion();
         });
-    }
+    });
 });
 // ==========================================================
 // RECARGA AUTOMÁTICA AL HACER CLIC EN DASHBOARD ADMIN

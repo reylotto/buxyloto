@@ -774,15 +774,16 @@ async function cerrarSesion() {
     console.log("🔒 Cerrando sesión...");
 
     try {
-        // 1. Ocultar inmediatamente la interfaz del POS/Dashboard
-        const mainApp = document.getElementById('app-content') || document.getElementById('main-layout') || document.querySelector('main');
-        const loginScreen = document.getElementById('login-screen') || document.getElementById('auth-container') || document.getElementById('login-modal');
+        // 1. Usar los IDs REALES definidos en auth.js
+        const loginWrapper = document.getElementById('auth-login-wrapper');
+        const mainContainer = document.getElementById('main-app-container');
 
-        if (mainApp) mainApp.classList.add('hidden');
-        if (loginScreen) loginScreen.classList.remove('hidden');
+        // Alternar visibilidad de contenedores inmediatamente
+        if (mainContainer) mainContainer.classList.add('hidden');
+        if (loginWrapper) loginWrapper.classList.remove('hidden');
 
         // 2. Cerrar sesión en Supabase
-        const client = window.supabaseClient || window.supabase;
+        const client = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
         if (client && client.auth) {
             await client.auth.signOut();
         }
@@ -793,8 +794,8 @@ async function cerrarSesion() {
         localStorage.clear();
         sessionStorage.clear();
 
-        // 4. Redirigir a la URL raíz sin caché
-        window.location.replace(window.location.origin + '?logout=' + Date.now());
+        // 4. Redirección limpia a la raíz sin parámetros (Evita error 404 en Vercel)
+        window.location.href = './';
     }
 }
 

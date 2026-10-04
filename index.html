@@ -2178,31 +2178,36 @@ window.initPOSCart = initPOSCart;
                 updateSelectedLoteriasCart();
             });
 
-            inputNumbers.addEventListener('input', (e) => {
-                let val = e.target.value;
-                const cleanDigits = val.replace(/[^0-9]/g, '');
+            // Obtenemos el campo input real por su ID (ej: 'inputNumeros' o 'inputNumbers')
+const elInputNumbers = document.getElementById('inputNumbers') || document.querySelector('.input-numbers');
 
-                if (CurrentCart.mod === 'directo') {
-                    if (cleanDigits.length > 2) {
-                        alert('Error de restricción: La modalidad DIRECTO permite estrictamente solo 2 dígitos.');
-                        e.target.value = cleanDigits.substring(0, 2);
-                    }
-                } else if (CurrentCart.mod === 'pale') {
-                    if (cleanDigits.length > 4) {
-                        alert('Error de restricción: La modalidad PALÉ permite estrictamente solo 4 dígitos (Ej: 12-85).');
-                        e.target.value = cleanDigits.substring(0, 4);
-                    } else if (cleanDigits.length === 4 && !val.includes('-')) {
-                        e.target.value = cleanDigits.substring(0, 2) + '-' + cleanDigits.substring(2, 4);
-                    }
-                } else if (CurrentCart.mod === 'tripleta') {
-                    if (cleanDigits.length > 6) {
-                        alert('Error de restricción: La modalidad TRIPLETA permite estrictamente solo 6 dígitos (Ej: 12-85-04).');
-                        e.target.value = cleanDigits.substring(0, 6);
-                    } else if (cleanDigits.length === 6 && val.split('-').length - 1 < 2) {
-                        e.target.value = cleanDigits.substring(0, 2) + '-' + cleanDigits.substring(2, 4) + '-' + cleanDigits.substring(4, 6);
-                    }
-                }
-            });
+if (elInputNumbers) {
+    elInputNumbers.addEventListener('input', (e) => {
+        let val = e.target.value;
+        const cleanDigits = val.replace(/[^0-9]/g, '');
+
+        if (window.CurrentCart && window.CurrentCart.mod === 'directo') {
+            if (cleanDigits.length > 2) {
+                alert('Error de restricción: La modalidad DIRECTO permite strictly solo 2 dígitos.');
+                e.target.value = cleanDigits.substring(0, 2);
+            }
+        } else if (window.CurrentCart && window.CurrentCart.mod === 'pale') {
+            if (cleanDigits.length > 4) {
+                alert('Error de restricción: La modalidad PALÉ permite estrictamente solo 4 dígitos (Ej: 12-85).');
+                e.target.value = cleanDigits.substring(0, 4);
+            } else if (cleanDigits.length === 4 && !val.includes('-')) {
+                e.target.value = cleanDigits.substring(0, 2) + '-' + cleanDigits.substring(2, 4);
+            }
+        } else if (window.CurrentCart && window.CurrentCart.mod === 'tripleta') {
+            if (cleanDigits.length > 6) {
+                alert('Error de restricción: La modalidad TRIPLETA permite estrictamente solo 6 dígitos (Ej: 12-85-04).');
+                e.target.value = cleanDigits.substring(0, 6);
+            } else if (cleanDigits.length === 6 && val.split('-').length - 1 < 2) {
+                e.target.value = cleanDigits.substring(0, 2) + '-' + cleanDigits.substring(2, 4) + '-' + cleanDigits.substring(4, 6);
+            }
+        }
+    });
+}
 
             btnAdd.addEventListener('click', () => {
                 const numbers = inputNumbers.value.trim();

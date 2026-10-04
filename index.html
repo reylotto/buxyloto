@@ -2178,7 +2178,7 @@ window.initPOSCart = initPOSCart;
                 updateSelectedLoteriasCart();
             });
 
-            // Obtenemos el campo input real por su ID (ej: 'inputNumeros' o 'inputNumbers')
+           // Obtenemos el campo input real por su ID (ej: 'inputNumeros' o 'inputNumbers')
 const elInputNumbers = document.getElementById('inputNumbers') || document.querySelector('.input-numbers');
 
 if (elInputNumbers) {
@@ -2188,7 +2188,7 @@ if (elInputNumbers) {
 
         if (window.CurrentCart && window.CurrentCart.mod === 'directo') {
             if (cleanDigits.length > 2) {
-                alert('Error de restricción: La modalidad DIRECTO permite strictly solo 2 dígitos.');
+                alert('Error de restricción: La modalidad DIRECTO permite estrictamente solo 2 dígitos.');
                 e.target.value = cleanDigits.substring(0, 2);
             }
         } else if (window.CurrentCart && window.CurrentCart.mod === 'pale') {
@@ -2209,131 +2209,163 @@ if (elInputNumbers) {
     });
 }
 
-            btnAdd.addEventListener('click', () => {
-                const numbers = inputNumbers.value.trim();
-                const amount = parseFloat(inputAmount.value);
-                const activeBancaId = document.getElementById('pos-banca-select').value;
+const btnAddEl = document.getElementById('btnAdd') || document.querySelector('.btn-add');
+if (btnAddEl) {
+    btnAddEl.addEventListener('click', () => {
+        const inputNumbersEl = document.getElementById('inputNumbers') || document.querySelector('.input-numbers');
+        const inputAmountEl = document.getElementById('inputAmount') || document.querySelector('.input-amount');
+        const activeBancaSelect = document.getElementById('pos-banca-select');
 
-                updateSelectedLoteriasCart();
-                if (CurrentCart.loteriaIds.length === 0) {
-                    alert('Por favor seleccione al menos un sorteo múltiple simultáneo.');
-                    return;
-                }
-                if (!numbers) {
-                    alert('Ingrese los números para la jugada.');
-                    return;
-                }
+        const numbers = inputNumbersEl ? inputNumbersEl.value.trim() : '';
+        const amount = inputAmountEl ? parseFloat(inputAmountEl.value) : 0;
+        const activeBancaId = activeBancaSelect ? activeBancaSelect.value : null;
 
-                const rawDigitsCount = numbers.replace(/[^0-9]/g, '').length;
-                if (CurrentCart.mod === 'directo' && rawDigitsCount !== 2) {
-                    alert('Jugada inválida: La modalidad DIRECTO requiere exactamente 2 dígitos.');
-                    return;
-                }
-                if (CurrentCart.mod === 'pale' && rawDigitsCount !== 4) {
-                    alert('Jugada inválida: La modalidad PALÉ requiere exactamente 4 dígitos (2 números de 2 dígitos).');
-                    return;
-                }
-                if (CurrentCart.mod === 'tripleta' && rawDigitsCount !== 6) {
-                    alert('Jugada inválida: La modalidad TRIPLETA requiere exactamente 6 dígitos (3 números de 2 dígitos).');
-                    return;
-                }
+        if (typeof updateSelectedLoteriasCart === 'function') {
+            updateSelectedLoteriasCart();
+        }
 
-                if (isNaN(amount) || amount <= 0) {
-                    alert('Ingrese un monto válido.');
+        if (window.CurrentCart && window.CurrentCart.loteriaIds && window.CurrentCart.loteriaIds.length === 0) {
+            alert('Por favor seleccione al menos un sorteo múltiple simultáneo.');
+            return;
+        }
+        if (!numbers) {
+            alert('Ingrese los números para la jugada.');
+            return;
+        }
+
+        const rawDigitsCount = numbers.replace(/[^0-9]/g, '').length;
+        if (window.CurrentCart && window.CurrentCart.mod === 'directo' && rawDigitsCount !== 2) {
+            alert('Jugada inválida: La modalidad DIRECTO requiere exactamente 2 dígitos.');
+            return;
+        }
+        if (window.CurrentCart && window.CurrentCart.mod === 'pale' && rawDigitsCount !== 4) {
+            alert('Jugada inválida: La modalidad PALÉ requiere exactamente 4 dígitos (2 números de 2 dígitos).');
+            return;
+        }
+        if (window.CurrentCart && window.CurrentCart.mod === 'tripleta' && rawDigitsCount !== 6) {
+            alert('Jugada inválida: La modalidad TRIPLETA requiere exactamente 6 dígitos (3 números de 2 dígitos).');
+            return;
+        }
+
+        if (isNaN(amount) || amount <= 0) {
+            alert('Ingrese un monto válido.');
+            return;
+        }
+
+        if (window.AppState && window.AppState.bancas) {
+            const bancaObj = window.AppState.bancas.find(b => b.id === activeBancaId);
+            if (bancaObj) {
+                if (bancaObj.status === 'bloqueado') {
+                    alert('Esta banca se encuentra BLOQUEADA/INHABILITADA para efectuar ventas.');
                     return;
                 }
-
-                const bancaObj = AppState.bancas.find(b => b.id === activeBancaId);
-                if (bancaObj) {
-                    if (bancaObj.status === 'bloqueado') {
-                        alert('Esta banca se encuentra BLOQUEADA/INHABILITADA para efectuar ventas.');
+                if (window.CurrentCart && window.CurrentCart.mod === 'pale' && bancaObj.blockPale) {
+                    alert(`Restricción de Vendedor: La modalidad PALÉ está bloqueada.`);
+                    return;
+                }
+                if (window.CurrentCart && window.CurrentCart.mod === 'tripleta' && bancaObj.blockTripleta) {
+                    alert(`Restricción de Vendedor: La modalidad TRIPLETA está bloqueada.`);
+                    return;
+                }
+                if (bancaObj.maxPerPlay && amount > bancaObj.maxPerPlay) {
+                    alert(`Restricción de Vendedor: Monto máximo por jugada es $${bancaObj.maxPerPlay.toFixed(2)}.`);
+                    return;
+                }
+                if (bancaObj.maxPlaysCount && window.CurrentCart && window.CurrentCart.items && window.CurrentCart.items.length >= bancaObj.maxPlaysCount) {
+                    alert(`Restricción de Vendedor: Límite de ${bancaObj.maxPlaysCount} jugadas por ticket.`);
+                    return;
+                }
+                if (bancaObj.restrictedNumbers && bancaObj.restrictedNumbers.length > 0) {
+                    const isRestricted = bancaObj.restrictedNumbers.some(num => numbers.includes(num.trim()));
+                    if (isRestricted) {
+                        alert(`Restricción de Vendedor: El número [${numbers}] está bloqueado.`);
                         return;
                     }
-                    if (CurrentCart.mod === 'pale' && bancaObj.blockPale) {
-                        alert(`Restricción de Vendedor: La modalidad PALÉ está bloqueada.`);
-                        return;
-                    }
-                    if (CurrentCart.mod === 'tripleta' && bancaObj.blockTripleta) {
-                        alert(`Restricción de Vendedor: La modalidad TRIPLETA está bloqueada.`);
-                        return;
-                    }
-                    if (bancaObj.maxPerPlay && amount > bancaObj.maxPerPlay) {
-                        alert(`Restricción de Vendedor: Monto máximo por jugada es $${bancaObj.maxPerPlay.toFixed(2)}.`);
-                        return;
-                    }
-                    if (bancaObj.maxPlaysCount && CurrentCart.items.length >= bancaObj.maxPlaysCount) {
-                        alert(`Restricción de Vendedor: Límite de ${bancaObj.maxPlaysCount} jugadas por ticket.`);
-                        return;
-                    }
-                    if (bancaObj.restrictedNumbers && bancaObj.restrictedNumbers.length > 0) {
-                        const isRestricted = bancaObj.restrictedNumbers.some(num => numbers.includes(num.trim()));
-                        if (isRestricted) {
-                            alert(`Restricción de Vendedor: El número [${numbers}] está bloqueado.`);
-                            return;
-                        }
-                    }
                 }
+            }
+        }
 
-                CurrentCart.items.push({
-                    mod: CurrentCart.mod,
-                    number: numbers,
-                    amount: amount
-                });
-
-                inputNumbers.value = '';
-                renderPOSCart();
+        if (window.CurrentCart && window.CurrentCart.items) {
+            window.CurrentCart.items.push({
+                mod: window.CurrentCart.mod,
+                number: numbers,
+                amount: amount
             });
+        }
 
-            btnClearCart.addEventListener('click', () => {
-                CurrentCart.items = [];
-                renderPOSCart();
-            });
+        if (inputNumbersEl) inputNumbersEl.value = '';
+        if (typeof renderPOSCart === 'function') renderPOSCart();
+    });
+}
 
-            btnProcess.addEventListener('click', () => {
-                updateSelectedLoteriasCart();
-                if (CurrentCart.loteriaIds.length === 0) {
-                    alert('Seleccione al menos un sorteo múltiple simultáneo para procesar el ticket.');
-                    return;
-                }
-                if (CurrentCart.items.length === 0) {
-                    alert('El ticket no tiene jugadas añadidas.');
-                    return;
-                }
+const btnClearCartEl = document.getElementById('btnClearCart') || document.querySelector('.btn-clear-cart');
+if (btnClearCartEl) {
+    btnClearCartEl.addEventListener('click', () => {
+        if (window.CurrentCart) {
+            window.CurrentCart.items = [];
+        }
+        if (typeof renderPOSCart === 'function') renderPOSCart();
+    });
+}
 
-                const activeBancaId = document.getElementById('pos-banca-select').value;
-                const bancaObj = AppState.bancas.find(b => b.id === activeBancaId);
-                const totalAmount = CurrentCart.items.reduce((sum, item) => sum + item.amount, 0);
+const btnProcessEl = document.getElementById('btnProcess') || document.querySelector('.btn-process');
+if (btnProcessEl) {
+    btnProcessEl.addEventListener('click', () => {
+        if (typeof updateSelectedLoteriasCart === 'function') {
+            updateSelectedLoteriasCart();
+        }
 
-                const bancaTicketsSales = AppState.tickets
-                    .filter(t => t.bancaId === activeBancaId && t.status !== 'cancelado')
-                    .reduce((sum, t) => sum + t.total, 0);
+        if (window.CurrentCart && window.CurrentCart.loteriaIds && window.CurrentCart.loteriaIds.length === 0) {
+            alert('Seleccione al menos un sorteo múltiple simultáneo para procesar el ticket.');
+            return;
+        }
+        if (window.CurrentCart && window.CurrentCart.items && window.CurrentCart.items.length === 0) {
+            alert('El ticket no tiene jugadas añadidas.');
+            return;
+        }
 
-                if (bancaObj && (bancaTicketsSales + totalAmount) > bancaObj.creditLimit) {
-                    alert(`¡Atención! La banca excede su límite de crédito de venta ($${bancaObj.creditLimit.toFixed(2)}).`);
-                    return;
-                }
+        const activeBancaSelect = document.getElementById('pos-banca-select');
+        const activeBancaId = activeBancaSelect ? activeBancaSelect.value : null;
 
-                const folio = 'BX-' + Math.floor(1000 + Math.random() * 9000);
-                const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+        if (window.AppState && window.AppState.bancas && window.CurrentCart) {
+            const bancaObj = window.AppState.bancas.find(b => b.id === activeBancaId);
+            const totalAmount = window.CurrentCart.items.reduce((sum, item) => sum + item.amount, 0);
 
-                const newTicket = {
-                    folio: folio,
-                    createdAt: nowStr,
-                    bancaId: activeBancaId,
-                    loteriaIds: [...CurrentCart.loteriaIds],
-                    items: [...CurrentCart.items],
-                    total: totalAmount,
-                    status: 'pendiente',
-                    prizeAmount: 0
-                };
+            const bancaTicketsSales = (window.AppState.tickets || [])
+                .filter(t => t.bancaId === activeBancaId && t.status !== 'cancelado')
+                .reduce((sum, t) => sum + t.total, 0);
 
-                AppState.tickets.unshift(newTicket);
-                saveState();
-                showTicketModal(newTicket);
+            if (bancaObj && (bancaTicketsSales + totalAmount) > bancaObj.creditLimit) {
+                alert(`¡Atención! La banca excede su límite de crédito de venta ($${bancaObj.creditLimit.toFixed(2)}).`);
+                return;
+            }
 
-                CurrentCart.items = [];
-                renderPOSCart();
-            });
+            const folio = 'BX-' + Math.floor(1000 + Math.random() * 9000);
+            const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
+            const newTicket = {
+                folio: folio,
+                createdAt: nowStr,
+                bancaId: activeBancaId,
+                loteriaIds: [...window.CurrentCart.loteriaIds],
+                items: [...window.CurrentCart.items],
+                total: totalAmount,
+                status: 'pendiente',
+                prizeAmount: 0
+            };
+
+            if (window.AppState.tickets) {
+                window.AppState.tickets.unshift(newTicket);
+            }
+
+            if (typeof saveState === 'function') saveState();
+            if (typeof showTicketModal === 'function') showTicketModal(newTicket);
+
+            window.CurrentCart.items = [];
+            if (typeof renderPOSCart === 'function') renderPOSCart();
+        }
+    });
+}
         
 
         function updateSelectedLoteriasCart() {

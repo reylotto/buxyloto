@@ -72,7 +72,7 @@ async function cargarDatosPerfilAdmin() {
 }
 
 async function guardarPerfilAdmin() {
-    const supabase = window.getSupabaseClient();
+    const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
     if (!supabase || !supabase.auth) {
         return alert("Error: No hay conexión con la autenticación de Supabase.");
     }
@@ -88,6 +88,10 @@ async function guardarPerfilAdmin() {
         return alert("Por favor, ingrese el nombre de usuario o la nueva contraseña a cambiar.");
     }
 
+    if (nuevaPassword && nuevaPassword.length < 6) {
+        return alert("La contraseña debe tener al menos 6 caracteres.");
+    }
+
     if (btnGuardar) {
         btnGuardar.disabled = true;
         btnGuardar.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sincronizando con Supabase...';
@@ -97,10 +101,6 @@ async function guardarPerfilAdmin() {
         const updatePayload = {};
 
         if (nuevaPassword) {
-            if (nuevaPassword.length < 6) {
-                alert("La contraseña debe tener al menos 6 caracteres.");
-                return;
-            }
             updatePayload.password = nuevaPassword;
         }
 
@@ -111,16 +111,37 @@ async function guardarPerfilAdmin() {
             }
         }
 
+        // 1. Actualizar en Supabase Auth
         const { data, error } = await supabase.auth.updateUser(updatePayload);
 
         if (error) throw error;
+
+        // 2. Opcional: Actualizar en la tabla de usuarios de la base de datos si la manejas
+        if (data.user) {
+            await supabase
+                .from('usuarios')
+                .update({ 
+                    nombre: nuevoUsuario,
+                    username: nuevoUsuario 
+                })
+                .eq('id', data.user.id);
+        }
+
+        // 3. Actualizar la etiqueta visual de la esquina superior derecha
+        const adminNameLabel = document.getElementById('admin-profile-display-name') || document.getElementById('admin-name');
+        if (adminNameLabel && nuevoUsuario) {
+            adminNameLabel.textContent = nuevoUsuario;
+        }
 
         alert("¡Perfil de Administrador Central actualizado con éxito en Supabase!");
 
         if (passwordInput) passwordInput.value = '';
 
         const modalPerfil = document.getElementById('modal-perfil-admin') || document.getElementById('modal-admin-profile');
-        if (modalPerfil) modalPerfil.classList.add('hidden');
+        if (modalPerfil) {
+            modalPerfil.classList.add('hidden');
+            modalPerfil.style.display = 'none';
+        }
 
     } catch (err) {
         console.error("Error al actualizar perfil admin:", err);
@@ -1142,8 +1163,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnRefresh = document.getElementById('btn-refresh-dashboard');
     if (btnRefresh) {
         btnRefresh.addEventListener('click', () => {
-            cargarResumenOperacionesHoy();
-            cargarMetricasSeguras();
+            if (typeof cargarResumenOperacionesHoy === 'function') cargarResumenOperacionesHoy();
+            if (typeof cargarMetricasSeguras === 'function') cargarMetricasSeguras();
         });
     }
 
@@ -1152,7 +1173,7 @@ document.addEventListener('DOMContentLoaded', () => {
     botonesCerrarSesion.forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.preventDefault();
-            cerrarSesionAdmin();
+            if (typeof cerrarSesionAdmin === 'function') cerrarSesionAdmin();
         });
     });
 
@@ -1161,7 +1182,7 @@ document.addEventListener('DOMContentLoaded', () => {
     navLinks.forEach(btn => {
         btn.addEventListener('click', (e) => {
             const target = btn.getAttribute('data-section');
-            if (target) cambiarSeccion(target);
+            if (target && typeof cambiarSeccion === 'function') cambiarSeccion(target);
 
             setTimeout(() => {
                 if (typeof window.cargarHistorialTickets === 'function') window.cargarHistorialTickets();
@@ -1171,6 +1192,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Vinculación del botón Guardar Perfil de Administrador Central
+    const btnGuardarPerfil = document.getElementById('btn-guardar-perfil-admin') || document.getElementById('btn-save-admin');
+    if (btnGuardarPerfil) {
+        btnGuardarPerfil.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (typeof guardarPerfilAdmin === 'function') guardarPerfilAdmin();
+        });
+    }
+
     // Suscribir a tiempo real
-    suscribirEventosTiempoReal();
+    if (typeof suscribirEventosTiempoReal === 'function') {
+        suscribirEventosTiempoReal();
+    }
 });

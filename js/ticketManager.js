@@ -62,49 +62,55 @@ export async function renderizarPlantillaTicket(ticketData) {
         document.body.appendChild(ticketElem);
     }
 
-    // Configuración estética y de espacio optimizada
+    // Configuración estética para renderizado exacto e impresión
     ticketElem.style.position = 'fixed';
     ticketElem.style.top = '-9999px';
     ticketElem.style.left = '-9999px';
-    ticketElem.style.width = '300px';
+    ticketElem.style.width = '280px';
     ticketElem.style.backgroundColor = '#ffffff';
     ticketElem.style.color = '#000000';
-    ticketElem.style.padding = '14px 12px';
-    ticketElem.style.fontFamily = "Courier, 'Courier New', monospace";
+    ticketElem.style.padding = '12px 10px';
+    ticketElem.style.fontFamily = "'Courier New', Courier, monospace";
     ticketElem.style.fontSize = '12px';
-    ticketElem.style.lineHeight = '1.4';
+    ticketElem.style.lineHeight = '1.3';
     ticketElem.style.boxSizing = 'border-box';
     ticketElem.style.zIndex = '-9999';
 
-    // Extracción de metadatos del ticket
+    // Extracción y formateo de metadatos del ticket
     const codigo = ticketData.codigo_ticket || ticketData.codigo || '000000';
     const montoTotal = parseFloat(ticketData.monto_total || ticketData.monto || ticketData.total || 0).toFixed(2);
     const jugadas = ticketData.detalles || ticketData.jugadas || [];
 
+    // Nombre de la banca dinámico (fallback a BUXYLOTO MAIN)
     const nombreBanca = ticketData.banca_nombre || ticketData.nombre_banca || ticketData.banca || 'BUXYLOTO MAIN';
 
+    // Fecha y Hora
     const ahora = ticketData.created_at ? new Date(ticketData.created_at) : new Date();
     const fechaStr = ticketData.fecha || ahora.toLocaleDateString();
     const horaStr = ticketData.hora || ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
+    // Generar URL del QR
     const qrDataUrl = await generarQRDataURL(codigo);
 
-    // Renderizado correcto de las jugadas en 3 columnas sin colisión vertical
+    // Formatear filas de jugadas en 3 columnas: SORTEO | JUGADA | MONTO
     const filasHTML = jugadas.length > 0 ? jugadas.map(j => {
+        // Obtener nombre del sorteo
         let sorteoRaw = j.sorteo_nombre || j.sorteo || ticketData.sorteo_nombre || ticketData.sorteo || 'GENERAL';
         sorteoRaw = sorteoRaw.replace(/\[\vert{}\]/g, '').trim();
 
+        // Formatear la jugada (Ej: DIRECTO 33 o PALE 3673)
         const numeroLimpio = j.numero || '';
         const tipoLimpio = (j.tipo || '').toUpperCase();
         const jugadaTexto = tipoLimpio ? `${tipoLimpio} ${numeroLimpio}`.trim() : String(numeroLimpio);
 
+        // Formatear monto a decimal
         const montoFormateado = parseFloat(j.monto || 0).toFixed(2);
 
         return `
-            <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; font-weight: bold; padding: 4px 0; border-bottom: 1px dashed #cccccc; line-height: 1.2;">
-                <span style="width: 42%; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: bold; line-height: 1.2; display: inline-block;">${sorteoRaw}</span>
-                <span style="width: 36%; text-align: center; font-weight: bold; line-height: 1.2; display: inline-block;">${jugadaTexto}</span>
-                <span style="width: 22%; text-align: right; font-weight: bold; line-height: 1.2; display: inline-block;">${montoFormateado}</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: bold; padding: 2px 0; border-bottom: 1px dotted #000000;">
+                <span style="width: 40%; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: bold;">${sorteoRaw}</span>
+                <span style="width: 35%; text-align: center; font-weight: bold;">${jugadaTexto}</span>
+                <span style="width: 25%; text-align: right; font-weight: bold;">${montoFormateado}</span>
             </div>
         `;
     }).join('') : `
@@ -112,7 +118,7 @@ export async function renderizarPlantillaTicket(ticketData) {
     `;
 
     ticketElem.innerHTML = `
-        <!-- CABECERA -->
+        <!-- CABECERA DE MARCA -->
         <div style="text-align: center; margin-bottom: 8px;">
             <div style="font-size: 24px; line-height: 1; margin-bottom: 2px;">☘️</div>
             <h2 style="margin: 0; font-size: 18px; font-weight: 900; letter-spacing: 0.5px; color: #000;">BUXYLOTO</h2>
@@ -122,7 +128,7 @@ export async function renderizarPlantillaTicket(ticketData) {
 
         <div style="border-top: 1px dashed #000000; margin: 6px 0;"></div>
 
-        <!-- METADATOS -->
+        <!-- METADATOS DEL TICKET -->
         <div style="font-size: 11px; font-weight: bold; line-height: 1.4;">
             <div style="display: flex; justify-content: space-between;">
                 <span>BANCA</span>
@@ -144,21 +150,21 @@ export async function renderizarPlantillaTicket(ticketData) {
 
         <div style="border-top: 1px dashed #000000; margin: 6px 0;"></div>
 
-        <!-- ENCABEZADO DE TABLA -->
-        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 11px; border-bottom: 2px solid #000000; padding-bottom: 4px; margin-bottom: 4px;">
-            <span style="width: 42%; text-align: left; font-weight: bold;">SORTEO</span>
-            <span style="width: 36%; text-align: center; font-weight: bold;">JUGADA</span>
-            <span style="width: 22%; text-align: right; font-weight: bold;">MONTO</span>
+        <!-- ENCABEZADO DE TABLA (CORREGIDO) -->
+        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 11px; border-bottom: 2px solid #000000; padding-bottom: 3px; margin-bottom: 4px;">
+            <span style="width: 40%; text-align: left; font-weight: bold;">SORTEO</span>
+            <span style="width: 35%; text-align: center; font-weight: bold;">JUGADA</span>
+            <span style="width: 25%; text-align: right; font-weight: bold;">MONTO</span>
         </div>
 
-        <!-- JUGADAS -->
+        <!-- LISTA DE JUGADAS -->
         <div style="margin-bottom: 6px;">
             ${filasHTML}
         </div>
 
         <div style="border-top: 1px dashed #000000; margin: 6px 0;"></div>
 
-        <!-- TOTAL -->
+        <!-- TOTAL USD -->
         <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900; margin: 6px 0;">
             <span>TOTAL</span>
             <span>USD ${montoTotal}</span>
@@ -166,7 +172,7 @@ export async function renderizarPlantillaTicket(ticketData) {
 
         <div style="border-top: 1px dashed #000000; margin: 6px 0;"></div>
 
-        <!-- AVISOS -->
+        <!-- REGLAS Y AVISOS -->
         <div style="text-align: center; font-size: 10px; font-weight: bold; line-height: 1.3; margin-bottom: 8px;">
             <p style="margin: 2px 0;">REVISE SU TICKET</p>
             <p style="margin: 2px 0;">SIN TICKET NO SE PAGA</p>
@@ -174,7 +180,7 @@ export async function renderizarPlantillaTicket(ticketData) {
             <p style="margin: 2px 0; font-size: 8px;">NO SE PAGA EL PALE DOBLE</p>
         </div>
 
-        <!-- QR -->
+        <!-- CÓDIGO QR -->
         <div style="text-align: center; margin-top: 6px;">
             ${qrDataUrl ? `<img src="${qrDataUrl}" style="width:100px; height:100px; display:inline-block;" alt="Código QR Ticket" />` : ''}
         </div>
@@ -199,10 +205,15 @@ export async function generarImagenTicket() {
     }
 }
 
+// ----------------------------------------------------------
+// EXPORTACIÓN, IMPRESIÓN Y COMPARTIR TICKET
+// ----------------------------------------------------------
+
 export async function compartirTicketWhatsApp(ticketData, numeroTelefono = '') {
     await renderizarPlantillaTicket(ticketData);
     const dataUrl = await generarImagenTicket();
 
+    // Intentar compartir como Imagen mediante Web Share API
     if (dataUrl) {
         try {
             const blob = await (await fetch(dataUrl)).blob();
@@ -221,6 +232,7 @@ export async function compartirTicketWhatsApp(ticketData, numeroTelefono = '') {
         }
     }
 
+    // Construir tabla en formato texto para el mensaje de WhatsApp si falla la imagen
     const jugadas = ticketData.detalles || ticketData.jugadas || [];
     let lineasJugadas = "";
 
@@ -313,7 +325,7 @@ export async function mostrarOpcionesExportacionTicket(ticketData) {
     };
 }
 
-// Asignaciones globales
+// Asignaciones globales para garantizar llamadas desde otros módulos
 window.renderizarPlantillaTicket = renderizarPlantillaTicket;
 window.generarImagenTicket = generarImagenTicket;
 window.compartirTicketWhatsApp = compartirTicketWhatsApp;

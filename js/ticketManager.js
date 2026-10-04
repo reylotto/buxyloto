@@ -1,9 +1,11 @@
 // ==========================================================
 // MÓDULO DE GESTIÓN Y EXPORTACIÓN DE TICKETS (ticketManager.js)
-// Replicación exacta de Ticket POS Térmico (58mm / 80mm)
-// Soporte Completo para Múltiples Sorteos en un Mismo Ticket
+// Basado en el formato estándar POS JuegaGana / Buxyloto
 // ==========================================================
 
+/**
+ * Carga dinámica de librerías requeridas (QRCode, html2canvas, jsPDF)
+ */
 function cargarLibreria(url, globalVar) {
     return new Promise((resolve, reject) => {
         if (window[globalVar]) {
@@ -38,11 +40,11 @@ async function generarQRDataURL(texto) {
 
         new QRCode(tempDiv, {
             text: texto || '000000',
-            width: 100,
-            height: 100,
+            width: 120,
+            height: 120,
             colorDark: "#000000",
             colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.M
+            correctLevel: QRCode.CorrectLevel.H
         });
 
         setTimeout(() => {
@@ -62,9 +64,6 @@ async function generarQRDataURL(texto) {
     });
 }
 
-/**
- * Renderiza la plantilla HTML emulando la estructura exacta de la imagen BUXYLOTO
- */
 export async function renderizarPlantillaTicket(ticketData) {
     let ticketElem = document.getElementById('ticket-print-area');
 
@@ -74,11 +73,11 @@ export async function renderizarPlantillaTicket(ticketData) {
         document.body.appendChild(ticketElem);
     }
 
-    // Configuración de lienzo térmico
+    // Configuración para renderizado preciso
     ticketElem.style.position = 'fixed';
     ticketElem.style.top = '-9999px';
     ticketElem.style.left = '-9999px';
-    ticketElem.style.width = '270px';
+    ticketElem.style.width = '280px';
     ticketElem.style.backgroundColor = '#ffffff';
     ticketElem.style.color = '#000000';
     ticketElem.style.padding = '12px 10px';
@@ -88,142 +87,111 @@ export async function renderizarPlantillaTicket(ticketData) {
     ticketElem.style.boxSizing = 'border-box';
     ticketElem.style.zIndex = '-9999';
 
-    // Datos principales
-    const codigo = ticketData.codigo_ticket || ticketData.codigo || ticketData.ticket_id || 'BX-168344';
+    // Extracción y formateo de metadatos del ticket
+    const codigo = ticketData.codigo_ticket || ticketData.codigo || '000000';
     const montoTotal = parseFloat(ticketData.monto_total || ticketData.monto || ticketData.total || 0).toFixed(2);
-    const nombreBanca = ticketData.banca_nombre || ticketData.nombre_banca || ticketData.banca || 'BuxyLoto Main';
-    const tituloHeader = ticketData.titulo_empresa || 'BUXYLOTO';
-    const subtituloHeader = ticketData.subtitulo_empresa || 'POS CENTRAL';
+    const jugadas = ticketData.detalles || ticketData.jugadas || [];
+
+    const nombreBanca = ticketData.banca_nombre || ticketData.nombre_banca || ticketData.banca || 'BUXYLOTO MAIN';
 
     const ahora = ticketData.created_at ? new Date(ticketData.created_at) : new Date();
-    const fechaStr = ticketData.fecha || ahora.toLocaleDateString('es-ES');
+    const fechaStr = ticketData.fecha || ahora.toLocaleDateString();
     const horaStr = ticketData.hora || ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
-    // Extraer lista de jugadas
-    const listaJugadas = ticketData.detalles || ticketData.jugadas || ticketData.items || [];
-
-    // Obtener la lista unificada de sorteos para la cabecera del detalle
-    const nombresSorteosUnicos = [...new Set(listaJugadas.map(j => 
-        j.sorteo_nombre || j.sorteo || j.nombre_sorteo || ticketData.sorteo_nombre || 'SORTEO'
-    ))];
-    
-    const textoCabeceraSorteos = ticketData.sorteo_nombre || nombresSorteosUnicos.join(' / ');
-
-    // CONSTRUCCIÓN DE LAS JUGADAS EN LISTA VERTICAL (IGUAL A LA IMAGEN)
-    let jugadasHTML = '';
-
-    listaJugadas.forEach(j => {
-        const nombreSorteo = (j.sorteo_nombre || j.sorteo || j.nombre_sorteo || ticketData.sorteo_nombre || 'SORTEO').toString().toUpperCase().trim();
-        const tipoJuego = (j.tipo || j.tipo_juego || 'DIRECTO').toString().toUpperCase().trim();
-        const numero = String(j.numero || j.jugada || '').trim();
-        const monto = parseFloat(j.monto || j.valor || 0).toFixed(2);
-
-        jugadasHTML += `
-            <div style="margin-top: 6px;">
-                <div style="font-size: 10px; color: #444; font-weight: normal; margin-bottom: 1px;">[${nombreSorteo}]</div>
-                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: bold;">
-                    <span style="width: 35%; text-align: left; text-transform: uppercase;">${tipoJuego}</span>
-                    <span style="width: 30%; text-align: center;">${numero}</span>
-                    <span style="width: 35%; text-align: right;">${monto}</span>
-                </div>
-            </div>
-        `;
-    });
-
+    // Generar URL del QR
     const qrDataUrl = await generarQRDataURL(codigo);
 
+    // Formatear filas de jugadas
+    const filasHTML = jugadas.length > 0 ? jugadas.map(j => {
+        let sorteoRaw = j.sorteo_nombre || j.sorteo || ticketData.sorteo_nombre || ticketData.sorteo || 'GENERAL';
+        sorteoRaw = sorteoRaw.replace(/\[\vert{}\]/g, '').trim();
+
+        const numeroLimpio = j.numero || '';
+        const tipoLimpio = (j.tipo || '').toUpperCase();
+        const jugadaTexto = tipoLimpio ? `${tipoLimpio} ${numeroLimpio}`.trim() : String(numeroLimpio);
+        const montoFormateado = parseFloat(j.monto || 0).toFixed(2);
+
+        return `
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: bold; padding: 2px 0; border-bottom: 1px dotted #000000;">
+                <span style="width: 40%; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: uppercase;">${sorteoRaw}</span>
+                <span style="width: 35%; text-align: center; text-transform: uppercase;">${jugadaTexto}</span>
+                <span style="width: 25%; text-align: right;">${montoFormateado}</span>
+            </div>
+        `;
+    }).join('') : `
+        <div style="text-align: center; padding: 6px; font-size: 11px; font-weight: bold;">Sin jugadas registradas</div>
+    `;
+
     ticketElem.innerHTML = `
-        <!-- LOGO Y ENCABEZADO -->
-        <div style="text-align: center;">
-            <div style="font-size: 22px; line-height: 1;">☘️</div>
-            <div style="font-size: 16px; font-weight: bold; letter-spacing: 1px; margin-top: 2px;">${tituloHeader}</div>
-            <div style="font-size: 11px; font-weight: bold; margin-top: 2px;">${subtituloHeader}</div>
-            <div style="font-size: 11px; font-weight: bold; margin-top: 2px;">$$ DINERO SEGURO $$</div>
+        <!-- CABECERA DE MARCA -->
+        <div style="text-align: center; margin-bottom: 8px;">
+            <div style="font-size: 24px; line-height: 1; margin-bottom: 2px;">☘️</div>
+            <h2 style="margin: 0; font-size: 18px; font-weight: 900; letter-spacing: 0.5px; color: #000;">BUXYLOTO</h2>
+            <div style="font-size: 11px; font-weight: bold;">POS CENTRAL</div>
+            <div style="font-size: 10px; font-weight: bold;">$$ DINERO SEGURO $$</div>
         </div>
 
-        <div style="border-top: 1px dashed #000; margin: 8px 0;"></div>
+        <div style="border-top: 1px dashed #000000; margin: 6px 0;"></div>
 
-        <!-- METADATOS BANCA, FECHA, HORA, TICKET -->
-        <div style="font-size: 11px; font-weight: bold;">
+        <!-- METADATOS DEL TICKET -->
+        <div style="font-size: 11px; font-weight: bold; line-height: 1.4;">
             <div style="display: flex; justify-content: space-between;">
                 <span>BANCA</span>
-                <span>${nombreBanca}</span>
+                <span style="text-transform: uppercase;">${nombreBanca}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; margin-top: 2px;">
+            <div style="display: flex; justify-content: space-between;">
                 <span>FECHA</span>
                 <span>${fechaStr}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; margin-top: 2px;">
+            <div style="display: flex; justify-content: space-between;">
                 <span>HORA</span>
                 <span>${horaStr}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; margin-top: 2px;">
+            <div style="display: flex; justify-content: space-between;">
                 <span>TICKET</span>
                 <span>${codigo}</span>
             </div>
         </div>
 
-        <div style="border-top: 1px dashed #000; margin: 8px 0;"></div>
+        <div style="border-top: 1px dashed #000000; margin: 6px 0;"></div>
 
-        <!-- LISTADO DE SORTEOS AFECTADOS -->
-        <div style="font-weight: bold; font-size: 12px; text-transform: uppercase; word-wrap: break-word;">
-            ${textoCabeceraSorteos}
+        <!-- ENCABEZADO DE TABLA -->
+        <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 11px; border-bottom: 2px solid #000000; padding-bottom: 3px; margin-bottom: 4px; text-transform: uppercase;">
+            <span style="width: 40%; text-align: left;">SORTEO</span>
+            <span style="width: 35%; text-align: center;">JUGADA</span>
+            <span style="width: 25%; text-align: right;">MONTO</span>
         </div>
 
-        <!-- JUGADAS -->
-        <div style="margin-top: 4px;">
-            ${jugadasHTML}
+        <!-- LISTA DE JUGADAS -->
+        <div style="margin-bottom: 6px;">
+            ${filasHTML}
         </div>
 
-        <div style="border-top: 1px dashed #000; margin: 10px 0 6px 0;"></div>
+        <div style="border-top: 1px dashed #000000; margin: 6px 0;"></div>
 
-        <!-- TOTAL -->
-        <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold;">
+        <!-- TOTAL USD -->
+        <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900; margin: 6px 0;">
             <span>TOTAL</span>
             <span>USD ${montoTotal}</span>
         </div>
 
-        <div style="border-top: 1px dashed #000; margin: 6px 0 10px 0;"></div>
+        <div style="border-top: 1px dashed #000000; margin: 6px 0;"></div>
 
-        <!-- PIE DE PÁGINA -->
-        <div style="text-align: center; font-size: 9px; font-weight: bold; line-height: 1.3;">
-            <div>REVISE SU TICKET</div>
-            <div>SIN TICKET NO SE PAGA</div>
-            <div style="margin-top: 3px; font-size: 8px;">DIRECTO 60X1 | PALE 1000X1 | TRIPLETA 10000X1</div>
-            <div style="font-size: 8px;">NO SE PAGA EL PALE DOBLE</div>
+        <!-- REGLAS Y AVISOS -->
+        <div style="text-align: center; font-size: 10px; font-weight: bold; line-height: 1.3; margin-bottom: 8px;">
+            <p style="margin: 2px 0;">REVISE SU TICKET</p>
+            <p style="margin: 2px 0;">SIN TICKET NO SE PAGA</p>
+            <p style="margin: 4px 0 2px 0; font-size: 8px;">DIRECTO 60X1 | PALE 1000X1 | TRIPLETA 10000X1</p>
+            <p style="margin: 2px 0; font-size: 8px;">NO SE PAGA EL PALE DOBLE</p>
         </div>
 
         <!-- CÓDIGO QR -->
-        <div style="text-align: center; margin-top: 10px;">
-            ${qrDataUrl ? `<img src="${qrDataUrl}" style="width:100px; height:100px; display:inline-block;" />` : ''}
+        <div style="text-align: center; margin-top: 6px;">
+            ${qrDataUrl ? `<img src="${qrDataUrl}" style="width:100px; height:100px; display:inline-block;" alt="Código QR Ticket" />` : ''}
         </div>
     `;
 
     return ticketElem;
-}
-
-export async function generarImagenTicketBlob() {
-    await asegurarLibrerias();
-    const ticketElem = document.getElementById('ticket-print-area');
-    if (!ticketElem) return null;
-
-    try {
-        const canvas = await html2canvas(ticketElem, {
-            scale: 2,
-            useCORS: true,
-            backgroundColor: "#ffffff",
-            logging: false
-        });
-
-        return new Promise((resolve) => {
-            canvas.toBlob((blob) => {
-                resolve(blob);
-            }, 'image/png');
-        });
-    } catch (err) {
-        console.error("Error al generar la imagen del ticket:", err);
-        return null;
-    }
 }
 
 export async function generarImagenTicket() {
@@ -233,96 +201,27 @@ export async function generarImagenTicket() {
 
     try {
         const canvas = await html2canvas(ticketElem, {
-            scale: 2,
+            scale: 3,
             useCORS: true,
             backgroundColor: "#ffffff",
             logging: false
         });
         return canvas.toDataURL("image/png");
     } catch (err) {
-        console.error("Error al generar dataURL:", err);
+        console.error("Error al generar la imagen del ticket:", err);
         return null;
     }
 }
 
-export async function compartirTicketWhatsApp(ticketData) {
-    await renderizarPlantillaTicket(ticketData);
-    const blob = await generarImagenTicketBlob();
-
-    if (!blob) {
-        alert("Error al procesar la imagen del ticket.");
-        return;
-    }
-
-    const codigo = ticketData.codigo_ticket || ticketData.codigo || 'ticket';
-    const file = new File([blob], `Ticket_${codigo}.png`, { type: 'image/png' });
-
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-            await navigator.share({
-                files: [file],
-                title: `Ticket #${codigo}`,
-                text: `Ticket de jugada #${codigo}`
-            });
-            return;
-        } catch (err) {
-            if (err.name !== 'AbortError') {
-                console.error("Error compartiendo archivo:", err);
-            }
-        }
-    }
-
-    const urlImagen = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = urlImagen;
-    a.download = `Ticket_${codigo}.png`;
-    a.click();
-
-    alert("La imagen del ticket ha sido descargada. Se abrirá WhatsApp para que pueda adjuntarla.");
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(`Adjunto ticket #${codigo}`)}`, '_blank');
-}
-
-export async function descargarImagenTicket(ticketData) {
-    await renderizarPlantillaTicket(ticketData);
-    const blob = await generarImagenTicketBlob();
-    if (!blob) return;
-
-    const codigo = ticketData.codigo_ticket || ticketData.codigo || 'ticket';
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Ticket_${codigo}.png`;
-    a.click();
-}
-
-export async function descargarPDFTicket(ticketData) {
-    await renderizarPlantillaTicket(ticketData);
-    const imgData = await generarImagenTicket();
-
-    if (!imgData) {
-        alert("❌ No se pudo generar el documento PDF.");
-        return;
-    }
-
-    await asegurarLibrerias();
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({
-        orientation: 'p',
-        unit: 'mm',
-        format: [80, 150]
-    });
-
-    pdf.addImage(imgData, 'PNG', 0, 0, 80, 0);
-    const codigo = ticketData.codigo_ticket || ticketData.codigo || 'ticket';
-    pdf.save(`Ticket_${codigo}.pdf`);
-}
-
+/**
+ * Imprime directamente el ticket en impresoras térmicas de 80mm
+ */
 export async function imprimirTicketTermica(ticketData) {
     const ticketElem = await renderizarPlantillaTicket(ticketData);
 
     const printWindow = window.open('', '_blank', 'width=350,height=600');
     if (!printWindow) {
-        alert("Por favor habilita las ventanas emergentes (pop-ups) para imprimir.");
+        alert("Por favor habilita los pop-ups para imprimir el ticket.");
         return;
     }
 
@@ -330,14 +229,23 @@ export async function imprimirTicketTermica(ticketData) {
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Imprimir Ticket</title>
+            <title>Imprimir Ticket #${ticketData.codigo_ticket || ticketData.codigo}</title>
             <style>
-                @page { size: 58mm auto; margin: 0; }
-                body { margin: 0; padding: 5px; background: #fff; display: flex; justify-content: center; }
+                @page {
+                    size: 80mm auto;
+                    margin: 0;
+                }
+                body {
+                    margin: 0;
+                    padding: 10px;
+                    background: #fff;
+                    display: flex;
+                    justify-content: center;
+                }
             </style>
         </head>
         <body>
-            <div style="width: 270px;">
+            <div style="width: 280px;">
                 ${ticketElem.innerHTML}
             </div>
             <script>
@@ -352,24 +260,127 @@ export async function imprimirTicketTermica(ticketData) {
     printWindow.document.close();
 }
 
-export function mostrarOpcionesExportacionTicket(ticketData) {
+// ----------------------------------------------------------
+// EXPORTACIÓN, IMPRESIÓN Y COMPARTIR TICKET
+// ----------------------------------------------------------
+
+export async function compartirTicketWhatsApp(ticketData, numeroTelefono = '') {
+    try {
+        // 1. Renderizar la plantilla HTML y generar la imagen
+        await renderizarPlantillaTicket(ticketData);
+        const dataUrl = await generarImagenTicket();
+
+        if (dataUrl) {
+            const res = await fetch(dataUrl);
+            const blob = await res.blob();
+            const file = new File([blob], `Ticket_${ticketData.codigo_ticket || 'BX'}.png`, { type: 'image/png' });
+
+            // 2. Intentar compartir como IMAGEN si el navegador lo soporta (móviles)
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        files: [file],
+                        title: `Ticket ${ticketData.codigo_ticket || ticketData.codigo || ''}`,
+                        text: `🎟️ Ticket de Jugada #${ticketData.codigo_ticket || ticketData.codigo || ''}`
+                    });
+                    return; // Compartido con éxito como imagen
+                } catch (errShare) {
+                    console.warn("Compartido nativo cancelado o no disponible:", errShare);
+                }
+            }
+        }
+    } catch (errImg) {
+        console.error("Error al generar la imagen del ticket:", errImg);
+    }
+
+    // 3. FALLBACK: Si no se puede adjuntar la imagen, construir un mensaje de texto formateado detallado
+    const jugadas = ticketData.detalles || ticketData.jugadas || [];
+    let lineasJugadas = '';
+
+    jugadas.forEach(j => {
+        let sorteo = j.sorteo_nombre || j.sorteo || ticketData.sorteo_nombre || ticketData.sorteo || 'GENERAL';
+        sorteo = sorteo.replace(/\[\vert{}\]/g, '').trim();
+
+        const num = j.numero || '';
+        const tipo = (j.tipo || '').toUpperCase();
+        const jugadaTexto = tipo ? `${tipo} ${num}`.trim() : String(num);
+        const monto = parseFloat(j.monto || 0).toFixed(2);
+
+        lineasJugadas += `• *${sorteo.toUpperCase()}* | ${jugadaTexto} -> $${monto}\n`;
+    });
+
+    const textoCompleto = 
+`🍀 *BUXYLOTO POS* 🍀
+--------------------------------
+🎟️ *TICKET:* #${ticketData.codigo_ticket || ticketData.codigo || 'S/N'}
+🏪 *BANCA:* ${ticketData.banca_nombre || ticketData.nombre_banca || ticketData.banca || 'BUXYLOTO MAIN'}
+📅 *FECHA:* ${ticketData.fecha || new Date().toLocaleDateString()} ${ticketData.hora || ''}
+--------------------------------
+*JUGADAS (SORTEO | JUGADA | MONTO):*
+${lineasJugadas || 'Sin detalles'}
+--------------------------------
+💵 *TOTAL:* $${parseFloat(ticketData.monto_total || ticketData.monto || ticketData.total || 0).toFixed(2)} USD
+--------------------------------
+Revise su ticket. Sin ticket no se paga.
+¡Gracias por su compra!`;
+
+    const mensajeEncoded = encodeURIComponent(textoCompleto);
+    const urlWhatsApp = numeroTelefono 
+        ? `https://api.whatsapp.com/send?phone=${numeroTelefono}&text=${mensajeEncoded}`
+        : `https://api.whatsapp.com/send?text=${mensajeEncoded}`;
+
+    window.open(urlWhatsApp, '_blank');
+}
+
+export async function descargarPDFTicket(ticketData) {
+    await asegurarLibrerias();
+    await renderizarPlantillaTicket(ticketData);
+    const dataUrl = await generarImagenTicket();
+    if (!dataUrl) return;
+
+    const { jsPDF } = window.jspdf || window.jspdf?.jsPDF ? window.jspdf : { jsPDF: window.jsPDF };
+    
+    // Alto dinámico según cantidad de jugadas (Formato 80mm de ancho)
+    const totalJugadas = (ticketData.detalles || ticketData.jugadas || []).length;
+    const altoCalculado = Math.max(140, 100 + (totalJugadas * 8));
+
+    const doc = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: [80, altoCalculado]
+    });
+
+    doc.addImage(dataUrl, 'PNG', 0, 0, 80, 0);
+    doc.save(`Ticket_${ticketData.codigo_ticket || ticketData.codigo || 'POS'}.pdf`);
+}
+
+export async function mostrarOpcionesExportacionTicket(ticketData) {
+    await renderizarPlantillaTicket(ticketData);
+
     const modalExistente = document.getElementById('modal-export-ticket');
     if (modalExistente) modalExistente.remove();
 
-    const codigo = ticketData.codigo_ticket || ticketData.codigo || '000000';
-
     const modalHTML = `
-        <div id="modal-export-ticket" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 99999;">
-            <div style="background: #1e293b; color: #fff; border-radius: 12px; padding: 24px; width: 90%; max-width: 380px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center;">
-                <h3 style="margin-top: 0; color: #10b981;">🎟 Ticket #${codigo}</h3>
-                <p style="font-size: 14px; color: #94a3b8; margin-bottom: 20px;">Seleccione cómo desea emitir el ticket:</p>
+        <div id="modal-export-ticket" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:99999;">
+            <div style="background:#1e293b; color:#fff; padding:24px; border-radius:12px; width:320px; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.5);">
+                <h3 style="margin:0 0 6px 0; font-size:18px;">Ticket #${ticketData.codigo_ticket || ticketData.codigo || ''}</h3>
+                <p style="font-size:13px; color:#94a3b8; margin-bottom:20px;">¿Cómo desea entregar el comprobante?</p>
 
-                <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <button id="btn-print-thermal" style="background: #10b981; color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;">🖨 Imprimir Ticket (Térmica POS)</button>
-                    <button id="btn-share-wapp" style="background: #25d366; color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;">🖼 Enviar Imagen por WhatsApp</button>
-                    <button id="btn-download-img" style="background: #3b82f6; color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;">📥 Descargar Imagen (PNG)</button>
-                    <button id="btn-close-modal-export" style="background: #475569; color: #fff; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px;">Cerrar</button>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <button id="btn-print-thermal" style="background:#0284c7; color:#fff; padding:12px; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:14px;">
+                        🖨️ Imprimir Térmica (80mm)
+                    </button>
+                    <button id="btn-share-wapp" style="background:#22c55e; color:#fff; padding:12px; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:14px;">
+                        📲 Compartir Imagen (WhatsApp)
+                    </button>
+                    <button id="btn-download-pdf" style="background:#475569; color:#fff; padding:12px; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:14px;">
+                        📄 Descargar PDF
+                    </button>
                 </div>
+
+                <button id="btn-close-modal-export" style="margin-top:18px; background:transparent; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:14px;">
+                    Cerrar
+                </button>
             </div>
         </div>
     `;
@@ -378,19 +389,17 @@ export function mostrarOpcionesExportacionTicket(ticketData) {
 
     document.getElementById('btn-print-thermal').onclick = () => imprimirTicketTermica(ticketData);
     document.getElementById('btn-share-wapp').onclick = () => compartirTicketWhatsApp(ticketData);
-    document.getElementById('btn-download-img').onclick = () => descargarImagenTicket(ticketData);
+    document.getElementById('btn-download-pdf').onclick = () => descargarPDFTicket(ticketData);
     document.getElementById('btn-close-modal-export').onclick = () => {
         const modal = document.getElementById('modal-export-ticket');
         if (modal) modal.remove();
     };
 }
 
-// Ventana global
+// Asignaciones globales para compatibilidad
 window.renderizarPlantillaTicket = renderizarPlantillaTicket;
 window.generarImagenTicket = generarImagenTicket;
-window.generarImagenTicketBlob = generarImagenTicketBlob;
 window.imprimirTicketTermica = imprimirTicketTermica;
 window.compartirTicketWhatsApp = compartirTicketWhatsApp;
-window.descargarImagenTicket = descargarImagenTicket;
 window.descargarPDFTicket = descargarPDFTicket;
 window.mostrarOpcionesExportacionTicket = mostrarOpcionesExportacionTicket;

@@ -2,6 +2,14 @@
 // MÓDULO POS Y VENTA DELEGADA CON TICKET DIGITAL Y SUPABASE (js/pos.js)
 // ==========================================================
 
+import {
+    renderizarPlantillaTicket,
+    generarImagenTicket as generarImagenTicketManager,
+    imprimirTicketTermica as imprimirTermicaManager,
+    compartirTicketWhatsApp as compartirWhatsAppManager,
+    descargarPDFTicket as descargarPDFManager,
+    mostrarOpcionesExportacionTicket as mostrarOpcionesManager
+} from './ticketManager.js';
 // Variables globales para evitar 'ReferenceError' desde eventos HTML (oninput/onclick)
 window.inputNumbers = '';
 let inputNumbers = '';
@@ -718,106 +726,32 @@ export async function cancelarTicketPOS(folioOrId) {
 
 // ==========================================================
 // FUNCIONES DE EXPORTACIÓN Y COMPARTIDO DE TICKETS (POS)
+// Delegadas directamente a ticketManager.js
 // ==========================================================
 
-export function imprimirTicketTermica() {
-    window.print();
+export async function imprimirTicketTermica(ticketData) {
+    if (ticketData) {
+        await imprimirTermicaManager(ticketData);
+    } else {
+        window.print();
+    }
 }
 
-
 export async function compartirTicketWhatsApp(ticketData, numeroTelefono = '') {
-    const dataUrl = await generarImagenTicket();
-    
-    if (dataUrl) {
-        const blob = await (await fetch(dataUrl)).blob();
-        const file = new File([blob], `Ticket_${ticketData.codigo_ticket || 'POS'}.png`, { type: 'image/png' });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-                await navigator.share({
-                    files: [file],
-                    title: `Ticket ${ticketData.codigo_ticket}`,
-                    text: `Aquí tienes tu ticket de jugada #${ticketData.codigo_ticket}`
-                });
-                return;
-            } catch (e) {
-                console.log("Compartido nativo no completado:", e);
-            }
-        }
-    }
-
-    const mensajeText = encodeURIComponent(
-        `*TICKET DE JUGADA #${ticketData.codigo_ticket || ticketData.folio || ''}*\n` +
-        `Total: $${parseFloat(ticketData.monto_total || 0).toFixed(2)}\n\n` +
-        `¡Gracias por su compra!`
-    );
-    
-    const url = numeroTelefono 
-        ? `https://api.whatsapp.com/send?phone=${numeroTelefono}&text=${mensajeText}`
-        : `https://api.whatsapp.com/send?text=${mensajeText}`;
-        
-    window.open(url, '_blank');
+    await compartirWhatsAppManager(ticketData, numeroTelefono);
 }
 
 export async function descargarPDFTicket(ticketData, ticketElementId = 'ticket-print-area') {
-    const dataUrl = await generarImagenTicket(ticketElementId);
-    if (!dataUrl) return;
-
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-        orientation: 'p',
-        unit: 'mm',
-        format: [80, 200]
-    });
-
-    doc.addImage(dataUrl, 'PNG', 0, 0, 80, 0);
-    doc.save(`Ticket_${ticketData.codigo_ticket || 'POS'}.pdf`);
+    await descargarPDFManager(ticketData, ticketElementId);
 }
 
 export function mostrarOpcionesExportacionTicket(ticketData) {
-    const modalExistente = document.getElementById('modal-export-ticket');
-    if (modalExistente) modalExistente.remove();
-
-    const modalHTML = `
-        <div id="modal-export-ticket" class="modal-overlay-ticket">
-            <div class="modal-content-ticket">
-                <h3>Ticket #${ticketData.codigo_ticket || ticketData.folio || ''}</h3>
-                <p style="font-size: 13px; color: #64748b;">¿Cómo desea entregar el comprobante?</p>
-                
-                <div class="modal-buttons-grid">
-                    <button id="btn-print-thermal" style="background:#0284c7; color:#fff; padding:10px; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">
-                        🖨️ Imprimir Térmica (80mm)
-                    </button>
-                    <button id="btn-share-wapp" style="background:#22c55e; color:#fff; padding:10px; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">
-                        📲 Compartir Imagen (WhatsApp)
-                    </button>
-                    <button id="btn-download-pdf" style="background:#475569; color:#fff; padding:10px; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">
-                        📄 Descargar PDF
-                    </button>
-                </div>
-
-                <button id="btn-close-modal-export" style="margin-top: 15px; background: transparent; border: none; color: #ef4444; cursor: pointer; font-weight: bold;">
-                    Cerrar
-                </button>
-            </div>
-        </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-
-    document.getElementById('btn-print-thermal').onclick = () => window.print();
-    document.getElementById('btn-share-wapp').onclick = () => compartirTicketWhatsApp(ticketData);
-    document.getElementById('btn-download-pdf').onclick = () => descargarPDFTicket(ticketData);
-    document.getElementById('btn-close-modal-export').onclick = () => {
-        const modal = document.getElementById('modal-export-ticket');
-        if (modal) modal.remove();
-    };
+    mostrarOpcionesManager(ticketData);
 }
 
-// 🌐 Asignar explícitamente a window para compatibilidad global
+// 🌐 Asignar explícitamente a window para compatibilidad global desde HTML
 window.cancelarTicketPOS = cancelarTicketPOS;
 window.imprimirTicketTermica = imprimirTicketTermica;
-window.generarImagenTicket = generarImagenTicket;
 window.compartirTicketWhatsApp = compartirTicketWhatsApp;
 window.descargarPDFTicket = descargarPDFTicket;
 window.mostrarOpcionesExportacionTicket = mostrarOpcionesExportacionTicket;

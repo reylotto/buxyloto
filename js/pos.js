@@ -636,92 +636,87 @@ export async function cancelarTicketPOS(folioOrId) {
         return;
     }
 
-    const confirmacion = confirm(`¿Está seguro de que desea cancelar el ticket ${folioOrId}? Esta acción no se puede deshacer.`);
-    if (!confirmacion) return;
-
     const supabase = window.supabase;
 
     try {
-        let exito = false;
+        // 1. Consultar el ticket junto con la información/estado de su sorteo
+        let ticketData = null;
+        if (supabase) {
+            const esNumeroPuro = !isNaN(folioOrId) && !isNaN(parseFloat(folioOrId));
+            let queryFilter = `codigo_ticket.eq.${folioOrId},folio.eq.${folioOrId}`;
+            if (esNumeroPuro) queryFilter += `,id.eq.${folioOrId}`;
 
+            const { data, error } = await supabase
+                .from('tickets')
+                .select('*, sorteos(estatus, estado, hora_cierre)')
+                .or(queryFilter)
+                .maybeSingle();
+
+            if (error) console.warn("Error al verificar estado del sorteo:", error);
+            ticketData = data;
+        }
+
+        // 2. Validar si el sorteo ya cerró
+        if (ticketData) {
+            const estadoSorteo = (ticketData.sorteos?.estatus || ticketData.sorteos?.estado || '').toLowerCase();
+            const horaCierre = ticketData.sorteos?.hora_cierre ? new Date(ticketData.sorteos.hora_cierre) : null;
+            const yaPasoHora = horaCierre && new Date() >= horaCierre;
+
+            if (estadoSorteo === 'cerrado' || estadoSorteo === 'finalizado' || yaPasoHora) {
+                alert("❌ No se puede cancelar el ticket: El sorteo ya ha cerrado o finalizado.");
+                return;
+            }
+
+            if ((ticketData.estatus || '').toLowerCase() === 'cancelado') {
+                alert("El ticket ya se encuentra cancelado.");
+                return;
+            }
+        }
+
+        const confirmacion = confirm(`¿Está seguro de que desea cancelar el ticket ${folioOrId}? El registro permanecerá visible como cancelado.`);
+        if (!confirmacion) return;
+
+        // 3. Proceder con el marcado a 'cancelado' (sin eliminar filas)
         if (supabase) {
             const payload = { 
-                estatus: 'CANCELADO',
-                status: 'CANCELADO',
-                estado: 'CANCELADO',
+                estatus: 'cancelado',
+                status: 'cancelado',
+                estado: 'cancelado',
                 updated_at: new Date().toISOString()
             };
 
             const esNumeroPuro = !isNaN(folioOrId) && !isNaN(parseFloat(folioOrId));
             let queryFilter = `codigo_ticket.eq.${folioOrId},folio.eq.${folioOrId}`;
-            if (esNumeroPuro) {
-                queryFilter += `,id.eq.${folioOrId}`;
-            }
+            if (esNumeroPuro) queryFilter += `,id.eq.${folioOrId}`;
 
-            // 1. Anular el ticket en la tabla 'tickets'
+            // Marcar ticket como cancelado
             const { data: ticketsCancelados, error: errTicket } = await supabase
                 .from('tickets')
                 .update(payload)
                 .or(queryFilter)
                 .select();
 
-            if (!errTicket && ticketsCancelados && ticketsCancelados.length > 0) {
-                exito = true;
-
-                // 2. Anular automáticamente todas las jugadas vinculadas en la tabla 'jugadas'
+            if (!errTicket && ticketsCancelados?.length > 0) {
+                // Marcar jugadas asociadas como canceladas
                 const idsTicket = ticketsCancelados.map(t => t.id);
-                const { error: errJugadas } = await supabase
+                await supabase
                     .from('jugadas')
-                    .update({ estatus: 'CANCELADO', estado: 'CANCELADO' })
+                    .update({ estatus: 'cancelado', estado: 'cancelado' })
                     .in('ticket_id', idsTicket);
 
-                if (errJugadas) {
-                    console.warn("⚠️ Ticket cancelado, pero hubo un detalle actualizando tabla jugadas:", errJugadas);
-                } else {
-                    console.log(`✅ Ticket ${folioOrId} y sus jugadas fueron marcados como CANCELADOS.`);
-                }
-            } else if (errTicket) {
-                console.error("❌ Error al cancelar ticket en Supabase:", errTicket);
+                alert(`✅ Ticket ${folioOrId} marcado como CANCELADO exitosamente.`);
+            } else {
+                alert("No se pudo procesar la cancelación en la base de datos.");
+                return;
             }
         }
 
-        // 3. Sincronizar en la copia local (AppState)
-        if (window.AppState && Array.isArray(window.AppState.tickets)) {
-            const ticketLocal = window.AppState.tickets.find(t => 
-                String(t.codigo_ticket) === String(folioOrId) ||
-                String(t.folio) === String(folioOrId) || 
-                String(t.id) === String(folioOrId)
-            );
-            if (ticketLocal) {
-                ticketLocal.estatus = 'CANCELADO';
-                ticketLocal.status = 'CANCELADO';
-                ticketLocal.estado = 'CANCELADO';
-                if (Array.isArray(ticketLocal.items)) {
-                    ticketLocal.items.forEach(it => {
-                        it.estatus = 'CANCELADO';
-                        it.estado = 'CANCELADO';
-                    });
-                }
-                exito = true;
-            }
-        }
-
-        if (exito) {
-            alert(`Ticket ${folioOrId} y sus jugadas han sido cancelados exitosamente.`);
-            if (typeof window.cargarHistorialTickets === 'function') {
-                window.cargarHistorialTickets();
-            }
-            if (typeof window.actualizarResumenDashboard === 'function') {
-                window.actualizarResumenDashboard();
-            }
-        } else {
-            alert("No se pudo encontrar el ticket especificado para cancelar en la base de datos.");
-        }
+        // 4. Actualizar vista e historiales
+        if (typeof window.cargarHistorialTickets === 'function') window.cargarHistorialTickets();
+        if (typeof window.actualizarResumenDashboard === 'function') window.actualizarResumenDashboard();
 
     } catch (err) {
-        console.error("❌ Error inesperado al cancelar ticket:", err);
-        alert("Ocurrió un error al procesar la cancelación.");
+        console.error("❌ Error al procesar cancelación:", err);
+        alert("Ocurrió un error inesperado al validar o cancelar el ticket.");
     }
 }
-
-window.cancelarTicketPOS = cancelarTicketPOS;

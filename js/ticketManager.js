@@ -93,9 +93,13 @@ export async function renderizarPlantillaTicket(ticketData) {
     const qrDataUrl = await generarQRDataURL(codigo);
 
     // Renderizado de las jugadas
-    const filasHTML = jugadas.map(j => `
+    // Dentro de renderizarPlantillaTicket en js/ticketManager.js
+
+const esSorteoUnico = ticketData.detalles.every(j => j.sorteo_nombre === ticketData.detalles[0].sorteo_nombre);
+
+const filasHTML = jugadas.map(j => `
     <div style="margin-bottom: 4px;">
-        ${j.sorteo_nombre ? `<div style="font-size: 10px; color: #555; font-weight: bold;">[${j.sorteo_nombre}]</div>` : ''}
+        ${(!esSorteoUnico && j.sorteo_nombre) ? `<div style="font-size: 10px; color: #444; font-weight: bold; text-transform: uppercase;">[${j.sorteo_nombre}]</div>` : ''}
         <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold;">
             <span style="width: 35%; text-transform: uppercase;">${j.tipo || 'DIRECTO'}</span>
             <span style="width: 35%; text-align: center;">${j.numero}</span>

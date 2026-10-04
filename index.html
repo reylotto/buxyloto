@@ -3557,6 +3557,9 @@ const supabase = createClient('https://ruruabsbkvfbudnqkjby.supabase.co', 'eyJhb
     })();
 </script>
 
+<!-- Librería externa de Chart.js para renderizar los gráficos de ventas y sorteos -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <!-- 2. Motor de Escrutinio y Reglas de Premios -->
 <script src="js/escrutinio.js"></script>
 
@@ -3571,6 +3574,10 @@ const supabase = createClient('https://ruruabsbkvfbudnqkjby.supabase.co', 'eyJhb
 
 <!-- 4. Lógica de Dashboard (cargada como módulo si usa export/import) -->
 <script type="module" src="js/dashboard.js"></script>
+
+<!-- Módulo Independiente de Métricas, Gráficos y Perfil Admin -->
+<script src="js/dashboard-metrics.js"></script>
+
 <script>
   // Helper global para restringir campos de entrada a solo números
   window.inputNumbers = function(input) {
@@ -3599,7 +3606,7 @@ const supabase = createClient('https://ruruabsbkvfbudnqkjby.supabase.co', 'eyJhb
 
         if (typeof initRiesgoModule === 'function') {
             initRiesgoModule();
-            console.log('🛡️️ Módulo de Control de Riesgo inicializado (js/riesgo.js)');
+            console.log('🛡 Módulo de Control de Riesgo inicializado (js/riesgo.js)');
         }
 
         setTimeout(() => {

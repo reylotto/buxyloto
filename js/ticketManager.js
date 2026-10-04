@@ -325,6 +325,7 @@ export async function mostrarOpcionesExportacionTicket(ticketData) {
     };
 }
 
+
 // Asignaciones globales para garantizar llamadas desde otros módulos
 window.renderizarPlantillaTicket = renderizarPlantillaTicket;
 window.generarImagenTicket = generarImagenTicket;

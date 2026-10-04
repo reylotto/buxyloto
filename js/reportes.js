@@ -30,6 +30,7 @@ async function asegurarBancasCache() {
             const { data: bancas } = await supabase.from('bancas').select('*');
             if (bancas && bancas.length > 0) {
                 bancasCache = bancas;
+                window._bancasCache = bancas;
             }
         } catch (e) {
             console.warn("Error al cargar caché de bancas:", e);
@@ -49,20 +50,21 @@ function normalizarItemsTicket(ticket) {
 
 function obtenerNombreBanca(bancaId, ticket = {}) {
     if (ticket.banca_nombre && !ticket.banca_nombre.includes('-')) return ticket.banca_nombre;
-    if (ticket.nombre_banca) return ticket.nombre_banca;
+    if (ticket.nombre_banca && !ticket.nombre_banca.includes('-')) return ticket.nombre_banca;
     if (ticket.vendedor_nombre) return ticket.vendedor_nombre;
     if (ticket.banca && typeof ticket.banca === 'string' && !ticket.banca.includes('-')) return ticket.banca;
 
     const listaBancas = (bancasCache && bancasCache.length > 0) 
         ? bancasCache 
-        : (window.AppState && window.AppState.bancas) || [];
+        : (window.AppState?.bancas || window._bancasCache || []);
 
-    const idBuscar = bancaId || ticket.banca_id || ticket.banca;
+    const idBuscar = String(bancaId || ticket.banca_id || ticket.banca || '');
 
     if (idBuscar) {
         const bancaEncontrada = listaBancas.find(b => 
-            String(b.id).toLowerCase() === String(idBuscar).toLowerCase() || 
-            String(b.codigo || b.code || b.numero || '').toLowerCase() === String(idBuscar).toLowerCase()
+            String(b.id).toLowerCase() === idBuscar.toLowerCase() || 
+            String(b.codigo || b.code || b.numero || '').toLowerCase() === idBuscar.toLowerCase() ||
+            String(b.username || '').toLowerCase() === idBuscar.toLowerCase()
         );
         if (bancaEncontrada) {
             return bancaEncontrada.nombre_banca || bancaEncontrada.nombre || bancaEncontrada.vendedor_nombre || `Banca ${bancaEncontrada.codigo || bancaEncontrada.id}`;
@@ -73,19 +75,20 @@ function obtenerNombreBanca(bancaId, ticket = {}) {
         return `Banca ${ticket.banca_numero || ticket.numero_banca}`;
     }
 
+    if (idBuscar.length > 8) {
+        return `Banca ${idBuscar.substring(0, 5).toUpperCase()}`;
+    }
+
     return `Banca ${idBuscar || 'Central'}`;
 }
 
-/**
- * Obtiene el objeto de banca para consultar su comisión configurada
- */
 function obtenerObjetoBanca(bancaId, ticket = {}) {
     const listaBancas = (bancasCache && bancasCache.length > 0) 
         ? bancasCache 
-        : (window.AppState && window.AppState.bancas) || [];
+        : (window.AppState?.bancas || window._bancasCache || []);
 
-    const idBuscar = bancaId || ticket.banca_id || ticket.banca;
-    return listaBancas.find(b => String(b.id).toLowerCase() === String(idBuscar).toLowerCase()) || null;
+    const idBuscar = String(bancaId || ticket.banca_id || ticket.banca || '');
+    return listaBancas.find(b => String(b.id).toLowerCase() === idBuscar.toLowerCase()) || null;
 }
 
 export async function initReportesModule() {
@@ -102,9 +105,6 @@ export async function initReportesModule() {
     await generarReporte();
 }
 
-/**
- * Carga Filtros Desplegables: Vendedores, Zonas, Supervisores y Loterías
- */
 async function cargarFiltrosDesplegables() {
     await asegurarBancasCache();
     const supabase = window.supabase;
@@ -159,9 +159,6 @@ async function cargarFiltrosDesplegables() {
     }
 }
 
-/**
- * Consulta de tickets y consolidación con COMISIONES REALES y EXCLUSIÓN DE CANCELADOS
- */
 export async function generarReporte() {
     const supabase = window.supabase;
     const tbody = document.getElementById('reports-banca-table-body');
@@ -249,17 +246,18 @@ export async function generarReporte() {
             totalPremios += premio;
         });
 
-        // Actualizar tarjetas numéricas superiores
         const balanceNetoTotal = totalVentaBruta - totalComisiones - totalPremios;
-        const updateCard = (id, val) => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = `$${val.toFixed(2)}`;
+        const actualizarMétricaDOM = (ids, valor) => {
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = `$${valor.toFixed(2)}`;
+            });
         };
 
-        updateCard('rep-venta-bruta', totalVentaBruta);
-        updateCard('rep-comisiones', totalComisiones);
-        updateCard('rep-premios', totalPremios);
-        updateCard('rep-balance-neto', balanceNetoTotal);
+        actualizarMétricaDOM(['rep-venta-bruta', 'kpi-rep-venta-bruta', 'venta-bruta-total'], totalVentaBruta);
+        actualizarMétricaDOM(['rep-comisiones', 'kpi-rep-comisiones', 'comisiones-generadas'], totalComisiones);
+        actualizarMétricaDOM(['rep-premios', 'kpi-rep-premios', 'premios-ganados'], totalPremios);
+        actualizarMétricaDOM(['rep-balance-neto', 'kpi-rep-balance-neto', 'resultado-neto-balance'], balanceNetoTotal);
 
         reporteDataCache = Object.values(agrupado);
         renderizarTablaReporte(reporteDataCache);
@@ -306,9 +304,6 @@ function renderizarTablaReporte(datos) {
     tbody.innerHTML = html;
 }
 
-/**
- * Limpia todos los filtros de auditoría y recarga la tabla
- */
 export function limpiarFiltrosReportes() {
     const hoyStr = getHoyYMD();
     const inputDesde = document.getElementById('rep-fecha-desde');
@@ -328,9 +323,6 @@ export function limpiarFiltrosReportes() {
     generarReporte();
 }
 
-/**
- * Exporta los datos formateados a un archivo CSV/Excel
- */
 export function exportarReporteExcel() {
     if (!reporteDataCache || reporteDataCache.length === 0) {
         alert("No hay datos para exportar en este momento.");
@@ -353,9 +345,6 @@ export function exportarReporteExcel() {
     document.body.removeChild(link);
 }
 
-/**
- * Imprime / Genera PDF del desglose de auditoría sin paginas en blanco
- */
 export function imprimirReportePDF() {
     const tbody = document.getElementById('reports-banca-table-body');
     if (!tbody || !tbody.innerHTML.includes('tr')) {
@@ -785,7 +774,6 @@ function mostrarModalTermicoRespaldo(ticket) {
     }
 }
 
-// Detectar apertura de secciones
 document.addEventListener('DOMContentLoaded', () => {
     const ticketSection = document.getElementById('section-tickets');
     if (ticketSection) {
@@ -804,6 +792,7 @@ window.generarReporte = generarReporte;
 window.limpiarFiltrosReportes = limpiarFiltrosReportes;
 window.exportarReporteExcel = exportarReporteExcel;
 window.imprimirReportePDF = imprimirReportePDF;
+window.exportarReportePDF = imprimirReportePDF; // Alias para resolver el Uncaught TypeError de index.html
 window.initTicketsHistoryModule = initTicketsHistoryModule;
 window.cargarHistorialTickets = cargarHistorialTickets;
 window.filtrarYRenderizarTicketsLocal = filtrarYRenderizarTicketsLocal;

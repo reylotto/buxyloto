@@ -34,7 +34,6 @@ async function cargarHistorialResultados() {
             return;
         }
 
-        // Consultar sorteos ordenados por fecha de creación o ID
         let { data: sorteos, error } = await supabase
             .from('sorteos')
             .select('*')
@@ -147,7 +146,6 @@ window.editarResultadoSorteo = async function(id, p1Actual, p2Actual, p3Actual) 
 
         if (error) throw error;
 
-        // Actualizar o reinsertar en la tabla 'resultados' para activar el Trigger automático de Supabase
         const sorteoIdNum = parseInt(id, 10);
         await supabase.from('resultados').delete().eq('sorteo_id', sorteoIdNum);
         await supabase.from('resultados').insert([{
@@ -183,13 +181,11 @@ window.eliminarResultadoSorteo = async function(id) {
 
         const sorteoIdNum = parseInt(id, 10);
 
-        // 1. ELIMINAR DE LA TABLA 'resultados' EN SUPABASE
         await supabase
             .from('resultados')
             .delete()
             .or(`sorteo_id.eq.${sorteoIdNum},sorteo_id.eq.${id}`);
 
-        // 2. Limpiar los premios y cambiar estado del sorteo a 'activo'
         const payloadSorteo = {
             p1: null,
             p2: null,
@@ -208,7 +204,6 @@ window.eliminarResultadoSorteo = async function(id) {
 
         if (errSorteo) throw errSorteo;
 
-        // 3. Resetear el estado y premio de todos los tickets
         const payloadTickets = {
             estatus: 'pendiente',
             estado: 'pendiente',
@@ -234,19 +229,6 @@ window.eliminarResultadoSorteo = async function(id) {
         alert("❌ Error al borrar resultado: " + (err.message || err));
     }
 };
-// Dentro del bucle donde se procesa cada ticket para calcular premios:
-for (const ticket of ticketsDelSorteo) {
-    const estadoTicket = String(ticket.estatus || ticket.status || ticket.estado || '').toUpperCase();
-    
-    // 🛡️ PROTECCIÓN CRÍTICA: Si el ticket está cancelado, OMITIRLO por completo.
-    // Jamás cambiar su estado a PREMIADO ni NO_PREMIADO.
-    if (estadoTicket === 'CANCELADO' || estadoTicket === 'ANULADO') {
-        console.log(`Skipping ticket #${ticket.codigo_ticket || ticket.id}: Está CANCELADO.`);
-        continue; // Pasa al siguiente ticket sin evaluarlo
-    }
-
-    // ... Continúa el código normal de evaluación de jugadas para tickets activos ...
-}
 
 // ==========================================================
 // 4. EVENTO PARA REGISTRAR RESULTADOS DESDE EL FORMULARIO
@@ -286,13 +268,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const supabase = getSupabaseClient();
             if (!supabase) throw new Error("Cliente Supabase no disponible.");
 
-            // A. Eliminar resultados anteriores si existían
             await supabase
                 .from('resultados')
                 .delete()
                 .eq('sorteo_id', sorteoIdNum);
 
-            // B. Insertar en la tabla 'resultados' (ESTO DESATANCA EL TRIGGER AUTOMÁTICO EN SUPABASE)
             const { error: errResultadosTable } = await supabase
                 .from('resultados')
                 .insert([{
@@ -306,7 +286,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.warn("Aviso al insertar en tabla 'resultados':", errResultadosTable.message);
             }
 
-            // C. Actualizar estado en 'sorteos'
             const payload = {
                 p1: p1,
                 p2: p2,
@@ -403,7 +382,6 @@ async function cargarSorteosEscrutinio() {
 
 window.cargarSorteosEscrutinio = cargarSorteosEscrutinio;
 
-// Cargar automáticamente al iniciar
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         if (typeof window.cargarSorteosEscrutinio === 'function') window.cargarSorteosEscrutinio();

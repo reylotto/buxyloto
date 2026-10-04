@@ -234,6 +234,19 @@ window.eliminarResultadoSorteo = async function(id) {
         alert("❌ Error al borrar resultado: " + (err.message || err));
     }
 };
+// Dentro del bucle donde se procesa cada ticket para calcular premios:
+for (const ticket of ticketsDelSorteo) {
+    const estadoTicket = String(ticket.estatus || ticket.status || ticket.estado || '').toUpperCase();
+    
+    // 🛡️ PROTECCIÓN CRÍTICA: Si el ticket está cancelado, OMITIRLO por completo.
+    // Jamás cambiar su estado a PREMIADO ni NO_PREMIADO.
+    if (estadoTicket === 'CANCELADO' || estadoTicket === 'ANULADO') {
+        console.log(`Skipping ticket #${ticket.codigo_ticket || ticket.id}: Está CANCELADO.`);
+        continue; // Pasa al siguiente ticket sin evaluarlo
+    }
+
+    // ... Continúa el código normal de evaluación de jugadas para tickets activos ...
+}
 
 // ==========================================================
 // 4. EVENTO PARA REGISTRAR RESULTADOS DESDE EL FORMULARIO

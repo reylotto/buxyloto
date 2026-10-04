@@ -3,8 +3,8 @@
 // ==========================================================
 // Agregar en la primera línea de js/pos.js
 
+var inputNumbers = '';
 window.inputNumbers = '';
-let inputNumbers = '';
 // Variable global de modalidad activa
 window.modoJuegoActual = window.modoJuegoActual || 'directo';
 window.jugadasActuales = window.jugadasActuales || [];
@@ -626,7 +626,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
     }
 };
 /**
- * Cancela/Anula un ticket por su Codigo de Ticket, Folio o ID en Supabase
+ * Cancela/Anula un ticket y todas sus jugadas asociadas en Supabase
  * @param {string|number} folioOrId Código de ticket (ej. BX-419776) o ID numérico
  */
 export async function cancelarTicketPOS(folioOrId) {
@@ -651,29 +651,40 @@ export async function cancelarTicketPOS(folioOrId) {
                 updated_at: new Date().toISOString()
             };
 
-            // Evaluar si es numérico puro para incluir o excluir la columna ID
             const esNumeroPuro = !isNaN(folioOrId) && !isNaN(parseFloat(folioOrId));
-            
             let queryFilter = `codigo_ticket.eq.${folioOrId},folio.eq.${folioOrId}`;
             if (esNumeroPuro) {
                 queryFilter += `,id.eq.${folioOrId}`;
             }
 
-            const { data, error } = await supabase
+            // 1. Anular el ticket en la tabla 'tickets'
+            const { data: ticketsCancelados, error: errTicket } = await supabase
                 .from('tickets')
                 .update(payload)
                 .or(queryFilter)
                 .select();
 
-            if (!error && data && data.length > 0) {
-                console.log(`✅ Ticket ${folioOrId} marcado como CANCELADO en Supabase.`);
+            if (!errTicket && ticketsCancelados && ticketsCancelados.length > 0) {
                 exito = true;
-            } else if (error) {
-                console.error("❌ Error al actualizar cancelación en Supabase:", error);
+
+                // 2. Anular automáticamente todas las jugadas vinculadas en la tabla 'jugadas'
+                const idsTicket = ticketsCancelados.map(t => t.id);
+                const { error: errJugadas } = await supabase
+                    .from('jugadas')
+                    .update({ estatus: 'CANCELADO', estado: 'CANCELADO' })
+                    .in('ticket_id', idsTicket);
+
+                if (errJugadas) {
+                    console.warn("⚠️ Ticket cancelado, pero hubo un detalle actualizando tabla jugadas:", errJugadas);
+                } else {
+                    console.log(`✅ Ticket ${folioOrId} y sus jugadas fueron marcados como CANCELADOS.`);
+                }
+            } else if (errTicket) {
+                console.error("❌ Error al cancelar ticket en Supabase:", errTicket);
             }
         }
 
-        // Sincronizar estado local en memoria
+        // 3. Sincronizar en la copia local (AppState)
         if (window.AppState && Array.isArray(window.AppState.tickets)) {
             const ticketLocal = window.AppState.tickets.find(t => 
                 String(t.codigo_ticket) === String(folioOrId) ||
@@ -684,12 +695,18 @@ export async function cancelarTicketPOS(folioOrId) {
                 ticketLocal.estatus = 'CANCELADO';
                 ticketLocal.status = 'CANCELADO';
                 ticketLocal.estado = 'CANCELADO';
+                if (Array.isArray(ticketLocal.items)) {
+                    ticketLocal.items.forEach(it => {
+                        it.estatus = 'CANCELADO';
+                        it.estado = 'CANCELADO';
+                    });
+                }
                 exito = true;
             }
         }
 
         if (exito) {
-            alert(`Ticket ${folioOrId} ha sido cancelado exitosamente.`);
+            alert(`Ticket ${folioOrId} y sus jugadas han sido cancelados exitosamente.`);
             if (typeof window.cargarHistorialTickets === 'function') {
                 window.cargarHistorialTickets();
             }

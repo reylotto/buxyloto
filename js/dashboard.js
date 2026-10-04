@@ -68,29 +68,28 @@ async function guardarPerfilAdmin() {
         return alert("Error: No hay conexión con la autenticación de Supabase.");
     }
 
-    // Captura dinámica buscando múltiples variantes de IDs comunes en tu HTML
-    const nombreInput = document.getElementById('admin-fullname') || document.getElementById('perfil-admin-nombre') || document.getElementById('admin-nombre');
-    const usernameInput = document.getElementById('admin-username') || document.getElementById('perfil-admin-usuario') || document.getElementById('admin-user');
-    const passwordInput = document.getElementById('admin-password') || document.getElementById('perfil-admin-password') || document.getElementById('admin-pass');
-    const confirmPasswordInput = document.getElementById('admin-confirm-password') || document.getElementById('perfil-admin-confirm-password') || document.getElementById('admin-pass-confirm');
-    
-    const btnGuardar = document.getElementById('btn-guardar-perfil-admin') || document.getElementById('btn-save-admin') || document.querySelector('#modal-perfil-admin .btn-primary');
-
-    // Extraer valores o intentar leer inputs dentro del modal como respaldo
+    // 1. Localizar el modal de perfil
     const modal = document.getElementById('modal-perfil-admin') || document.querySelector('.modal:not(.hidden)');
-    const inputs = modal ? modal.querySelectorAll('input') : [];
-
-    const nuevoNombre = nombreInput ? nombreInput.value.trim() : (inputs[0] ? inputs[0].value.trim() : '');
-    const nuevoUsuario = usernameInput ? usernameInput.value.trim() : (inputs[1] ? inputs[1].value.trim() : '');
-    const nuevaPassword = passwordInput ? passwordInput.value.trim() : (inputs[2] ? inputs[2].value.trim() : '');
-    const confirmarPassword = confirmPasswordInput ? confirmPasswordInput.value.trim() : (inputs[3] ? inputs[3].value.trim() : '');
-
-    // Validación 1: Verificar que haya al menos algún campo con datos
-    if (!nuevoNombre && !nuevoUsuario && !nuevaPassword) {
-        return alert("Por favor, ingrese los datos a actualizar.");
+    
+    // 2. Capturar todas las cajas de texto dentro del modal
+    const inputs = modal ? Array.from(modal.querySelectorAll('input')) : [];
+    
+    if (inputs.length === 0) {
+        return alert("Error: No se encontraron los campos del formulario en el modal.");
     }
 
-    // Validación 2: Coincidencia de contraseñas
+    // Leemos los inputs en el orden del formulario:
+    // Index 0: Nombre Completo | Index 1: Usuario/ID | Index 2: Nueva Contraseña | Index 3: Confirmar Contraseña
+    const nuevoNombre = inputs[0] ? inputs[0].value.trim() : '';
+    const nuevoUsuario = inputs[1] ? inputs[1].value.trim() : '';
+    const nuevaPassword = inputs[2] ? inputs[2].value.trim() : '';
+    const confirmarPassword = inputs[3] ? inputs[3].value.trim() : '';
+
+    const btnGuardar = document.getElementById('btn-guardar-perfil-admin') || 
+                       document.getElementById('btn-save-admin') || 
+                       (modal ? modal.querySelector('.btn-primary, button[type="submit"]') : null);
+
+    // Validación de contraseñas
     if (nuevaPassword) {
         if (nuevaPassword.length < 6) {
             return alert("La contraseña debe tener al menos 6 caracteres.");
@@ -100,10 +99,13 @@ async function guardarPerfilAdmin() {
         }
     }
 
-    // Feedback en botón
+    if (!nuevoNombre && !nuevoUsuario && !nuevaPassword) {
+        return alert("Por favor, ingrese el nombre de usuario o la nueva contraseña a cambiar.");
+    }
+
     if (btnGuardar) {
         btnGuardar.disabled = true;
-        btnGuardar.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+        btnGuardar.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Actualizando...';
     }
 
     try {
@@ -124,13 +126,13 @@ async function guardarPerfilAdmin() {
             }
         }
 
-        // 1. Sincronizar directamente con Supabase Auth
+        // 1. Actualizar credenciales y metadatos en Supabase Auth
         const { data, error } = await supabase.auth.updateUser(updatePayload);
 
         if (error) throw error;
 
-        // 2. Sincronizar en la tabla publica de Supabase ('usuarios')
-        if (data.user) {
+        // 2. Sincronizar en la tabla pública de usuarios en Supabase si existe
+        if (data && data.user) {
             const updateDB = {};
             if (nuevoNombre) updateDB.nombre = nuevoNombre;
             if (nuevoUsuario) updateDB.username = nuevoUsuario;
@@ -141,24 +143,29 @@ async function guardarPerfilAdmin() {
                 .eq('id', data.user.id);
         }
 
-        // 3. Actualizar etiqueta visual del nombre en la esquina superior derecha
-        const adminNameLabel = document.getElementById('admin-profile-display-name') || document.getElementById('admin-name') || document.querySelector('.user-profile span');
+        // 3. Actualizar el nombre en la barra superior derecha al instante
+        const adminNameLabel = document.getElementById('admin-profile-display-name') || 
+                               document.getElementById('admin-name') || 
+                               document.querySelector('.user-profile span');
         if (adminNameLabel && (nuevoNombre || nuevoUsuario)) {
             adminNameLabel.textContent = nuevoNombre || nuevoUsuario;
         }
 
-        alert("¡Perfil y credenciales actualizados exitosamente en Supabase!");
+        alert("¡Perfil de Administrador Central actualizado con éxito en Supabase!");
 
         // Limpiar campos de contraseña
-        if (passwordInput) passwordInput.value = '';
-        if (confirmPasswordInput) confirmPasswordInput.value = '';
+        if (inputs[2]) inputs[2].value = '';
+        if (inputs[3]) inputs[3].value = '';
 
-        // Cerrar Modal
-        if (modal) modal.classList.add('hidden');
+        // Cerrar modal
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+        }
 
     } catch (err) {
         console.error("Error al actualizar perfil admin en Supabase:", err);
-        alert("Error de Supabase: " + (err.message || "No se pudo actualizar"));
+        alert("Error al actualizar en Supabase: " + (err.message || JSON.stringify(err)));
     } finally {
         if (btnGuardar) {
             btnGuardar.disabled = false;

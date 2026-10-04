@@ -265,61 +265,67 @@ export async function imprimirTicketTermica(ticketData) {
 // ----------------------------------------------------------
 
 export async function compartirTicketWhatsApp(ticketData, numeroTelefono = '') {
-    await renderizarPlantillaTicket(ticketData);
-    const dataUrl = await generarImagenTicket();
+    try {
+        // 1. Renderizar la plantilla HTML y generar la imagen
+        await renderizarPlantillaTicket(ticketData);
+        const dataUrl = await generarImagenTicket();
 
-    // Intentar compartir como Imagen mediante Web Share API
-    if (dataUrl) {
-        try {
-            const blob = await (await fetch(dataUrl)).blob();
-            const file = new File([blob], `Ticket_${ticketData.codigo_ticket || ticketData.codigo || 'POS'}.png`, { type: 'image/png' });
+        if (dataUrl) {
+            const res = await fetch(dataUrl);
+            const blob = await res.blob();
+            const file = new File([blob], `Ticket_${ticketData.codigo_ticket || 'BX'}.png`, { type: 'image/png' });
 
+            // 2. Intentar compartir como IMAGEN si el navegador lo soporta (móviles)
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    files: [file],
-                    title: `Ticket ${ticketData.codigo_ticket || ticketData.codigo}`,
-                    text: `Comprobante de Ticket #${ticketData.codigo_ticket || ticketData.codigo}`
-                });
-                return;
+                try {
+                    await navigator.share({
+                        files: [file],
+                        title: `Ticket ${ticketData.codigo_ticket}`,
+                        text: `🎟️ Ticket de Jugada #${ticketData.codigo_ticket}`
+                    });
+                    return; // Compartido con éxito como imagen
+                } catch (errShare) {
+                    console.warn("Compartido nativo cancelado o no disponible:", errShare);
+                }
             }
-        } catch (e) {
-            console.log("Acción WebShare cancelada o no soportada, recurriendo a enlace de texto:", e);
         }
+    } catch (errImg) {
+        console.error("Error al generar la imagen del ticket:", errImg);
     }
 
-    // Texto fallback para WhatsApp
+    // 3. FALLBACK: Si no se puede adjuntar la imagen, construir un mensaje de texto formateado detallado
     const jugadas = ticketData.detalles || ticketData.jugadas || [];
-    let lineasJugadas = "";
+    let lineasJugadas = '';
 
     jugadas.forEach(j => {
-        const sorteo = (j.sorteo_nombre || ticketData.sorteo_nombre || 'SORTEO').replace(/\[\vert{}\]/g, '').trim();
-        const tipoJugada = j.tipo ? `${j.tipo.toUpperCase()} ${j.numero}` : j.numero;
+        const sorteo = j.sorteo_nombre || ticketData.sorteo_nombre || '';
+        const tipo = (j.tipo || 'DIRECTO').toUpperCase();
+        const num = j.numero || '';
         const monto = parseFloat(j.monto || 0).toFixed(2);
-        
-        lineasJugadas += `${sorteo} | ${tipoJugada} | $${monto}\n`;
+        lineasJugadas += `• ${sorteo ? `[${sorteo}] ` : ''}${tipo} *${num}* -> $${monto}\n`;
     });
 
-    const codigo = ticketData.codigo_ticket || ticketData.codigo || '';
-    const total = parseFloat(ticketData.monto_total || ticketData.monto || 0).toFixed(2);
+    const textoCompleto = 
+`🍀 *BUXYLOTO POS* 🍀
+--------------------------------
+🎟️ *TICKET:* #${ticketData.codigo_ticket || ticketData.codigo || 'S/N'}
+🏪 *BANCA:* ${ticketData.banca || 'BUXYLOTO MAIN'}
+📅 *FECHA:* ${ticketData.fecha || new Date().toLocaleDateString()} ${ticketData.hora || ''}
+--------------------------------
+*JUGADAS:*
+${lineasJugadas || 'Sin detalles'}
+--------------------------------
+💵 *TOTAL:* $${parseFloat(ticketData.monto_total || ticketData.monto || 0).toFixed(2)} USD
+--------------------------------
+ Revise su ticket. Sin ticket no se paga.
+¡Gracias por su compra!`;
 
-    const textoMensaje = 
-        `*BUXYLOTO POS*\n` +
-        `*TICKET #${codigo}*\n` +
-        `----------------------------\n` +
-        `*SORTEO | JUGADA | MONTO*\n` +
-        `----------------------------\n` +
-        `${lineasJugadas}` +
-        `----------------------------\n` +
-        `*TOTAL: USD $${total}*\n\n` +
-        `¡Gracias por su compra!`;
+    const mensajeEncoded = encodeURIComponent(textoCompleto);
+    const urlWhatsApp = numeroTelefono 
+        ? `https://api.whatsapp.com/send?phone=${numeroTelefono}&text=${mensajeEncoded}`
+        : `https://api.whatsapp.com/send?text=${mensajeEncoded}`;
 
-    const mensajeText = encodeURIComponent(textoMensaje);
-
-    const url = numeroTelefono 
-        ? `https://api.whatsapp.com/send?phone=${numeroTelefono}&text=${mensajeText}`
-        : `https://api.whatsapp.com/send?text=${mensajeText}`;
-
-    window.open(url, '_blank');
+    window.open(urlWhatsApp, '_blank');
 }
 
 export async function descargarPDFTicket(ticketData) {

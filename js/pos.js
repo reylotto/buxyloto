@@ -494,7 +494,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
     }
 
     const idBanca = obtenerIdVendedorAsignado();
-    const montoTotal = jugadas.reduce((sum, j) => sum + j.monto, 0);
+    const montoTotal = jugadas.reduce((sum, j) => sum + parseFloat(j.monto || 0), 0);
     const ticketsProcesados = [];
     let ultimoTicketGuardado = null; // Guardamos la referencia para el modal
 
@@ -506,15 +506,22 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
             const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
             const sorteoIdParsed = isNaN(sItem.id) ? sItem.id : parseInt(sItem.id, 10);
 
+            // Mapear el nombre del sorteo a cada jugada
+            const jugadasConSorteo = jugadas.map(j => ({
+                ...j,
+                sorteo_nombre: sItem.nombre
+            }));
+
             const payloadTicket = {
                 codigo: codigoTicket,
                 codigo_ticket: codigoTicket,
                 sorteo_id: sorteoIdParsed,
+                sorteo_nombre: sItem.nombre,
                 monto: montoTotal,
                 monto_total: montoTotal,
                 total: montoTotal,
-                detalles: jugadas,
-                jugadas: jugadas,
+                detalles: jugadasConSorteo,
+                jugadas: jugadasConSorteo,
                 estatus: 'pendiente',
                 estado: 'pendiente'
             };
@@ -536,8 +543,9 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
                 const payloadLimpio = {
                     codigo_ticket: codigoTicket,
                     sorteo_id: sorteoIdParsed,
+                    sorteo_nombre: sItem.nombre,
                     monto_total: montoTotal,
-                    detalles: jugadas,
+                    detalles: jugadasConSorteo,
                     estatus: 'pendiente'
                 };
                 if (idBanca) payloadLimpio.vendedor_id = idBanca;
@@ -596,19 +604,18 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
                 }
             }
 
-            // Guardamos el objeto ticket para enviarlo al modal
-            ultimoTicketGuardado = ticketGuardado || {
-                codigo_ticket: codigoTicket,
-                monto_total: montoTotal,
-                detalles: jugadas
-            };
+            // Guardamos el objeto ticket enriquecido para enviarlo a la plantilla
+            ultimoTicketGuardado = ticketGuardado || payloadTicket;
+            if (!ultimoTicketGuardado.sorteo_nombre) {
+                ultimoTicketGuardado.sorteo_nombre = sItem.nombre;
+            }
 
             ticketsProcesados.push({ codigo: codigoTicket, sorteo: sItem.nombre });
         }
 
         // Limpiar formulario y carrito
         window.jugadasActuales = [];
-        renderizarCarrito();
+        if (typeof renderizarCarrito === 'function') renderizarCarrito();
 
         const inputNum = document.getElementById('pos-input-numbers');
         const inputMnt = document.getElementById('pos-input-amount');
@@ -616,7 +623,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         if (inputMnt) inputMnt.value = '';
 
         document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = false);
-        actualizarResumenSorteos();
+        if (typeof actualizarResumenSorteos === 'function') actualizarResumenSorteos();
 
         if (typeof window.cargarHistorialTickets === 'function') {
             window.cargarHistorialTickets();
@@ -626,9 +633,13 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
             window.cargarTablaHistorial();
         }
 
-        // 📍 PASO 3: INVOCACIÓN SEGURA Y DIRECTA DEL MODAL O COMPARTIDO DE TICKET
+        // Invocación del Modal / Compartir
         if (enviarPorWhatsApp && ultimoTicketGuardado) {
-            compartirTicketWhatsApp(ultimoTicketGuardado);
+            if (typeof compartirTicketWhatsApp === 'function') {
+                compartirTicketWhatsApp(ultimoTicketGuardado);
+            } else if (typeof window.compartirTicketWhatsApp === 'function') {
+                window.compartirTicketWhatsApp(ultimoTicketGuardado);
+            }
         } else if (typeof window.mostrarOpcionesExportacionTicket === 'function' && ultimoTicketGuardado) {
             window.mostrarOpcionesExportacionTicket(ultimoTicketGuardado);
         } else if (typeof mostrarOpcionesExportacionTicket === 'function' && ultimoTicketGuardado) {

@@ -52,20 +52,22 @@ function initPerfilAdmin() {
     cargarDatosPerfilAdmin();
 }
 
+// En dashboard.js (función cargarDatosPerfilAdmin)
 async function cargarDatosPerfilAdmin() {
     try {
-        const supabase = window.getSupabaseClient();
-        if (!supabase || !supabase.auth) return;
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const usernameInput = document.getElementById('admin-username') || document.getElementById('perfil-admin-usuario');
-        if (usernameInput) {
-            usernameInput.value = user.user_metadata?.username || user.email || '';
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+            console.warn('No hay sesión activa de usuario.');
+            return;
         }
+
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) throw error;
+
+        // ... tu código actual para renderizar el perfil ...
     } catch (err) {
-        console.warn("Aviso cargando datos de perfil:", err.message);
+        console.warn('No se pudo cargar el perfil del administrador:', err.message);
     }
 }
 

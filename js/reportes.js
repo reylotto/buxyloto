@@ -1,14 +1,13 @@
 // =================================================================
-// MÓDULO DE BALANCES FINANCIEROS, CUADRES Y HISTORIAL DE TICKETS
+// MÓDULO DE BALANCES FINANCIEROS, AUDITORÍA Y HISTORIAL DE TICKETS
 // =================================================================
 
 let reporteDataCache = [];
 let bancasCache = [];
-let ticketsCache = []; // Caché local de tickets para el historial
+let ticketsCache = [];
+let loteriasCache = [];
+let usuariosCache = [];
 
-/**
- * Auxiliar para obtener fecha local en YYYY-MM-DD
- */
 function getHoyYMD() {
     const d = new Date();
     const year = d.getFullYear();
@@ -17,9 +16,6 @@ function getHoyYMD() {
     return `${year}-${month}-${day}`;
 }
 
-/**
- * Garantiza que bancasCache esté cargado independientemente del orden de navegación
- */
 async function asegurarBancasCache() {
     if (bancasCache.length > 0) return bancasCache;
 
@@ -42,25 +38,15 @@ async function asegurarBancasCache() {
     return bancasCache;
 }
 
-/**
- * Normaliza las jugadas/items de un ticket a un Array válido
- */
 function normalizarItemsTicket(ticket) {
     if (!ticket) return [];
     let items = ticket.items || ticket.apuestas || ticket.jugadas || ticket.detalles || [];
     if (typeof items === 'string') {
-        try {
-            items = JSON.parse(items);
-        } catch (e) {
-            items = [];
-        }
+        try { items = JSON.parse(items); } catch (e) { items = []; }
     }
     return Array.isArray(items) ? items : [];
 }
 
-/**
- * Obtiene el nombre/código amigable de una banca dado su ID o ticket
- */
 function obtenerNombreBanca(bancaId, ticket = {}) {
     if (ticket.banca_nombre && !ticket.banca_nombre.includes('-')) return ticket.banca_nombre;
     if (ticket.nombre_banca) return ticket.nombre_banca;
@@ -87,69 +73,113 @@ function obtenerNombreBanca(bancaId, ticket = {}) {
         return `Banca ${ticket.banca_numero || ticket.numero_banca}`;
     }
 
-    if (idBuscar && String(idBuscar).length > 8) {
-        return `Banca ${String(idBuscar).substring(0, 6).toUpperCase()}`;
-    }
-
     return `Banca ${idBuscar || 'Central'}`;
 }
 
 /**
- * Inicializa el módulo de Balances Financieros
+ * Obtiene el objeto de banca para consultar su comisión configurada
  */
+function obtenerObjetoBanca(bancaId, ticket = {}) {
+    const listaBancas = (bancasCache && bancasCache.length > 0) 
+        ? bancasCache 
+        : (window.AppState && window.AppState.bancas) || [];
+
+    const idBuscar = bancaId || ticket.banca_id || ticket.banca;
+    return listaBancas.find(b => String(b.id).toLowerCase() === String(idBuscar).toLowerCase()) || null;
+}
+
 export async function initReportesModule() {
-    console.log("📊 Inicializando Módulo de Balances Financieros...");
+    console.log("📊 Inicializando Módulo de Balances Financieros y Auditoría...");
 
     const hoyStr = getHoyYMD();
     const inputDesde = document.getElementById('rep-fecha-desde');
     const inputHasta = document.getElementById('rep-fecha-hasta');
 
-    if (inputDesde) inputDesde.value = hoyStr;
-    if (inputHasta) inputHasta.value = hoyStr;
+    if (inputDesde && !inputDesde.value) inputDesde.value = hoyStr;
+    if (inputHasta && !inputHasta.value) inputHasta.value = hoyStr;
 
     await cargarFiltrosDesplegables();
     await generarReporte();
 }
 
 /**
- * Carga Loterías, Supervisores y Bancas
+ * Carga Filtros Desplegables: Vendedores, Zonas, Supervisores y Loterías
  */
 async function cargarFiltrosDesplegables() {
     await asegurarBancasCache();
+    const supabase = window.supabase;
 
-    if (bancasCache && bancasCache.length > 0) {
-        const selVendedor = document.getElementById('rep-filtro-vendedor');
-        const selZona = document.getElementById('rep-filtro-zona');
+    try {
+        // Cargar Supervisores y Usuarios si no existen en caché
+        if (supabase && usuariosCache.length === 0) {
+            const { data: usrs } = await supabase.from('usuarios').select('*');
+            if (usrs) usuariosCache = usrs;
+        }
 
-        if (selVendedor) {
-            selVendedor.innerHTML = '<option value="todos">Todos los vendedores</option>';
+        // Cargar Sorteos/Loterías si no existen
+        if (supabase && loteriasCache.length === 0) {
+            const { data: sort } = await supabase.from('sorteos').select('*');
+            if (sort) loteriasCache = sort;
+        }
+
+        // 1. Desplegable Vendedores / Bancas
+        const selVendedor = document.getElementById('rep-filtro-vendedor') || document.getElementById('rep-filtro-banca');
+        if (selVendedor && bancasCache.length > 0) {
+            selVendedor.innerHTML = '<option value="todos">Todas las bancas / vendedores</option>';
             bancasCache.forEach(b => {
                 const nom = b.nombre_banca || b.vendedor_nombre || b.nombre || `Banca #${b.id}`;
                 selVendedor.innerHTML += `<option value="${b.id}">${nom}</option>`;
             });
         }
 
-        if (selZona) {
+        // 2. Desplegable Zonas
+        const selZona = document.getElementById('rep-filtro-zona');
+        if (selZona && bancasCache.length > 0) {
             const zonas = new Set();
             bancasCache.forEach(b => { if (b.zona && String(b.zona).trim() !== '') zonas.add(b.zona.trim()); });
             selZona.innerHTML = '<option value="todas">Todas las zonas</option>';
             zonas.forEach(z => selZona.innerHTML += `<option value="${z}">${z}</option>`);
         }
+
+        // 3. Desplegable Supervisores
+        const selSupervisor = document.getElementById('rep-filtro-supervisor');
+        if (selSupervisor) {
+            selSupervisor.innerHTML = '<option value="todos">Todos los supervisores</option>';
+            const supervisores = usuariosCache.filter(u => String(u.rol || u.role).toLowerCase() === 'supervisor');
+            supervisores.forEach(sup => {
+                selSupervisor.innerHTML += `<option value="${sup.id}">${sup.nombre || sup.username || sup.email}</option>`;
+            });
+        }
+
+        // 4. Desplegable Loterías / Sorteos
+        const selLoteria = document.getElementById('rep-filtro-loteria');
+        if (selLoteria && loteriasCache.length > 0) {
+            selLoteria.innerHTML = '<option value="todas">Todas las loterías</option>';
+            loteriasCache.forEach(s => {
+                selLoteria.innerHTML += `<option value="${s.id}">${s.nombre || s.descripcion}</option>`;
+            });
+        }
+
+    } catch (e) {
+        console.warn("Error cargando filtros desplegables de reportes:", e);
     }
 }
 
 /**
- * Consulta de tickets y consolidación de ventas para Balances
+ * Consulta de tickets y consolidación con COMISIONES REALES y EXCLUSIÓN DE CANCELADOS
  */
 export async function generarReporte() {
     const supabase = window.supabase;
     const tbody = document.getElementById('reports-banca-table-body');
     if (!tbody) return;
 
-    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-emerald-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Consultando ventas en Supabase...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-emerald-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Consultando ventas y balances...</td></tr>`;
 
     const fechaDesde = document.getElementById('rep-fecha-desde')?.value;
     const fechaHasta = document.getElementById('rep-fecha-hasta')?.value;
+    const vendedorFiltro = document.getElementById('rep-filtro-vendedor')?.value || 'todos';
+    const zonaFiltro = document.getElementById('rep-filtro-zona')?.value || 'todas';
+    const loteriaFiltro = document.getElementById('rep-filtro-loteria')?.value || 'todas';
 
     await asegurarBancasCache();
 
@@ -169,20 +199,34 @@ export async function generarReporte() {
         }
 
         const agrupado = {};
+
         resultados.forEach(t => {
+            // Excluir estrictamente los tickets cancelados
             const estado = String(t.estatus || t.status || t.estado || 'pendiente').toLowerCase();
             if (estado === 'cancelado' || estado === 'anulado') return;
 
+            // Filtro por Vendedor / Banca
+            if (vendedorFiltro !== 'todos' && String(t.banca_id) !== String(vendedorFiltro)) return;
+
+            // Filtro por Sorteo / Loteria
+            if (loteriaFiltro !== 'todas' && String(t.sorteo_id) !== String(loteriaFiltro)) return;
+
+            const bancaObj = obtenerObjetoBanca(t.banca_id, t);
+            const bancaNombre = obtenerNombreBanca(t.banca_id, t);
+            const zonaBanca = bancaObj?.zona || 'N/A';
+
+            // Filtro por Zona
+            if (zonaFiltro !== 'todas' && zonaBanca !== zonaFiltro) return;
+
             const fechaObj = new Date(t.created_at || t.createdAt);
             const fechaKey = isNaN(fechaObj) ? getHoyYMD() : fechaObj.toLocaleDateString('es-PA');
-            const bancaNombre = obtenerNombreBanca(t.banca_id, t);
             const key = `${fechaKey}_${bancaNombre}`;
 
             if (!agrupado[key]) {
                 agrupado[key] = {
                     fecha: fechaKey,
                     vendedor: bancaNombre,
-                    zona: 'N/A',
+                    zona: zonaBanca,
                     supervisor: 'N/A',
                     ticketsCount: 0,
                     venta: 0,
@@ -192,12 +236,21 @@ export async function generarReporte() {
             }
 
             const venta = parseFloat(t.monto_total || t.monto || t.total || 0);
-            const comision = parseFloat(t.comision_monto || t.comision || (venta * 0.15));
-            const premio = parseFloat(t.premio_monto || t.premio || 0);
+            
+            // Lógica de Comisión Dinámica: Usar % de la banca (ej. 20%) o fallback
+            let pctComision = 15;
+            if (bancaObj && bancaObj.comision !== undefined && bancaObj.comision !== null) {
+                pctComision = parseFloat(bancaObj.comision);
+            } else if (t.comision_porcentaje) {
+                pctComision = parseFloat(t.comision_porcentaje);
+            }
+
+            const comisionMonto = t.comision_monto ? parseFloat(t.comision_monto) : (venta * (pctComision / 100));
+            const premio = parseFloat(t.monto_premio || t.premio_monto || t.premio || 0);
 
             agrupado[key].ticketsCount += 1;
             agrupado[key].venta += venta;
-            agrupado[key].comision += comision;
+            agrupado[key].comision += comisionMonto;
             agrupado[key].premios += premio;
         });
 
@@ -246,388 +299,114 @@ function renderizarTablaReporte(datos) {
     tbody.innerHTML = html;
 }
 
-// =================================================================
-// MÓDULO DE HISTORIAL DE TICKETS (ACCIONES: VER, IMPRIMIR, CANCELAR)
-// =================================================================
-
-export async function initTicketsHistoryModule() {
-    console.log("🎟️ Inicializando Historial de Tickets...");
-
+/**
+ * Limpia todos los filtros de auditoría y recarga la tabla
+ */
+export function limpiarFiltrosReportes() {
     const hoyStr = getHoyYMD();
-    const dateFrom = document.getElementById('tickets-date-from');
-    const dateTo = document.getElementById('tickets-date-to');
-    const btnToday = document.getElementById('btn-tickets-today');
-    const searchInput = document.getElementById('tickets-search-input');
-    const statusFilter = document.getElementById('tickets-status-filter');
+    const inputDesde = document.getElementById('rep-fecha-desde');
+    const inputHasta = document.getElementById('rep-fecha-hasta');
+    const selVendedor = document.getElementById('rep-filtro-vendedor') || document.getElementById('rep-filtro-banca');
+    const selZona = document.getElementById('rep-filtro-zona');
+    const selSupervisor = document.getElementById('rep-filtro-supervisor');
+    const selLoteria = document.getElementById('rep-filtro-loteria');
 
-    if (dateFrom && !dateFrom.value) dateFrom.value = hoyStr;
-    if (dateTo && !dateTo.value) dateTo.value = hoyStr;
+    if (inputDesde) inputDesde.value = hoyStr;
+    if (inputHasta) inputHasta.value = hoyStr;
+    if (selVendedor) selVendedor.value = 'todos';
+    if (selZona) selZona.value = 'todas';
+    if (selSupervisor) selSupervisor.value = 'todos';
+    if (selLoteria) selLoteria.value = 'todas';
 
-    if (dateFrom) dateFrom.onchange = () => cargarHistorialTickets();
-    if (dateTo) dateTo.onchange = () => cargarHistorialTickets();
-    if (statusFilter) statusFilter.onchange = () => filtrarYRenderizarTicketsLocal();
-    if (searchInput) searchInput.oninput = () => filtrarYRenderizarTicketsLocal();
-
-    if (btnToday) {
-        btnToday.onclick = (e) => {
-            e.preventDefault();
-            if (dateFrom) dateFrom.value = hoyStr;
-            if (dateTo) dateTo.value = hoyStr;
-            cargarHistorialTickets();
-        };
-    }
-
-    await cargarHistorialTickets();
+    generarReporte();
 }
 
-export async function cargarHistorialTickets() {
-    const tbody = document.getElementById('tickets-table-body') || document.getElementById('tickets-list-body');
-    const dateFromVal = document.getElementById('tickets-date-from')?.value || getHoyYMD();
-    const dateToVal = document.getElementById('tickets-date-to')?.value || getHoyYMD();
-
-    if (tbody) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-emerald-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Cargando historial de tickets...</td></tr>`;
+/**
+ * Exporta los datos formateados a un archivo CSV/Excel
+ */
+export function exportarReporteExcel() {
+    if (!reporteDataCache || reporteDataCache.length === 0) {
+        alert("No hay datos para exportar en este momento.");
+        return;
     }
 
-    await asegurarBancasCache();
+    let csvContent = "data:text/csv;charset=utf-8,FECHA,BANCA/VENDEDOR,ZONA,TICKETS,VENTA TOTAL,COMISIÓN,PREMIOS,BALANCE NETO\n";
 
-    const supabase = window.supabase;
-
-    if (supabase) {
-        try {
-            const { data, error } = await supabase.from('tickets')
-                .select('*')
-                .gte('created_at', `${dateFromVal}T00:00:00`)
-                .lte('created_at', `${dateToVal}T23:59:59`)
-                .order('created_at', { ascending: false });
-
-            if (!error && data) {
-                ticketsCache = data;
-                filtrarYRenderizarTicketsLocal();
-                return;
-            }
-        } catch (e) {
-            console.warn("Error en Supabase, usando estado local:", e);
-        }
-    }
-
-    const startDate = new Date(`${dateFromVal}T00:00:00`);
-    const endDate = new Date(`${dateToVal}T23:59:59`);
-    const localTickets = window.AppState?.tickets || [];
-
-    ticketsCache = localTickets.filter(t => {
-        if (!t.createdAt && !t.created_at) return false;
-        const d = new Date(t.createdAt || t.created_at);
-        return d >= startDate && d <= endDate;
+    reporteDataCache.forEach(d => {
+        const net = d.venta - d.comision - d.premios;
+        csvContent += `"${d.fecha}","${d.vendedor}","${d.zona}",${d.ticketsCount},${d.venta.toFixed(2)},${d.comision.toFixed(2)},${d.premios.toFixed(2)},${net.toFixed(2)}\n`;
     });
 
-    filtrarYRenderizarTicketsLocal();
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Reporte_Ventas_${getHoyYMD()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
-function filtrarYRenderizarTicketsLocal() {
-    const searchVal = (document.getElementById('tickets-search-input')?.value || '').toLowerCase().trim();
-    const statusVal = document.getElementById('tickets-status-filter')?.value || 'all';
-
-    let filtrados = [...ticketsCache];
-
-    if (statusVal !== 'all') {
-        filtrados = filtrados.filter(t => {
-            const st = String(t.estatus || t.status || t.estado || 'pendiente').toLowerCase();
-            if (statusVal === 'cancelado') return st === 'cancelado' || st === 'anulado';
-            if (statusVal === 'premiado') return st === 'premiado' || st === 'ganador';
-            if (statusVal === 'no_premiado') return st === 'no_premiado' || st === 'perdedor';
-            return st === statusVal;
-        });
-    }
-
-    if (searchVal !== '') {
-        filtrados = filtrados.filter(t => {
-            const folio = String(t.codigo_ticket || t.folio || t.ticket_id || t.id || '').toLowerCase();
-            const banca = String(obtenerNombreBanca(t.banca_id, t)).toLowerCase();
-            return folio.includes(searchVal) || banca.includes(searchVal);
-        });
-    }
-
-    renderizarTablaTickets(filtrados);
-}
-
-function renderizarTablaTickets(lista) {
-    const tbody = document.getElementById('tickets-table-body') || document.getElementById('tickets-list-body');
-    if (!tbody) return;
-
-    if (!lista || lista.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="8" class="text-center py-8 text-slate-400">
-                    No se encontraron tickets registrados con los filtros seleccionados.
-                </td>
-            </tr>`;
+/**
+ * Imprime / Genera PDF del desglose de auditoría sin paginas en blanco
+ */
+export function imprimirReportePDF() {
+    const tbody = document.getElementById('reports-banca-table-body');
+    if (!tbody || !tbody.innerHTML.includes('tr')) {
+        alert("No hay datos en la tabla para imprimir.");
         return;
     }
 
-    tbody.innerHTML = lista.map((t, idx) => {
-        const uniqueId = t.codigo_ticket || t.folio || t.id || idx;
-        const fechaObj = new Date(t.created_at || t.createdAt);
-        const fecha = isNaN(fechaObj) ? 'N/A' : fechaObj.toLocaleString('es-PA', { dateStyle: 'short', timeStyle: 'short' });
-        
-        // Prioridad absoluta al Código de Ticket de la BD (ej. BX-682613)
-        const folioDisplay = t.codigo_ticket || t.folio || t.ticket_numero || `#${t.id || uniqueId}`;
-        const bancaNombre = obtenerNombreBanca(t.banca_id, t);
-        
-        const items = normalizarItemsTicket(t);
-        const cantJugadas = items.length > 0 ? items.length : 1;
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) return alert("Por favor permita las ventanas emergentes para imprimir el reporte.");
 
-        const montoVenta = parseFloat(t.monto_total || t.monto || t.total || 0).toFixed(2);
-        const montoPremio = parseFloat(t.monto_premio || t.premio_monto || t.premio || 0).toFixed(2);
-        const estado = String(t.estatus || t.status || t.estado || 'pendiente').toLowerCase();
-
-        let badgeClass = 'bg-amber-900/50 text-amber-300 border-amber-700/50';
-        let estadoLabel = 'PENDIENTE';
-
-        if (estado === 'premiado' || estado === 'ganador') {
-            badgeClass = 'bg-emerald-900/50 text-emerald-300 border-emerald-700/50';
-            estadoLabel = 'PREMIADO';
-        } else if (estado === 'cancelado' || estado === 'anulado') {
-            badgeClass = 'bg-rose-900/50 text-rose-300 border-rose-700/50';
-            estadoLabel = 'CANCELADO';
-        } else if (estado === 'no_premiado' || estado === 'perdedor') {
-            badgeClass = 'bg-slate-700 text-slate-400 border-slate-600';
-            estadoLabel = 'NO PREMIADO';
-        }
-
-        const esCancelado = estado === 'cancelado' || estado === 'anulado';
-
-        return `
-            <tr class="border-b border-slate-700/40 hover:bg-slate-700/30 transition-all">
-                <td class="p-3 font-mono text-emerald-400 font-bold text-xs">${folioDisplay}</td>
-                <td class="p-3 text-xs text-slate-300">${fecha}</td>
-                <td class="p-3 text-xs text-slate-200 font-semibold">${bancaNombre}</td>
-                <td class="p-3 text-center text-xs font-mono text-slate-300">${cantJugadas} ap.</td>
-                <td class="p-3 text-right font-mono font-bold text-white text-xs">$${montoVenta}</td>
-                <td class="p-3 text-right font-mono font-bold text-emerald-400 text-xs">$${montoPremio}</td>
-                <td class="p-3 text-center">
-                    <span class="px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider ${badgeClass}">
-                        ${estadoLabel}
-                    </span>
-                </td>
-                <td class="p-3 text-center">
-                    <div class="flex items-center justify-center gap-1.5">
-                        <button onclick="window.verTicketHistorial('${uniqueId}')" title="Ver Detalle Ticket" class="bg-slate-700 hover:bg-slate-600 text-slate-200 p-1.5 rounded-lg transition-colors text-xs">
-                            <i class="fa-solid fa-eye"></i>
-                        </button>
-                        <button onclick="window.imprimirTicketHistorial('${uniqueId}')" title="Reimprimir Ticket" class="bg-emerald-700/80 hover:bg-emerald-600 text-white p-1.5 rounded-lg transition-colors text-xs">
-                            <i class="fa-solid fa-print"></i>
-                        </button>
-                        ${!esCancelado ? `
-                        <button onclick="window.cancelarTicketHistorial('${uniqueId}')" title="Anular / Cancelar Ticket" class="bg-rose-700/80 hover:bg-rose-600 text-white p-1.5 rounded-lg transition-colors text-xs">
-                            <i class="fa-solid fa-ban"></i>
-                        </button>
-                        ` : `
-                        <button disabled title="Ticket ya cancelado" class="bg-slate-800 text-slate-600 p-1.5 rounded-lg cursor-not-allowed text-xs">
-                            <i class="fa-solid fa-ban"></i>
-                        </button>
-                        `}
-                    </div>
-                </td>
-            </tr>
-        `;
-    }).join('');
-}
-
-// =================================================================
-// FUNCIONES GLOBALES DE ACCIONES EN TICKET (VER, IMPRIMIR, CANCELAR)
-// =================================================================
-
-function buscarTicketEnCache(targetId) {
-    return ticketsCache.find(t => 
-        String(t.codigo_ticket) === String(targetId) ||
-        String(t.id) === String(targetId) || 
-        String(t.folio) === String(targetId) ||
-        String(t.ticket_numero) === String(targetId)
-    );
-}
-
-window.verTicketHistorial = function(uniqueId) {
-    const ticket = buscarTicketEnCache(uniqueId);
-    if (!ticket) {
-        alert("No se encontró el detalle del ticket seleccionado.");
-        return;
-    }
-
-    const items = normalizarItemsTicket(ticket);
-    const ticketNormalizado = {
-        ...ticket,
-        folio: ticket.codigo_ticket || ticket.folio || ticket.ticket_numero || ticket.id,
-        items: items,
-        apuestas: items,
-        banca_nombre: obtenerNombreBanca(ticket.banca_id, ticket)
-    };
-
-    if (typeof window.showTicketModal === 'function') {
-        try {
-            window.showTicketModal(ticketNormalizado);
-            return;
-        } catch (e) {
-            console.warn("Fallo showTicketModal por defecto, utilizando modal de respaldo:", e);
-        }
-    }
-
-    mostrarModalTermicoRespaldo(ticketNormalizado);
-};
-
-window.imprimirTicketHistorial = function(uniqueId) {
-    const ticket = buscarTicketEnCache(uniqueId);
-    if (!ticket) return alert("Ticket no encontrado para imprimir.");
-
-    const items = normalizarItemsTicket(ticket);
-    const bancaNom = obtenerNombreBanca(ticket.banca_id, ticket);
-    const folio = ticket.codigo_ticket || ticket.folio || ticket.ticket_numero || ticket.id;
-    const fecha = new Date(ticket.created_at || ticket.createdAt).toLocaleString('es-PA');
-    const total = parseFloat(ticket.monto_total || ticket.monto || 0).toFixed(2);
-
-    let itemsHtml = items.map(i => {
-        const num = i.numero || i.jugada || '';
-        const tipo = i.tipo || 'Directo';
-        const monto = parseFloat(i.monto || 0).toFixed(2);
-        return '<div style="display:flex; justify-content:space-between; margin: 3px 0; font-size:12px;"><span>' + num + ' (' + tipo + ')</span><span>$' + monto + '</span></div>';
-    }).join('');
-
-    const printWindow = window.open('', '_blank', 'width=350,height=500');
-    if (!printWindow) return alert("Por favor permita las ventanas emergentes (popups) para imprimir.");
-
-    printWindow.document.write(
-        '<!DOCTYPE html><html><head><title>Ticket #' + folio + '</title>' +
-        '<style>' +
-        'body { font-family: "Courier New", Courier, monospace; width: 280px; padding: 10px; margin: auto; font-size: 12px; }' +
-        '.center { text-align: center; }' +
-        '.bold { font-weight: bold; }' +
-        '.line { border-bottom: 1px dashed #000; margin: 8px 0; }' +
-        '.total { font-size: 14px; text-align: right; margin-top: 10px; }' +
-        '</style></head><body>' +
-        '<div class="center bold" style="font-size:16px;">BUXYLOTO POS</div>' +
-        '<div class="center">' + bancaNom + '</div>' +
-        '<div class="line"></div>' +
-        '<div><b>TICKET:</b> #' + folio + '</div>' +
-        '<div><b>FECHA:</b> ' + fecha + '</div>' +
-        '<div><b>ESTADO:</b> ' + String(ticket.estatus || ticket.status || ticket.estado || 'PENDIENTE').toUpperCase() + '</div>' +
-        '<div class="line"></div>' +
-        '<div class="bold">JUGADAS / APUESTAS</div>' +
-        itemsHtml +
-        '<div class="line"></div>' +
-        '<div class="total bold">TOTAL: $' + total + '</div>' +
-        '<div class="line"></div>' +
-        '<div class="center" style="font-size:10px; margin-top:15px;">¡GRACIAS POR SU COMPRA!<br>Conserve este boleto.</div>' +
-        '<script>window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };<\/script>' +
-        '</body></html>'
-    );
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Reporte de Balances y Cuadres - ${getHoyYMD()}</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; color: #1e293b; }
+                h2 { text-align: center; color: #0f172a; margin-bottom: 5px; }
+                p.sub { text-align: center; font-size: 12px; color: #64748b; margin-bottom: 20px; }
+                table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+                th { background-color: #f1f5f9; font-weight: bold; }
+                .text-right { text-align: right; }
+                .text-center { text-align: center; }
+            </style>
+        </head>
+        <body>
+            <h2>🎰 BUXYLOTO POS - DESGLOSE FINANCIERO</h2>
+            <p class="sub">Fecha de emisión: ${new Date().toLocaleString('es-PA')}</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>FECHA</th>
+                        <th>BANCA / VENDEDOR</th>
+                        <th>ZONA</th>
+                        <th class="text-center">TICKETS</th>
+                        <th class="text-right">VENTA TOTAL</th>
+                        <th class="text-right">COMISIÓN</th>
+                        <th class="text-right">PREMIOS</th>
+                        <th class="text-right">BALANCE NETO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tbody.innerHTML}
+                </tbody>
+            </table>
+            <script>
+                window.onload = function() { window.print(); setTimeout(() => window.close(), 500); };
+            <\/script>
+        </body>
+        </html>
+    `);
     printWindow.document.close();
-};
-
-window.cancelarTicketHistorial = async function(uniqueId) {
-    const ticket = buscarTicketEnCache(uniqueId);
-    if (!ticket) return alert("Ticket no encontrado.");
-
-    const folioTarget = ticket.codigo_ticket || ticket.folio || ticket.ticket_numero || ticket.id;
-
-    if (typeof window.cancelarTicketPOS === 'function') {
-        await window.cancelarTicketPOS(folioTarget);
-    } else {
-        const conf = confirm(`¿Está seguro de que desea cancelar el ticket #${folioTarget}?`);
-        if (!conf) return;
-
-        const supabase = window.supabase;
-        if (supabase) {
-            await supabase.from('tickets').update({ estatus: 'CANCELADO', status: 'CANCELADO', estado: 'CANCELADO' }).or(`codigo_ticket.eq.${folioTarget},folio.eq.${folioTarget},id.eq.${folioTarget}`);
-        }
-        alert(`Ticket #${folioTarget} cancelado correctamente.`);
-        cargarHistorialTickets();
-    }
-};
-
-function mostrarModalTermicoRespaldo(ticket) {
-    if (!ticket) return;
-
-    const items = normalizarItemsTicket(ticket);
-    const total = parseFloat(ticket.monto_total || ticket.monto || ticket.total || 0).toFixed(2);
-    const fecha = ticket.created_at || ticket.createdAt ? new Date(ticket.created_at || ticket.createdAt).toLocaleString('es-PA') : new Date().toLocaleString('es-PA');
-    const bancaNom = ticket.banca_nombre || obtenerNombreBanca(ticket.banca_id, ticket);
-    const folioCode = ticket.codigo_ticket || ticket.folio || ticket.id || '';
-
-    const modal = document.createElement('div');
-    modal.className = "fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4";
-    modal.onclick = (e) => { 
-        if (e.target === modal) modal.remove(); 
-    };
-
-    const itemsRows = items.map(i => {
-        const num = i.numero || i.jugada || '';
-        const tipo = i.tipo || 'Directo';
-        const monto = parseFloat(i.monto || 0).toFixed(2);
-        return '<div class="flex justify-between text-slate-200"><span>' + num + ' (' + tipo + ')</span><span>$' + monto + '</span></div>';
-    }).join('');
-
-    modal.innerHTML = `
-        <div class="bg-slate-900 border border-slate-700 text-white rounded-xl p-6 max-w-sm w-full font-mono shadow-2xl">
-            <div class="text-center border-b border-slate-700 pb-3 mb-3">
-                <h3 class="text-lg font-bold text-emerald-400">🎰 BUXYLOTO POS</h3>
-                <p class="text-xs text-slate-400">${bancaNom}</p>
-            </div>
-            <div class="text-xs space-y-1 text-slate-300 border-b border-slate-700 pb-3 mb-3">
-                <p><b>FOLIO:</b> ${folioCode}</p>
-                <p><b>FECHA:</b> ${fecha}</p>
-                <p><b>ESTADO:</b> <span class="uppercase text-amber-400 font-bold">${ticket.estatus || ticket.status || ticket.estado || 'PENDIENTE'}</span></p>
-            </div>
-            <div class="text-xs space-y-1 mb-4">
-                <p class="font-bold border-b border-slate-800 pb-1">JUGADAS:</p>
-                ${itemsRows}
-            </div>
-            <div class="text-right font-bold text-base text-emerald-400 border-t border-slate-700 pt-2 mb-4">
-                TOTAL: $${total}
-            </div>
-            <div class="flex gap-2">
-                <button id="btn-modal-print-respaldo" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-lg text-xs font-sans font-bold">
-                    <i class="fa-solid fa-print mr-1"></i> Imprimir
-                </button>
-                <button id="btn-modal-close-respaldo" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded-lg text-xs font-sans font-bold">
-                    Cerrar
-                </button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    const btnPrint = document.getElementById('btn-modal-print-respaldo');
-    if (btnPrint) {
-        btnPrint.onclick = () => {
-            window.imprimirTicketHistorial(folioCode);
-            modal.remove();
-        };
-    }
-
-    const btnClose = document.getElementById('btn-modal-close-respaldo');
-    if (btnClose) {
-        btnClose.onclick = () => {
-            modal.remove();
-        };
-    }
 }
 
-// Detectar apertura de secciones
-document.addEventListener('DOMContentLoaded', () => {
-    const ticketSection = document.getElementById('section-tickets');
-    if (ticketSection) {
-        const observerTickets = new MutationObserver(() => {
-            if (!ticketSection.classList.contains('hidden')) {
-                initTicketsHistoryModule();
-            }
-        });
-        observerTickets.observe(ticketSection, { attributes: true });
-    }
-});
-
-// Exportaciones globales
+// Vinculación explícita a la ventana global (window)
 window.initReportesModule = initReportesModule;
 window.generarReporte = generarReporte;
-window.initTicketsHistoryModule = initTicketsHistoryModule;
-window.cargarHistorialTickets = cargarHistorialTickets;
+window.limpiarFiltrosReportes = limpiarFiltrosReportes;
+window.exportarReporteExcel = exportarReporteExcel;
+window.imprimirReportePDF = imprimirReportePDF;

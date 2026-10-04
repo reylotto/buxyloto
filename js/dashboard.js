@@ -33,7 +33,7 @@ function initSystemClock() {
     }, 1000);
 }
 
-// 2. Métricas del Dashboard
+// 2. Métricas del Dashboard (EXCLUYENDO CANCELADOS)
 async function cargarMetricasSeguras() {
     try {
         const supabase = window.supabase;
@@ -51,15 +51,21 @@ async function cargarMetricasSeguras() {
 
         const listaTickets = tickets || [];
 
-        // Calcular total vendido
-        const totalVendido = listaTickets.reduce((acc, t) => {
+        // EXCLUIR TICKETS CANCELADOS O ANULADOS
+        const listaTicketsValidos = listaTickets.filter(t => {
+            const est = String(t.estatus || t.estado || '').toLowerCase();
+            return est !== 'cancelado' && est !== 'anulado';
+        });
+
+        // Calcular total vendido solo con tickets válidos
+        const totalVendido = listaTicketsValidos.reduce((acc, t) => {
             const montoVal = Number(t.monto_total || t.monto || t.total || 0);
             return acc + montoVal;
         }, 0);
 
-        // Calcular total de premios a pagar
-        const totalPremios = listaTickets.reduce((acc, t) => {
-            const est = (t.estatus || t.estado || '').toLowerCase();
+        // Calcular total de premios a pagar con tickets válidos
+        const totalPremios = listaTicketsValidos.reduce((acc, t) => {
+            const est = String(t.estatus || t.estado || '').toLowerCase();
             if (est === 'premiado' || est === 'ganador') {
                 return acc + Number(t.premio || t.monto_premio || 0);
             }
@@ -74,7 +80,7 @@ async function cargarMetricasSeguras() {
         if (elemPremios) elemPremios.textContent = `$${totalPremios.toFixed(2)}`;
 
         const elemCant = document.getElementById('metric-cant-tickets') || document.getElementById('cant-tickets');
-        if (elemCant) elemCant.textContent = listaTickets.length;
+        if (elemCant) elemCant.textContent = listaTicketsValidos.length;
 
     } catch (err) {
         console.warn("Aviso en métricas:", err.message);
@@ -614,6 +620,7 @@ document.querySelectorAll('[data-section], nav button, .nav-link, a[href*="histo
         }
     });
 });
+
 // Actualización automática al cambiar de pestaña
 document.querySelectorAll('[data-section], nav button, .nav-link, a[href*="section"]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -664,6 +671,7 @@ window.suscribirTiempoReal = suscribirTiempoReal;
 document.addEventListener('DOMContentLoaded', () => {
     suscribirTiempoReal();
 });
+
 // Agrega o actualiza el manejador de navegación de secciones en dashboard.js / main.js
 function cambiarSeccion(seccionId) {
     // 1. Ocultar todas las secciones y mostrar la seleccionada
@@ -697,8 +705,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 });
+
 // ==========================================================
-// RESUMEN DE OPERACIONES Y MÉTRICAS HOY (UNIFICADO Y CORREGIDO)
+// RESUMEN DE OPERACIONES Y MÉTRICAS HOY (UNIFICADO Y EXCLUYENDO CANCELADOS)
 // ==========================================================
 
 let intervaloCuentaRegresivaGrid = null;
@@ -734,10 +743,17 @@ async function cargarResumenOperacionesHoy() {
             return;
         }
 
-        const tickets = ticketsHoy || [];
+        const ticketsRaw = ticketsHoy || [];
+
+        // EXCLUIR ESTRICTAMENTE TICKETS CANCELADOS O ANULADOS
+        const tickets = ticketsRaw.filter(t => {
+            const est = String(t.estatus || t.status || t.estado || '').toLowerCase();
+            return est !== 'cancelado' && est !== 'anulado';
+        });
+
         const totalTickets = tickets.length;
 
-        // 3. Cálculos Financieros
+        // 3. Cálculos Financieros con Tickets Válidos
         let ventaTotal = 0;
         let comisionesTotal = 0;
         let premiosTotal = 0;
@@ -745,7 +761,14 @@ async function cargarResumenOperacionesHoy() {
 
         tickets.forEach(t => {
             const monto = parseFloat(t.total || t.monto || t.monto_total || 0);
-            const comision = parseFloat(t.comision || (monto * 0.10)); // Comision de ticket o 10% por defecto
+            
+            // Usar % de comisión de la banca o del ticket si existe, o 10% por defecto
+            let pctComision = 10;
+            if (t.comision_porcentaje) pctComision = parseFloat(t.comision_porcentaje);
+
+            const comision = t.comision_monto 
+                ? parseFloat(t.comision_monto) 
+                : parseFloat(t.comision || (monto * (pctComision / 100)));
             
             ventaTotal += monto;
             comisionesTotal += comision;
@@ -753,19 +776,18 @@ async function cargarResumenOperacionesHoy() {
             // Extraer premio acumulado en la raíz del ticket
             let premioVal = parseFloat(t.premio || t.monto_premio || t.total_premio || t.monto_ganado || 0);
 
-            // Si el ticket contiene jugadas en sub-arreglos (común en Palé o jugadas múltiples)
+            // Si el ticket contiene jugadas en sub-arreglos
             const detallesJugadas = t.jugadas || t.detalles || t.apuestas || [];
             if (Array.isArray(detallesJugadas)) {
                 detallesJugadas.forEach(j => {
                     const premioJugada = parseFloat(j.premio || j.monto_premio || j.monto_ganado || 0);
-                    // Sumar sólo si no fue sumado en la raíz
                     if (premioJugada > 0 && premioVal === 0) {
                         premioVal += premioJugada;
                     }
                 });
             }
 
-            const est = String(t.estatus || t.estado || '').toLowerCase();
+            const est = String(t.estatus || t.status || t.estado || '').toLowerCase();
             const esGanador = est === 'premiado' || est === 'ganador' || est === 'pagado' || est.includes('pale') || premioVal > 0;
 
             if (esGanador && premioVal > 0) {
@@ -776,7 +798,7 @@ async function cargarResumenOperacionesHoy() {
 
         const gananciaNeta = ventaTotal - comisionesTotal - premiosTotal;
 
-        // 4. Inyectar datos en el DOM (Compatibilidad total con todos los IDs de HTML)
+        // 4. Inyectar datos en el DOM
         const totalVentasFmt = `$${ventaTotal.toFixed(2)}`;
         const totalComisionesFmt = `$${comisionesTotal.toFixed(2)}`;
         const totalPremiosFmt = `$${premiosTotal.toFixed(2)}`;
@@ -845,7 +867,6 @@ async function cargarGridSorteosEnVivo() {
         }
 
         grid.innerHTML = ''; // Limpiar contenedor
-        let alertaActiva = false;
 
         sorteos.forEach(sorteo => {
             const nombre = sorteo.nombre || sorteo.descripcion || `Sorteo #${sorteo.id}`;
@@ -870,17 +891,14 @@ async function cargarGridSorteosEnVivo() {
             grid.appendChild(card);
         });
 
-       // 1. CREAMOS UNA "MEMORIA" GLOBAL PARA LOS SORTEOS SILENCIADOS
         window._sorteosSilenciados = window._sorteosSilenciados || new Set();
 
-        // Temporizadores dinámicos para las tarjetas
         if (window.intervaloCuentaRegresivaGrid) clearInterval(window.intervaloCuentaRegresivaGrid);
 
         window.intervaloCuentaRegresivaGrid = setInterval(() => {
             const ahora = new Date();
             let alertaActiva = false;
             
-            // 2. Array temporal para saber cuáles sorteos están detonando la alerta en este segundo
             window._sorteosEnAlertaActual = []; 
 
             sorteos.forEach(sorteo => {
@@ -894,7 +912,6 @@ async function cargarGridSorteosEnVivo() {
                     return;
                 }
 
-                // NOTA DE HORARIO: 'new Date()' usa la hora de tu computadora.
                 const horaStr = sorteo.hora || sorteo.hora_cierre || '23:59:00';
                 const [h, m, s] = horaStr.split(':');
                 const fechaCierre = new Date();
@@ -912,25 +929,21 @@ async function cargarGridSorteosEnVivo() {
 
                     timerElem.textContent = `${hrs}:${mins}:${segs}`;
 
-                    // 3. LÓGICA DE ALERTA: Si faltan menos de 15 minutos (900000 ms)
                     if (diff < 900000) { 
-                        // VERIFICACIÓN CLAVE: Solo activamos la alerta si ESTE sorteo NO ha sido silenciado
                         if (!window._sorteosSilenciados.has(sorteo.id)) {
                             alertaActiva = true;
-                            // Lo anotamos en el array temporal por si el usuario le da clic a "Entendido" ahorita
                             window._sorteosEnAlertaActual.push(sorteo.id); 
                         }
                     }
                 }
             });
 
-            // 4. Mostrar u ocultar el panel global
             const globalAlert = document.getElementById('global-closing-alert');
             if (globalAlert) {
                 if (alertaActiva) {
                     globalAlert.classList.remove('hidden');
                 } else {
-                    globalAlert.classList.add('hidden'); // Ocultar si todos fueron silenciados o ya cerraron
+                    globalAlert.classList.add('hidden');
                 }
             }
         }, 1000);
@@ -940,18 +953,14 @@ async function cargarGridSorteosEnVivo() {
     }
 }
 
-// =========================================================
 // 5. NUEVA FUNCIÓN PARA EL BOTÓN "ENTENDIDO"
-// =========================================================
 window.dismissClosingAlert = function() {
-    // Cuando el usuario presiona "Entendido", guardamos los sorteos que pitaron en la "memoria" de silenciados
     if (window._sorteosEnAlertaActual && window._sorteosEnAlertaActual.length > 0) {
         window._sorteosEnAlertaActual.forEach(id => {
             window._sorteosSilenciados.add(id);
         });
     }
     
-    // Ocultamos la alerta visualmente. El temporizador ya no la volverá a abrir para estos sorteos.
     const el = document.getElementById('global-closing-alert');
     if (el) el.classList.add('hidden');
 };
@@ -972,28 +981,27 @@ async function suscribirEventosTiempoReal() {
 
     window.realtimeChannel = supabase
         .channel('schema-db-changes-global')
-        // 1. Escuchar cambios en TICKETS (Ventas, anulaciones, premios)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
             console.log('⚡ Actualizando automáticamente por cambio en tickets...');
             cargarResumenOperacionesHoy();
+            cargarMetricasSeguras();
             if (typeof window.cargarHistorialTickets === 'function') {
                 window.cargarHistorialTickets();
             }
         })
-        // 2. Escuchar cambios en RESULTADOS (Carga de números ganadores)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'resultados' }, () => {
             console.log('⚡ Actualizando automáticamente por nuevo resultado ingresado...');
             cargarResumenOperacionesHoy();
+            cargarMetricasSeguras();
             if (typeof window.cargarHistorialTickets === 'function') {
                 window.cargarHistorialTickets();
             }
         })
-        // 3. Escuchar cambios en JUGADAS (Emisión de jugadas/palé)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'jugadas' }, () => {
             console.log('⚡ Actualizando automáticamente por cambio en jugadas...');
             cargarResumenOperacionesHoy();
+            cargarMetricasSeguras();
         })
-        // 4. Escuchar cambios en SORTEOS
         .on('postgres_changes', { event: '*', schema: 'public', table: 'sorteos' }, () => {
             console.log('⚡ Actualizando automáticamente por cambio en sorteos...');
             cargarResumenOperacionesHoy();
@@ -1008,6 +1016,10 @@ async function suscribirEventosTiempoReal() {
 // Exposición de funciones en el ámbito global
 window.cargarResumenOperacionesHoy = cargarResumenOperacionesHoy;
 window.actualizarResumenOperaciones = cargarResumenOperacionesHoy;
+window.actualizarResumenDashboard = function() {
+    cargarMetricasSeguras();
+    cargarResumenOperacionesHoy();
+};
 window.cargarGridSorteosEnVivo = cargarGridSorteosEnVivo;
 window.suscribirEventosTiempoReal = suscribirEventosTiempoReal;
 window.actualizarEstadoSorteosYCuentaRegresiva = function() {
@@ -1024,6 +1036,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnRefresh) {
         btnRefresh.addEventListener('click', () => {
             cargarResumenOperacionesHoy();
+            cargarMetricasSeguras();
         });
     }
 
@@ -1033,7 +1046,10 @@ document.addEventListener('DOMContentLoaded', () => {
         link.addEventListener('click', () => {
             const targetTab = link.getAttribute('data-tab') || link.getAttribute('href');
             if (targetTab === '#dashboard' || targetTab === 'dashboard' || link.classList.contains('active-dashboard-tab')) {
-                setTimeout(cargarResumenOperacionesHoy, 100);
+                setTimeout(() => {
+                    cargarResumenOperacionesHoy();
+                    cargarMetricasSeguras();
+                }, 100);
             }
         });
     });
@@ -1062,5 +1078,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 4. Carga inicial de métricas y activación de tiempo real
     cargarResumenOperacionesHoy();
+    cargarMetricasSeguras();
     suscribirEventosTiempoReal();
 });

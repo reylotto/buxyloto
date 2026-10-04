@@ -6,6 +6,12 @@
     <title>BuxyLoto POS & Dashboard Admin Central</title>
     <link rel="icon" href="data:,">
 
+    <!-- Declaración preventiva de variables globales -->
+    <script>
+        var inputNumbers = '';
+        window.inputNumbers = '';
+    </script>
+
     <!-- Tailwind CSS y Configuración -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -60,7 +66,7 @@
             z-index: 99990 !important;
         }
 
-        /* Tus estilos actuales */
+        /* Personalización de Barra de Desplazamiento */
         .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
             height: 6px;
@@ -75,6 +81,7 @@
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: #475569;
         }
+
         @keyframes pulse-fast {
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.6; transform: scale(1.02); }
@@ -82,6 +89,7 @@
         .animate-urgent {
             animation: pulse-fast 0.8s infinite ease-in-out;
         }
+
         @media print {
             body * {
                 visibility: hidden;

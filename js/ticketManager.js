@@ -98,7 +98,7 @@ export async function renderizarPlantillaTicket(ticketData) {
     const horaStr = ticketData.hora || ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 
     // ------------------------------------------------------------------
-    // ESTRATEGIA DE AGRUPACIÓN MULTI-SORTEO (CORREGIDA)
+    // ESTRATEGIA DE AGRUPACIÓN MULTI-SORTEO
     // ------------------------------------------------------------------
     const jugadasPorSorteo = {};
     let conteoTotalJugadas = 0;
@@ -107,9 +107,11 @@ export async function renderizarPlantillaTicket(ticketData) {
     
     listaJugadas.forEach(j => {
         conteoTotalJugadas++;
+        
+        // Prioridad de extracción de nombre del sorteo
         let nombreSorteo = j.sorteo_nombre || j.sorteo || j.nombre_sorteo || j.loteria || ticketData.sorteo_nombre || ticketData.sorteo || 'SORTEO';
         
-        // Limpieza de formato
+        // Limpieza de caracteres no deseados
         nombreSorteo = String(nombreSorteo).replace(/[\[\]{}"]/g, '').trim().toUpperCase();
 
         if (!jugadasPorSorteo[nombreSorteo]) {

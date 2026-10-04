@@ -1,6 +1,6 @@
 // ==========================================================
 // MÓDULO DE GESTIÓN Y EXPORTACIÓN DE TICKETS (ticketManager.js)
-// Basado en el formato estándar POS JuegaGana
+// Basado en el formato estándar POS JuegaGana / Buxyloto
 // ==========================================================
 
 function cargarLibreriaQR() {
@@ -81,7 +81,7 @@ export async function renderizarPlantillaTicket(ticketData) {
     const montoTotal = parseFloat(ticketData.monto_total || ticketData.monto || ticketData.total || 0).toFixed(2);
     const jugadas = ticketData.detalles || ticketData.jugadas || [];
 
-    // Nombre de la banca dinámico (fallback a BUXYLOTO MAIN)
+    // Nombre de la banca dinámico
     const nombreBanca = ticketData.banca_nombre || ticketData.nombre_banca || ticketData.banca || 'BUXYLOTO MAIN';
 
     // Fecha y Hora
@@ -92,9 +92,9 @@ export async function renderizarPlantillaTicket(ticketData) {
     // Generar URL del QR
     const qrDataUrl = await generarQRDataURL(codigo);
 
-    // Formatear filas de jugadas en 3 columnas: SORTEO | JUGADA | MONTO
+    // Formatear filas de jugadas en 3 columnas: SORTEO | JUGADA | MONTO (EN NEGRITA)
     const filasHTML = jugadas.length > 0 ? jugadas.map(j => {
-        // Obtener nombre del sorteo
+        // Obtener nombre del sorteo específico para esta jugada
         let sorteoRaw = j.sorteo_nombre || j.sorteo || ticketData.sorteo_nombre || ticketData.sorteo || 'GENERAL';
         sorteoRaw = sorteoRaw.replace(/\[\vert{}\]/g, '').trim();
 
@@ -103,13 +103,13 @@ export async function renderizarPlantillaTicket(ticketData) {
         const tipoLimpio = (j.tipo || '').toUpperCase();
         const jugadaTexto = tipoLimpio ? `${tipoLimpio} ${numeroLimpio}`.trim() : String(numeroLimpio);
 
-        // Formatear monto a decimal
+        // Formatear monto
         const montoFormateado = parseFloat(j.monto || 0).toFixed(2);
 
         return `
             <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: bold; padding: 2px 0; border-bottom: 1px dotted #000000;">
-                <span style="width: 40%; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: bold;">${sorteoRaw}</span>
-                <span style="width: 35%; text-align: center; font-weight: bold;">${jugadaTexto}</span>
+                <span style="width: 40%; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: bold; text-transform: uppercase;">${sorteoRaw}</span>
+                <span style="width: 35%; text-align: center; font-weight: bold; text-transform: uppercase;">${jugadaTexto}</span>
                 <span style="width: 25%; text-align: right; font-weight: bold;">${montoFormateado}</span>
             </div>
         `;
@@ -150,11 +150,11 @@ export async function renderizarPlantillaTicket(ticketData) {
 
         <div style="border-top: 1px dashed #000000; margin: 6px 0;"></div>
 
-        <!-- ENCABEZADO DE TABLA (CORREGIDO) -->
-        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 11px; border-bottom: 2px solid #000000; padding-bottom: 3px; margin-bottom: 4px;">
-            <span style="width: 40%; text-align: left; font-weight: bold;">SORTEO</span>
-            <span style="width: 35%; text-align: center; font-weight: bold;">JUGADA</span>
-            <span style="width: 25%; text-align: right; font-weight: bold;">MONTO</span>
+        <!-- ENCABEZADO DE TABLA (EN NEGRITA RESALTADA) -->
+        <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 11px; border-bottom: 2px solid #000000; padding-bottom: 3px; margin-bottom: 4px; text-transform: uppercase;">
+            <span style="width: 40%; text-align: left; font-weight: 900;">SORTEO</span>
+            <span style="width: 35%; text-align: center; font-weight: 900;">JUGADA</span>
+            <span style="width: 25%; text-align: right; font-weight: 900;">MONTO</span>
         </div>
 
         <!-- LISTA DE JUGADAS -->

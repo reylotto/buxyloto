@@ -98,51 +98,36 @@ export async function renderizarPlantillaTicket(ticketData) {
     const horaStr = ticketData.hora || ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 
     // ------------------------------------------------------------------
-    // ESTRATEGIA DE AGRUPACIÓN MULTI-SORTEO
+    // ESTRATEGIA DE AGRUPACIÓN MULTI-SORTEO (CORREGIDA)
     // ------------------------------------------------------------------
     const jugadasPorSorteo = {};
     let conteoTotalJugadas = 0;
 
-    // Caso A: Los datos vienen estructurados por arreglo de Sorteos (ej: ticketData.sorteos_seleccionados)
-    if (Array.isArray(ticketData.sorteos) && ticketData.sorteos.length > 0 && Array.isArray(ticketData.jugadas)) {
-        ticketData.sorteos.forEach(sorteoObj => {
-            const nombreSorteo = (typeof sorteoObj === 'string' ? sorteoObj : sorteoObj.nombre || sorteoObj.sorteo_nombre || 'SORTEO').toUpperCase();
-            if (!jugadasPorSorteo[nombreSorteo]) jugadasPorSorteo[nombreSorteo] = [];
-
-            ticketData.jugadas.forEach(j => {
-                jugadasPorSorteo[nombreSorteo].push(j);
-                conteoTotalJugadas++;
-            });
-        });
-    } 
-    // Caso B: Cada jugada dentro del arreglo `detalles` / `jugadas` tiene su propio campo de sorteo
-    else {
-        const listaJugadas = ticketData.detalles || ticketData.jugadas || ticketData.items || [];
+    const listaJugadas = ticketData.detalles || ticketData.jugadas || ticketData.items || [];
+    
+    listaJugadas.forEach(j => {
+        conteoTotalJugadas++;
+        let nombreSorteo = j.sorteo_nombre || j.sorteo || j.nombre_sorteo || j.loteria || ticketData.sorteo_nombre || ticketData.sorteo || 'SORTEO';
         
-        listaJugadas.forEach(j => {
-            conteoTotalJugadas++;
-            let nombreSorteo = j.sorteo_nombre || j.sorteo || j.nombre_sorteo || j.loteria || ticketData.sorteo_nombre || ticketData.sorteo || 'SORTEO';
-            
-            // Limpieza de formato
-            nombreSorteo = String(nombreSorteo).replace(/[\[\]{}"]/g, '').trim().toUpperCase();
+        // Limpieza de formato
+        nombreSorteo = String(nombreSorteo).replace(/[\[\]{}"]/g, '').trim().toUpperCase();
 
-            if (!jugadasPorSorteo[nombreSorteo]) {
-                jugadasPorSorteo[nombreSorteo] = [];
-            }
-            jugadasPorSorteo[nombreSorteo].push(j);
-        });
-    }
+        if (!jugadasPorSorteo[nombreSorteo]) {
+            jugadasPorSorteo[nombreSorteo] = [];
+        }
+        jugadasPorSorteo[nombreSorteo].push(j);
+    });
 
     const totalItems = conteoTotalJugadas.toString().padStart(3, '0');
 
     // CONSTRUCCIÓN DEL HTML DE TODOS LOS SORTEOS
     let bloquesSorteosHTML = '';
 
-    for (const [sorteoNombre, listaJugadas] of Object.entries(jugadasPorSorteo)) {
+    for (const [sorteoNombre, listaJugadasSorteo] of Object.entries(jugadasPorSorteo)) {
         bloquesSorteosHTML += `
-            <div style="margin-top: 8px;">
+            <div style="margin-top: 10px; border-top: 1px dashed #000; padding-top: 5px;">
                 <div style="font-weight: bold; font-size: 13px; text-transform: uppercase;">${sorteoNombre}</div>
-                <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; margin-top: 2px; margin-bottom: 2px;">
+                <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; margin-top: 4px; margin-bottom: 4px; border-bottom: 1px solid #000; padding-bottom: 2px;">
                     <span style="width: 25%; text-align: left;">JUGADA</span>
                     <span style="width: 25%; text-align: right;">MONTO</span>
                     <span style="width: 25%; text-align: center;">JUGADA</span>
@@ -151,9 +136,9 @@ export async function renderizarPlantillaTicket(ticketData) {
         `;
 
         // Iterar jugadas de 2 en 2 para formatearlas en 2 columnas paralelas
-        for (let i = 0; i < listaJugadas.length; i += 2) {
-            const j1 = listaJugadas[i];
-            const j2 = listaJugadas[i + 1];
+        for (let i = 0; i < listaJugadasSorteo.length; i += 2) {
+            const j1 = listaJugadasSorteo[i];
+            const j2 = listaJugadasSorteo[i + 1];
 
             const num1 = j1.numero || j1.jugada || '';
             const mnt1 = parseFloat(j1.monto || j1.valor || 0).toFixed(2);
@@ -199,8 +184,6 @@ export async function renderizarPlantillaTicket(ticketData) {
                 <span>${fechaStr} ${horaStr}</span>
             </div>
         </div>
-
-        <div style="border-top: 1px dashed #000000; margin: 6px 0;"></div>
 
         <!-- BLOQUES DE TODOS LOS SORTEOS Y JUGADAS -->
         ${bloquesSorteosHTML}

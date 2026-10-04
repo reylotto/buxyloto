@@ -528,19 +528,18 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
         const nombresSorteos = sorteosSeleccionados.map(s => s.nombre).join(' / ');
         
-        // Parsear ID de sorteo asegurando que sea entero o null
         const rawSorteoId = sorteosSeleccionados[0].id;
         const primerSorteoId = !isNaN(parseInt(rawSorteoId, 10)) ? parseInt(rawSorteoId, 10) : null;
 
-        // Construcción limpia del Payload para la tabla 'tickets'
+        // Payload principal para 'tickets'
         const payloadTicket = {
             codigo: codigoTicket,
             codigo_ticket: codigoTicket,
             sorteo_nombre: nombresSorteos,
             monto: parseFloat(montoTotal.toFixed(2)),
             monto_total: parseFloat(montoTotal.toFixed(2)),
-            detalles: todasLasJugadas, // Guardado como array / jsonb con sorteo_nombre asignado
-            jugadas: todasLasJugadas,  // Compatibilidad alternativa con ticketManager
+            detalles: todasLasJugadas, // Arreglo completo con sorteo_nombre asignado a cada jugada
+            jugadas: todasLasJugadas,
             estatus: 'pendiente'
         };
 
@@ -565,7 +564,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
             return;
         }
 
-        // 2. Insertar Detalle en 'jugadas' (incluye sorteo_nombre si la tabla lo permite)
+        // 2. Insertar Detalle en 'jugadas' (Solo columnas existentes en la tabla)
         if (ticketGuardado && ticketGuardado.id) {
             const idTicketNum = parseInt(ticketGuardado.id, 10);
             
@@ -573,33 +572,22 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
                 ticket_id: idTicketNum,
                 numero: j.numero,
                 monto: j.monto,
-                tipo: j.tipo,
-                sorteo_nombre: j.sorteo_nombre,
-                sorteo_id: j.sorteo_id
+                tipo: j.tipo
             }));
 
             const resJugadas = await supabase.from('jugadas').insert(filasJugadas);
             if (resJugadas.error) {
-                console.warn("⚠️ Aviso al guardar jugadas individuales (reintentando con formato básico):", resJugadas.error.message);
-                // Respaldo sin columnas adicionales si la tabla 'jugadas' tiene restricciones de esquema
-                const filasBásicas = todasLasJugadas.map(j => ({
-                    ticket_id: idTicketNum,
-                    numero: j.numero,
-                    monto: j.monto,
-                    tipo: j.tipo
-                }));
-                await supabase.from('jugadas').insert(filasBásicas);
+                console.warn("⚠️ Aviso al guardar jugadas:", resJugadas.error.message);
             } else {
                 console.log("✅ Detalle de jugadas guardado con éxito.");
             }
         }
 
-        // Preparar objeto asegurando que contenga jugadas/detalles con sus sorteos asociados
-        const ticketParaImprimir = ticketGuardado ? {
-            ...ticketGuardado,
+        const ticketParaImprimir = {
+            ...(ticketGuardado || payloadTicket),
             detalles: todasLasJugadas,
             jugadas: todasLasJugadas
-        } : payloadTicket;
+        };
 
         // D. Limpiar interfaz
         window.jugadasActuales = [];

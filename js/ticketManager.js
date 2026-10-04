@@ -192,88 +192,97 @@ export async function generarImagenTicket() {
     }
 }
 
-export async function compartirTicketWhatsApp(ticketData, numeroTelefono = '') {
-    await renderizarPlantillaTicket(ticketData);
-    const dataUrl = await generarImagenTicket();
+// ----------------------------------------------------------
+// PLANTILLA DE IMPRESIÓN/EXPORTACIÓN DE TICKET CON COLUMNAS
+// ----------------------------------------------------------
+function renderizarPlantillaTicket(ticketData) {
+    const detalles = ticketData.detalles || ticketData.jugadas || [];
+    
+    // Generar cada fila estructurada en columnas
+    const filasHTML = detalles.map(j => {
+        const sorteoNombre = j.sorteo_nombre || ticketData.sorteo_nombre || 'SORTEO';
+        const tipoJugada = j.tipo ? `${j.tipo.toUpperCase()} (${j.numero})` : j.numero;
+        const montoFormateado = parseFloat(j.monto || 0).toFixed(2);
 
-    if (dataUrl) {
-        const blob = await (await fetch(dataUrl)).blob();
-        const file = new File([blob], `Ticket_${ticketData.codigo_ticket || ticketData.codigo || 'POS'}.png`, { type: 'image/png' });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-                await navigator.share({
-                    files: [file],
-                    title: `Ticket ${ticketData.codigo_ticket || ticketData.codigo}`,
-                    text: `Comprobante de Ticket #${ticketData.codigo_ticket || ticketData.codigo}`
-                });
-                return;
-            } catch (e) {
-                console.log("Acción cancelada o no disponible:", e);
-            }
-        }
-    }
-
-    const nombreSorteo = ticketData.sorteo_nombre || ticketData.sorteo || 'Lotería';
-    const mensajeText = encodeURIComponent(
-        `*BUXYLOTO POS*\n` +
-        `*TICKET #${ticketData.codigo_ticket || ticketData.codigo || ''}*\n` +
-        `Sorteo: ${nombreSorteo}\n` +
-        `Total: USD $${parseFloat(ticketData.monto_total || ticketData.monto || 0).toFixed(2)}\n\n` +
-        `¡Gracias por su compra!`
-    );
-
-    const url = numeroTelefono 
-        ? `https://api.whatsapp.com/send?phone=${numeroTelefono}&text=${mensajeText}`
-        : `https://api.whatsapp.com/send?text=${mensajeText}`;
-
-    window.open(url, '_blank');
-}
-
-export async function descargarPDFTicket(ticketData) {
-    await renderizarPlantillaTicket(ticketData);
-    const dataUrl = await generarImagenTicket();
-    if (!dataUrl) return;
-
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-        orientation: 'p',
-        unit: 'mm',
-        format: [80, 160]
-    });
-
-    doc.addImage(dataUrl, 'PNG', 0, 0, 80, 0);
-    doc.save(`Ticket_${ticketData.codigo_ticket || ticketData.codigo || 'POS'}.pdf`);
-}
-
-export async function mostrarOpcionesExportacionTicket(ticketData) {
-    await renderizarPlantillaTicket(ticketData);
-
-    const modalExistente = document.getElementById('modal-export-ticket');
-    if (modalExistente) modalExistente.remove();
-
-    const modalHTML = `
-        <div id="modal-export-ticket" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:99999;">
-            <div style="background:#1e293b; color:#fff; padding:24px; border-radius:12px; width:320px; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.5);">
-                <h3 style="margin:0 0 6px 0; font-size:18px;">Ticket #${ticketData.codigo_ticket || ticketData.codigo || ''}</h3>
-                <p style="font-size:13px; color:#94a3b8; margin-bottom:20px;">¿Cómo desea entregar el comprobante?</p>
-
-                <div style="display:flex; flex-direction:column; gap:10px;">
-                    <button id="btn-print-thermal" style="background:#0284c7; color:#fff; padding:12px; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:14px;">
-                        🖨️ Imprimir Térmica (80mm)
-                    </button>
-                    <button id="btn-share-wapp" style="background:#22c55e; color:#fff; padding:12px; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:14px;">
-                        📲 Compartir Imagen (WhatsApp)
-                    </button>
-                    <button id="btn-download-pdf" style="background:#475569; color:#fff; padding:12px; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:14px;">
-                        📄 Descargar PDF
-                    </button>
-                </div>
-
-                <button id="btn-close-modal-export" style="margin-top:18px; background:transparent; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:14px;">
-                    Cerrar
-                </button>
+        return `
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: bold; padding: 2px 0;">
+                <span style="width: 40%; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${sorteoNombre}</span>
+                <span style="width: 35%; text-align: center; text-transform: uppercase;">${tipoJugada}</span>
+                <span style="width: 25%; text-align: right;">${montoFormateado}</span>
             </div>
+        `;
+    }).join('');
+
+    return `
+        <div style="width: 280px; font-family: monospace; padding: 10px; background: #fff; color: #000; font-size: 12px; margin: 0 auto;">
+            <!-- Encabezado del Comercio -->
+            <div style="text-align: center; margin-bottom: 8px;">
+                <div style="font-size: 20px;">☘️</div>
+                <div style="font-size: 16px; font-weight: bold; text-transform: uppercase;">BUXYLOTO</div>
+                <div style="font-size: 11px; font-weight: bold;">POS CENTRAL</div>
+                <div style="font-size: 10px;">$$ DINERO SEGURO $$</div>
+            </div>
+
+            <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
+
+            <!-- Datos de la Transacción -->
+            <div style="font-size: 11px; font-weight: bold; margin-bottom: 6px;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span>BANCA</span>
+                    <span>${ticketData.banca || 'BuxyLoto Main'}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>FECHA</span>
+                    <span>${ticketData.fecha || new Date().toLocaleDateString()}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>HORA</span>
+                    <span>${ticketData.hora || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false})}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>TICKET</span>
+                    <span>${ticketData.codigo || ticketData.codigo_ticket || 'BX-000000'}</span>
+                </div>
+            </div>
+
+            <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
+
+            <!-- Encabezado de Columnas Solicitado -->
+            <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 11px; border-bottom: 1px solid #000; padding-bottom: 3px; margin-bottom: 4px;">
+                <span style="width: 40%; text-align: left;">SORTEO</span>
+                <span style="width: 35%; text-align: center;">JUGADA</span>
+                <span style="width: 25%; text-align: right;">MONTO</span>
+            </div>
+
+            <!-- Lista de Jugadas en Columnas -->
+            <div style="margin-bottom: 6px;">
+                ${filasHTML}
+            </div>
+
+            <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
+
+            <!-- Total -->
+            <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; margin: 6px 0;">
+                <span>TOTAL</span>
+                <span>USD ${parseFloat(ticketData.monto || ticketData.monto_total || 0).toFixed(2)}</span>
+            </div>
+
+            <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
+
+            <!-- Pie de página -->
+            <div style="text-align: center; font-size: 10px; font-weight: bold; margin-top: 6px;">
+                <div>REVISE SU TICKET</div>
+                <div>SIN TICKET NO SE PAGA</div>
+                <div style="font-size: 8px; margin-top: 2px;">DIRECTO 60X1 | PALE 1000X1 | TRIPLETA 10000X1</div>
+                <div style="font-size: 8px;">NO SE PAGA EL PALE DOBLE</div>
+            </div>
+
+            <!-- Código QR -->
+            ${ticketData.qr_url ? `
+                <div style="text-align: center; margin-top: 8px;">
+                    <img src="${ticketData.qr_url}" style="width: 110px; height: 110px;" />
+                </div>
+            ` : ''}
         </div>
     `;
 

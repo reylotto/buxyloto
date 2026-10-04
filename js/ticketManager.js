@@ -63,7 +63,7 @@ async function generarQRDataURL(texto) {
 }
 
 /**
- * Renderiza la plantilla HTML emulando la estructura física exacta con Multi-Sorteo
+ * Renderiza la plantilla HTML emulando la estructura exacta de la imagen BUXYLOTO
  */
 export async function renderizarPlantillaTicket(ticketData) {
     let ticketElem = document.getElementById('ticket-print-area');
@@ -81,136 +81,121 @@ export async function renderizarPlantillaTicket(ticketData) {
     ticketElem.style.width = '270px';
     ticketElem.style.backgroundColor = '#ffffff';
     ticketElem.style.color = '#000000';
-    ticketElem.style.padding = '10px 8px';
+    ticketElem.style.padding = '12px 10px';
     ticketElem.style.fontFamily = "'Courier New', Courier, monospace";
     ticketElem.style.fontSize = '12px';
-    ticketElem.style.lineHeight = '1.2';
+    ticketElem.style.lineHeight = '1.3';
     ticketElem.style.boxSizing = 'border-box';
     ticketElem.style.zIndex = '-9999';
 
-    // Extracción de metadatos del ticket
-    const codigo = ticketData.codigo_ticket || ticketData.codigo || ticketData.ticket_id || 'BX-000000';
+    // Datos principales
+    const codigo = ticketData.codigo_ticket || ticketData.codigo || ticketData.ticket_id || 'BX-168344';
     const montoTotal = parseFloat(ticketData.monto_total || ticketData.monto || ticketData.total || 0).toFixed(2);
-    const nombreBanca = ticketData.banca_nombre || ticketData.nombre_banca || ticketData.banca || 'Jey';
+    const nombreBanca = ticketData.banca_nombre || ticketData.nombre_banca || ticketData.banca || 'BuxyLoto Main';
+    const tituloHeader = ticketData.titulo_empresa || 'BUXYLOTO';
+    const subtituloHeader = ticketData.subtitulo_empresa || 'POS CENTRAL';
 
     const ahora = ticketData.created_at ? new Date(ticketData.created_at) : new Date();
     const fechaStr = ticketData.fecha || ahora.toLocaleDateString('es-ES');
-    const horaStr = ticketData.hora || ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    const horaStr = ticketData.hora || ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
-    // ------------------------------------------------------------------
-    // ESTRATEGIA DE AGRUPACIÓN MULTI-SORTEO
-    // ------------------------------------------------------------------
-    const jugadasPorSorteo = {};
-    let conteoTotalJugadas = 0;
-
+    // Extraer lista de jugadas
     const listaJugadas = ticketData.detalles || ticketData.jugadas || ticketData.items || [];
+
+    // Obtener la lista unificada de sorteos para la cabecera del detalle
+    const nombresSorteosUnicos = [...new Set(listaJugadas.map(j => 
+        j.sorteo_nombre || j.sorteo || j.nombre_sorteo || ticketData.sorteo_nombre || 'SORTEO'
+    ))];
     
+    const textoCabeceraSorteos = ticketData.sorteo_nombre || nombresSorteosUnicos.join(' / ');
+
+    // CONSTRUCCIÓN DE LAS JUGADAS EN LISTA VERTICAL (IGUAL A LA IMAGEN)
+    let jugadasHTML = '';
+
     listaJugadas.forEach(j => {
-        conteoTotalJugadas++;
-        
-        // Prioridad de extracción de nombre del sorteo
-        let nombreSorteo = j.sorteo_nombre || j.sorteo || j.nombre_sorteo || j.loteria || ticketData.sorteo_nombre || ticketData.sorteo || 'SORTEO';
-        
-        // Limpieza de caracteres no deseados
-        nombreSorteo = String(nombreSorteo).replace(/[\[\]{}"]/g, '').trim().toUpperCase();
+        const nombreSorteo = (j.sorteo_nombre || j.sorteo || j.nombre_sorteo || ticketData.sorteo_nombre || 'SORTEO').toString().toUpperCase().trim();
+        const tipoJuego = (j.tipo || j.tipo_juego || 'DIRECTO').toString().toUpperCase().trim();
+        const numero = String(j.numero || j.jugada || '').trim();
+        const monto = parseFloat(j.monto || j.valor || 0).toFixed(2);
 
-        if (!jugadasPorSorteo[nombreSorteo]) {
-            jugadasPorSorteo[nombreSorteo] = [];
-        }
-        jugadasPorSorteo[nombreSorteo].push(j);
-    });
-
-    const totalItems = conteoTotalJugadas.toString().padStart(3, '0');
-
-    // CONSTRUCCIÓN DEL HTML DE TODOS LOS SORTEOS
-    let bloquesSorteosHTML = '';
-
-    for (const [sorteoNombre, listaJugadasSorteo] of Object.entries(jugadasPorSorteo)) {
-        bloquesSorteosHTML += `
-            <div style="margin-top: 10px; border-top: 1px dashed #000; padding-top: 5px;">
-                <div style="font-weight: bold; font-size: 13px; text-transform: uppercase;">${sorteoNombre}</div>
-                <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; margin-top: 4px; margin-bottom: 4px; border-bottom: 1px solid #000; padding-bottom: 2px;">
-                    <span style="width: 25%; text-align: left;">JUGADA</span>
-                    <span style="width: 25%; text-align: right;">MONTO</span>
-                    <span style="width: 25%; text-align: center;">JUGADA</span>
-                    <span style="width: 25%; text-align: right;">MONTO</span>
+        jugadasHTML += `
+            <div style="margin-top: 6px;">
+                <div style="font-size: 10px; color: #444; font-weight: normal; margin-bottom: 1px;">[${nombreSorteo}]</div>
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: bold;">
+                    <span style="width: 35%; text-align: left; text-transform: uppercase;">${tipoJuego}</span>
+                    <span style="width: 30%; text-align: center;">${numero}</span>
+                    <span style="width: 35%; text-align: right;">${monto}</span>
                 </div>
+            </div>
         `;
-
-        // Iterar jugadas de 2 en 2 para formatearlas en 2 columnas paralelas
-        for (let i = 0; i < listaJugadasSorteo.length; i += 2) {
-            const j1 = listaJugadasSorteo[i];
-            const j2 = listaJugadasSorteo[i + 1];
-
-            const num1 = j1.numero || j1.jugada || '';
-            const mnt1 = parseFloat(j1.monto || j1.valor || 0).toFixed(2);
-
-            const num2 = j2 ? (j2.numero || j2.jugada || '') : '';
-            const mnt2 = j2 ? parseFloat(j2.monto || j2.valor || 0).toFixed(2) : '';
-
-            bloquesSorteosHTML += `
-                <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; line-height: 1.3;">
-                    <span style="width: 25%; text-align: left;">${num1}</span>
-                    <span style="width: 25%; text-align: right;">${mnt1}</span>
-                    <span style="width: 25%; text-align: center;">${num2}</span>
-                    <span style="width: 25%; text-align: right;">${mnt2}</span>
-                </div>
-            `;
-        }
-
-        bloquesSorteosHTML += `</div>`;
-    }
+    });
 
     const qrDataUrl = await generarQRDataURL(codigo);
 
     ticketElem.innerHTML = `
-        <!-- ENCABEZADO CENTRAL -->
+        <!-- LOGO Y ENCABEZADO -->
         <div style="text-align: center;">
-            <div style="font-size: 20px; line-height: 1;">☘️</div>
-            <div style="font-size: 16px; font-weight: bold; text-transform: uppercase;">REY LOTTO</div>
-            <div style="font-size: 11px; font-weight: bold;">$$ DINERO SEGURO $$</div>
+            <div style="font-size: 22px; line-height: 1;">☘️</div>
+            <div style="font-size: 16px; font-weight: bold; letter-spacing: 1px; margin-top: 2px;">${tituloHeader}</div>
+            <div style="font-size: 11px; font-weight: bold; margin-top: 2px;">${subtituloHeader}</div>
+            <div style="font-size: 11px; font-weight: bold; margin-top: 2px;">$$ DINERO SEGURO $$</div>
         </div>
 
-        <!-- DATOS ENCABEZADO: BANCA, TICKET, FECHA Y HORA -->
-        <div style="margin-top: 10px; font-size: 11px; font-weight: bold;">
+        <div style="border-top: 1px dashed #000; margin: 8px 0;"></div>
+
+        <!-- METADATOS BANCA, FECHA, HORA, TICKET -->
+        <div style="font-size: 11px; font-weight: bold;">
             <div style="display: flex; justify-content: space-between;">
                 <span>BANCA</span>
                 <span>${nombreBanca}</span>
             </div>
-            <div style="display: flex; justify-content: space-between;">
+            <div style="display: flex; justify-content: space-between; margin-top: 2px;">
+                <span>FECHA</span>
+                <span>${fechaStr}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 2px;">
+                <span>HORA</span>
+                <span>${horaStr}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 2px;">
                 <span>TICKET</span>
                 <span>${codigo}</span>
             </div>
-            <div style="display: flex; justify-content: space-between;">
-                <span>FECHA</span>
-                <span>${fechaStr} ${horaStr}</span>
-            </div>
         </div>
 
-        <!-- BLOQUES DE TODOS LOS SORTEOS Y JUGADAS -->
-        ${bloquesSorteosHTML}
+        <div style="border-top: 1px dashed #000; margin: 8px 0;"></div>
 
-        <div style="border-top: 1px dashed #000000; margin: 8px 0 4px 0;"></div>
-
-        <!-- TOTAL DE JUGADAS Y MONTO GLOBAL -->
-        <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: bold;">
-            <span>Total: ${totalItems}</span>
-            <span>${montoTotal}</span>
+        <!-- LISTADO DE SORTEOS AFECTADOS -->
+        <div style="font-weight: bold; font-size: 12px; text-transform: uppercase; word-wrap: break-word;">
+            ${textoCabeceraSorteos}
         </div>
 
-        <!-- REGLAS DE PAGO Y CONDICIONES -->
-        <div style="text-align: center; font-size: 9px; font-weight: bold; margin-top: 12px; line-height: 1.2;">
+        <!-- JUGADAS -->
+        <div style="margin-top: 4px;">
+            ${jugadasHTML}
+        </div>
+
+        <div style="border-top: 1px dashed #000; margin: 10px 0 6px 0;"></div>
+
+        <!-- TOTAL -->
+        <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold;">
+            <span>TOTAL</span>
+            <span>USD ${montoTotal}</span>
+        </div>
+
+        <div style="border-top: 1px dashed #000; margin: 6px 0 10px 0;"></div>
+
+        <!-- PIE DE PÁGINA -->
+        <div style="text-align: center; font-size: 9px; font-weight: bold; line-height: 1.3;">
             <div>REVISE SU TICKET</div>
             <div>SIN TICKET NO SE PAGA</div>
-            <div>LNP 1ER 2500-2DO 700-3ER 300</div>
-            <div>PALE 1000-1000-200</div>
-            <div>TRIPLETA 10000X1 2Num 100x1</div>
-            <div>NO SE PAGA EL PALE DOBLE</div>
+            <div style="margin-top: 3px; font-size: 8px;">DIRECTO 60X1 | PALE 1000X1 | TRIPLETA 10000X1</div>
+            <div style="font-size: 8px;">NO SE PAGA EL PALE DOBLE</div>
         </div>
 
         <!-- CÓDIGO QR -->
-        <div style="text-align: center; margin-top: 8px;">
-            ${qrDataUrl ? `<img src="${qrDataUrl}" style="width:90px; height:90px; display:inline-block;" />` : ''}
+        <div style="text-align: center; margin-top: 10px;">
+            ${qrDataUrl ? `<img src="${qrDataUrl}" style="width:100px; height:100px; display:inline-block;" />` : ''}
         </div>
     `;
 

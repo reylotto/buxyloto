@@ -458,7 +458,7 @@ export function activarEventosPOS() {
 window.activarEventosPOS = activarEventosPOS;
 
 // ----------------------------------------------------------
-// REGISTRO Y EMISIÓN DE TICKET MULTISORTEO (UN SOLO CÓDIGO)
+// REGISTRO Y EMISIÓN DE TICKET MULTISORTEO (CORREGIDO)
 // ----------------------------------------------------------
 window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
     const supabase = window.supabase;
@@ -480,7 +480,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
     }));
 
     // B. Capturar Jugadas del Carrito / Entrada manual
-    let jugadasBase = [...window.jugadasActuales];
+    let jugadasBase = [...(window.jugadasActuales || [])];
     if (jugadasBase.length === 0) {
         const inputNum = document.getElementById('pos-input-numbers');
         const inputMnt = document.getElementById('pos-input-amount');
@@ -501,8 +501,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         return;
     }
 
-    // C. Replicar o Vincular las jugadas a los Sorteos Seleccionados
-    // Si seleccionó 2 sorteos y metió 2 jugadas, la combinación de jugadas se vincula a cada sorteo
+    // C. Replicar jugadas para los sorteos seleccionados
     const todasLasJugadas = [];
     let montoTotal = 0;
 
@@ -511,9 +510,9 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
             const montoM = parseFloat(j.monto || 0);
             montoTotal += montoM;
             todasLasJugadas.push({
-                numero: String(j.numero),
-                monto: montoM,
-                tipo: j.tipo || 'directo',
+                numero: String(j.numero).trim(),
+                monto: montoM, // Mantiene decimales (0.25, 0.50, 1.25)
+                tipo: String(j.tipo || 'directo').toLowerCase(),
                 sorteo_id: sorteo.id,
                 sorteo_nombre: sorteo.nombre
             });
@@ -525,25 +524,27 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
     if (btnEmitir) btnEmitir.disabled = true;
 
     try {
-        // Generar UN SOLO Código de Ticket para toda la transacción
         const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
-        
-        // Formatear el nombre del sorteo para la cabecera (Si son varios, los une con ' / ')
         const nombresSorteos = sorteosSeleccionados.map(s => s.nombre).join(' / ');
-        const primerSorteoId = isNaN(sorteosSeleccionados[0].id) 
-            ? sorteosSeleccionados[0].id 
-            : parseInt(sorteosSeleccionados[0].id, 10);
+        
+        // Parsear ID de sorteo asegurando que sea entero o null
+        const rawSorteoId = sorteosSeleccionados[0].id;
+        const primerSorteoId = !isNaN(parseInt(rawSorteoId, 10)) ? parseInt(rawSorteoId, 10) : null;
 
+        // Construcción limpia del Payload para la tabla 'tickets'
         const payloadTicket = {
             codigo: codigoTicket,
             codigo_ticket: codigoTicket,
-            sorteo_id: primerSorteoId,
             sorteo_nombre: nombresSorteos,
-            monto: montoTotal,
-            monto_total: montoTotal,
-            detalles: todasLasJugadas,
+            monto: parseFloat(montoTotal.toFixed(2)),
+            monto_total: parseFloat(montoTotal.toFixed(2)),
+            detalles: todasLasJugadas, // Guardado como array / jsonb
             estatus: 'pendiente'
         };
+
+        if (primerSorteoId) {
+            payloadTicket.sorteo_id = primerSorteoId;
+        }
 
         if (idBanca) {
             payloadTicket.usuario_id = idBanca;
@@ -552,49 +553,39 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
 
         console.log("📡 Registrando Ticket Unificado en Supabase:", payloadTicket);
 
-        // Guardar la cabecera del Ticket Único
+        // 1. Insertar Cabecera en 'tickets'
         let response = await supabase.from('tickets').insert([payloadTicket]).select();
         let ticketGuardado = response.data ? response.data[0] : null;
-        let error = response.error;
 
-        if (error) {
-            console.error("❌ Error al guardar el ticket unificado:", error);
-            alert(`❌ Error al guardar en Supabase:\n${error.message}`);
+        if (response.error) {
+            console.error("❌ Error al guardar el ticket unificado:", response.error);
+            alert(`❌ Error en tabla 'tickets' (Supabase):\n${response.error.message}`);
             return;
         }
 
-        // Guardar los detalles de jugadas en la tabla 'jugadas'
+        // 2. Insertar Detalle en 'jugadas'
         if (ticketGuardado && ticketGuardado.id) {
             const idTicketNum = parseInt(ticketGuardado.id, 10);
+            
+            // Filas completamente limpias sin columnas incompatibles
             const filasJugadas = todasLasJugadas.map(j => ({
                 ticket_id: idTicketNum,
                 numero: j.numero,
                 monto: j.monto,
-                tipo: j.tipo,
-                sorteo_nombre: j.sorteo_nombre,
-                estatus: 'pendiente'
+                tipo: j.tipo
             }));
 
-            try {
-                let resJugadas = await supabase.from('jugadas').insert(filasJugadas);
-                if (resJugadas.error) {
-                    // Reintento sin columnas opcionales si falla la estructura
-                    const filasLimpias = todasLasJugadas.map(j => ({
-                        ticket_id: idTicketNum,
-                        numero: j.numero,
-                        monto: j.monto,
-                        tipo: j.tipo
-                    }));
-                    await supabase.from('jugadas').insert(filasLimpias);
-                }
-            } catch (e) {
-                console.warn("Aviso en guardar jugadas auxiliares:", e.message);
+            const resJugadas = await supabase.from('jugadas').insert(filasJugadas);
+            if (resJugadas.error) {
+                console.warn("⚠️ Aviso al guardar jugadas individuales:", resJugadas.error.message);
+            } else {
+                console.log("✅ Detalle de jugadas guardado con éxito.");
             }
         }
 
         const ticketParaImprimir = ticketGuardado || payloadTicket;
 
-        // D. Limpiar interfaz y carrito
+        // D. Limpiar interfaz
         window.jugadasActuales = [];
         if (typeof renderizarCarrito === 'function') renderizarCarrito();
 
@@ -610,7 +601,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
             window.cargarHistorialTickets();
         }
 
-        // E. Emitir/Exportar Ticket Único
+        // E. Exportar Ticket
         if (enviarPorWhatsApp) {
             if (typeof compartirTicketWhatsApp === 'function') {
                 compartirTicketWhatsApp(ticketParaImprimir);

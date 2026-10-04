@@ -2,6 +2,15 @@
 // MÓDULO POS Y VENTA DELEGADA CON TICKET DIGITAL Y SUPABASE (js/pos.js)
 // ==========================================================
 
+import {
+    renderizarPlantillaTicket,
+    generarImagenTicket,
+    imprimirTicketTermica as imprimirTermicaManager,
+    compartirTicketWhatsApp as compartirWhatsAppManager,
+    descargarPDFTicket as descargarPDFManager,
+    mostrarOpcionesExportacionTicket as mostrarOpcionesManager
+} from './ticketManager.js';
+
 // Variables globales para evitar 'ReferenceError' desde eventos HTML (oninput/onclick)
 window.inputNumbers = '';
 let inputNumbers = '';
@@ -229,19 +238,12 @@ function actualizarResumenSorteos() {
 window.actualizarResumenSorteos = actualizarResumenSorteos;
 
 // ----------------------------------------------------------
-// 5. GESTIÓN DEL CARRITO DE JUGADAS LOCAL (CON SORTEO POR JUGADA)
+// 5. GESTIÓN DEL CARRITO DE JUGADAS LOCAL
 // ----------------------------------------------------------
 function agregarJugadaAlCarrito(e) {
     if (e) e.preventDefault();
     const inputNumero = document.getElementById('pos-input-numbers');
     const inputMonto = document.getElementById('pos-input-amount');
-
-    // Capturar el sorteo marcado en el checkbox/radio actualmente
-    const checkboxSorteo = document.querySelector('input[name="pos-sorteos-selected"]:checked');
-    if (!checkboxSorteo) {
-        alert("⚠️ Seleccione al menos un sorteo para asignar a la jugada.");
-        return;
-    }
 
     const num = inputNumero ? inputNumero.value.trim() : '';
     const mnt = inputMonto ? parseFloat(inputMonto.value) : 0;
@@ -252,7 +254,7 @@ function agregarJugadaAlCarrito(e) {
         return;
     }
 
-    if (typeof validarJugadaCompleta === 'function' && !validarJugadaCompleta(num, modo)) {
+    if (!validarJugadaCompleta(num, modo)) {
         return;
     }
 
@@ -261,13 +263,10 @@ function agregarJugadaAlCarrito(e) {
         return;
     }
 
-    // Se guarda el número, monto, tipo y el sorteo asignado en este instante
     window.jugadasActuales.push({ 
         numero: num, 
         monto: mnt,
-        tipo: modo,
-        sorteo_id: checkboxSorteo.value,
-        sorteo_nombre: checkboxSorteo.dataset.nombre || 'SORTEO'
+        tipo: modo
     });
 
     if (inputNumero) inputNumero.value = '';
@@ -282,7 +281,7 @@ function renderizarCarrito() {
 
     if (!container) return;
 
-    if (!window.jugadasActuales || window.jugadasActuales.length === 0) {
+    if (window.jugadasActuales.length === 0) {
         container.innerHTML = `
             <div class="text-center py-8 text-slate-500 text-xs">
                 <i class="fa-solid fa-ticket text-3xl mb-2 text-slate-600 block"></i>
@@ -299,15 +298,10 @@ function renderizarCarrito() {
     window.jugadasActuales.forEach((j, idx) => {
         total += j.monto;
         html += `
-            <div class="flex justify-between items-center bg-slate-800 p-2.5 rounded-lg border border-slate-700 text-xs mb-2">
+            <div class="flex justify-between items-center bg-slate-800 p-2.5 rounded-lg border border-slate-700 text-xs">
                 <div>
-                    <div class="flex items-center gap-1.5">
-                        <span class="font-mono font-bold text-emerald-400 text-sm">#${j.numero}</span>
-                        <span class="text-[10px] text-slate-400 uppercase">(${j.tipo || 'directo'})</span>
-                    </div>
-                    <div class="text-[10px] text-amber-400 font-semibold mt-0.5">
-                        <i class="fa-solid fa-layer-group text-[9px] mr-1"></i>${j.sorteo_nombre || 'Sorteo'}
-                    </div>
+                    <span class="font-mono font-bold text-emerald-400 text-sm">#${j.numero}</span>
+                    <span class="text-[10px] text-slate-400 uppercase ml-2">(${j.tipo || 'directo'})</span>
                 </div>
                 <div class="flex items-center gap-3">
                     <span class="font-mono font-bold text-white">$${j.monto.toFixed(2)}</span>
@@ -474,59 +468,80 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         return;
     }
 
-    let jugadas = [...window.jugadasActuales];
+    // A. Capturar Sorteos Seleccionados
+    const checkboxesCheck = document.querySelectorAll('input[name="pos-sorteos-selected"]:checked');
+    if (checkboxesCheck.length === 0) {
+        alert("⚠️ Debe seleccionar al menos UN sorteo para emitir el ticket.");
+        return;
+    }
+    
+    const sorteosSeleccionados = Array.from(checkboxesCheck).map(cb => ({
+        id: cb.value,
+        nombre: cb.dataset.nombre || 'Sorteo'
+    }));
 
-    // Si el carrito está vacío pero hay números ingresados manualmente en las cajas
-    if (jugadas.length === 0) {
+    // B. Capturar Jugadas del Carrito / Entrada manual
+    let jugadasBase = [...window.jugadasActuales];
+    if (jugadasBase.length === 0) {
         const inputNum = document.getElementById('pos-input-numbers');
         const inputMnt = document.getElementById('pos-input-amount');
-        const checkboxSorteo = document.querySelector('input[name="pos-sorteos-selected"]:checked');
-
-        if (!checkboxSorteo) {
-            alert("⚠️ Seleccione al menos un sorteo.");
-            return;
-        }
-
         const num = inputNum ? inputNum.value.trim() : '';
         const mnt = inputMnt ? parseFloat(inputMnt.value) : 0;
         const modo = window.modoJuegoActual || 'directo';
 
         if (num && mnt > 0) {
-            jugadas.push({
-                numero: num,
-                monto: mnt,
-                tipo: modo,
-                sorteo_id: checkboxSorteo.value,
-                sorteo_nombre: checkboxSorteo.dataset.nombre || 'SORTEO'
-            });
+            if (typeof validarJugadaCompleta === 'function' && !validarJugadaCompleta(num, modo)) {
+                return;
+            }
+            jugadasBase.push({ numero: num, monto: mnt, tipo: modo });
         }
     }
 
-    if (jugadas.length === 0) {
-        alert("⚠️ Añada al menos una jugada antes de emitir.");
+    if (jugadasBase.length === 0) {
+        alert("⚠️ Añada al menos una jugada con su monto antes de emitir.");
         return;
     }
 
-    // Obtener lista limpia de nombres de sorteos presentes en las jugadas
-    const sorteosUnicos = [...new Set(jugadas.map(j => j.sorteo_nombre))];
-    const nombreSorteoCabecera = sorteosUnicos.join(' / ');
-    const montoTotal = jugadas.reduce((sum, j) => sum + parseFloat(j.monto || 0), 0);
-    const idBanca = typeof obtenerIdVendedorAsignado === 'function' ? obtenerIdVendedorAsignado() : null;
+    // C. Replicar o Vincular las jugadas a los Sorteos Seleccionados
+    const todasLasJugadas = [];
+    let montoTotal = 0;
 
+    sorteosSeleccionados.forEach(sorteo => {
+        jugadasBase.forEach(j => {
+            const montoM = parseFloat(j.monto || 0);
+            montoTotal += montoM;
+            todasLasJugadas.push({
+                numero: String(j.numero),
+                monto: montoM,
+                tipo: j.tipo || 'directo',
+                sorteo_id: sorteo.id,
+                sorteo_nombre: sorteo.nombre
+            });
+        });
+    });
+
+    const idBanca = typeof obtenerIdVendedorAsignado === 'function' ? obtenerIdVendedorAsignado() : null;
     const btnEmitir = document.getElementById('btn-pos-process-ticket');
     if (btnEmitir) btnEmitir.disabled = true;
 
     try {
+        // Generar UN SOLO Código de Ticket para toda la transacción
         const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
+        
+        // Formatear el nombre del sorteo para la cabecera
+        const nombresSorteos = sorteosSeleccionados.map(s => s.nombre).join(' / ');
+        const primerSorteoId = isNaN(sorteosSeleccionados[0].id) 
+            ? sorteosSeleccionados[0].id 
+            : parseInt(sorteosSeleccionados[0].id, 10);
 
         const payloadTicket = {
             codigo: codigoTicket,
             codigo_ticket: codigoTicket,
-            sorteo_id: jugadas[0].sorteo_id || 0,
-            sorteo_nombre: nombreSorteoCabecera,
+            sorteo_id: primerSorteoId,
+            sorteo_nombre: nombresSorteos,
             monto: montoTotal,
             monto_total: montoTotal,
-            detalles: jugadas,
+            detalles: todasLasJugadas,
             estatus: 'pendiente'
         };
 
@@ -535,36 +550,50 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
             payloadTicket.vendedor_id = idBanca;
         }
 
+        console.log("📡 Registrando Ticket Unificado en Supabase:", payloadTicket);
+
+        // Guardar la cabecera del Ticket Único
         let response = await supabase.from('tickets').insert([payloadTicket]).select();
         let ticketGuardado = response.data ? response.data[0] : null;
+        let error = response.error;
 
-        if (response.error) {
-            console.error("❌ Error al guardar en Supabase:", response.error);
-            alert(`❌ Error al guardar ticket:\n${response.error.message}`);
+        if (error) {
+            console.error("❌ Error al guardar el ticket unificado:", error);
+            alert(`❌ Error al guardar en Supabase:\n${error.message}`);
             return;
         }
 
-        // Registrar detalles en tabla de jugadas si se requiere
+        // Guardar los detalles de jugadas en la tabla 'jugadas'
         if (ticketGuardado && ticketGuardado.id) {
             const idTicketNum = parseInt(ticketGuardado.id, 10);
-            const filasJugadas = jugadas.map(j => ({
+            const filasJugadas = todasLasJugadas.map(j => ({
                 ticket_id: idTicketNum,
-                numero: String(j.numero),
-                monto: Number(j.monto) || 0,
-                tipo: j.tipo || 'directo',
-                sorteo_nombre: j.sorteo_nombre
+                numero: j.numero,
+                monto: j.monto,
+                tipo: j.tipo,
+                sorteo_nombre: j.sorteo_nombre,
+                estatus: 'pendiente'
             }));
 
             try {
-                await supabase.from('jugadas').insert(filasJugadas);
+                let resJugadas = await supabase.from('jugadas').insert(filasJugadas);
+                if (resJugadas.error) {
+                    const filasLimpias = todasLasJugadas.map(j => ({
+                        ticket_id: idTicketNum,
+                        numero: j.numero,
+                        monto: j.monto,
+                        tipo: j.tipo
+                    }));
+                    await supabase.from('jugadas').insert(filasLimpias);
+                }
             } catch (e) {
-                console.warn("Aviso en tabla jugadas:", e.message);
+                console.warn("Aviso en guardar jugadas auxiliares:", e.message);
             }
         }
 
-        const ticketObjeto = ticketGuardado || payloadTicket;
+        const ticketParaImprimir = ticketGuardado || payloadTicket;
 
-        // Limpiar carrito e interfaz
+        // D. Limpiar interfaz y carrito
         window.jugadasActuales = [];
         if (typeof renderizarCarrito === 'function') renderizarCarrito();
 
@@ -574,21 +603,24 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         if (inputMnt) inputMnt.value = '';
 
         document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = false);
+        if (typeof actualizarResumenSorteos === 'function') actualizarResumenSorteos();
 
         if (typeof window.cargarHistorialTickets === 'function') {
             window.cargarHistorialTickets();
         }
 
-        // Exportar o Imprimir
-        if (enviarPorWhatsApp && typeof compartirTicketWhatsApp === 'function') {
-            compartirTicketWhatsApp(ticketObjeto);
-        } else if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
-            window.mostrarOpcionesExportacionTicket(ticketObjeto);
+        // E. Emitir/Exportar Ticket Único mediante TicketManager
+        if (enviarPorWhatsApp) {
+            await compartirWhatsAppManager(ticketParaImprimir);
+        } else if (typeof mostrarOpcionesManager === 'function') {
+            await mostrarOpcionesManager(ticketParaImprimir);
+        } else {
+            alert(`🎉 ¡Ticket Unificado Emitido!\n\n🎟️ Código: ${codigoTicket}\n💰 Total: $${montoTotal.toFixed(2)}`);
         }
 
     } catch (err) {
-        console.error("❌ Error general:", err);
-        alert("❌ Ocurrió un error al procesar el ticket: " + err.message);
+        console.error("❌ Error general al procesar la venta:", err);
+        alert("❌ Error general al procesar la venta: " + err.message);
     } finally {
         if (btnEmitir) btnEmitir.disabled = false;
     }
@@ -596,7 +628,6 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
 
 /**
  * Cancela/Anula un ticket y todas sus jugadas asociadas en Supabase
- * @param {string|number} folioOrId Código de ticket (ej. BX-419776) o ID numérico
  */
 export async function cancelarTicketPOS(folioOrId) {
     if (!folioOrId) {
@@ -607,7 +638,6 @@ export async function cancelarTicketPOS(folioOrId) {
     const supabase = window.supabase;
 
     try {
-        // 1. Consultar el ticket junto con la información/estado de su sorteo
         let ticketData = null;
         if (supabase) {
             const esNumeroPuro = !isNaN(folioOrId) && !isNaN(parseFloat(folioOrId));
@@ -624,7 +654,6 @@ export async function cancelarTicketPOS(folioOrId) {
             ticketData = data;
         }
 
-        // 2. Validar si el sorteo ya cerró
         if (ticketData) {
             const estadoSorteo = (ticketData.sorteos?.estatus || ticketData.sorteos?.estado || '').toLowerCase();
             const horaCierre = ticketData.sorteos?.hora_cierre ? new Date(ticketData.sorteos.hora_cierre) : null;
@@ -644,7 +673,6 @@ export async function cancelarTicketPOS(folioOrId) {
         const confirmacion = confirm(`¿Está seguro de que desea cancelar el ticket ${folioOrId}? El registro permanecerá visible como cancelado.`);
         if (!confirmacion) return;
 
-        // 3. Proceder con el marcado a 'cancelado' (sin eliminar filas)
         if (supabase) {
             const payload = { 
                 estatus: 'cancelado',
@@ -657,7 +685,6 @@ export async function cancelarTicketPOS(folioOrId) {
             let queryFilter = `codigo_ticket.eq.${folioOrId},folio.eq.${folioOrId}`;
             if (esNumeroPuro) queryFilter += `,id.eq.${folioOrId}`;
 
-            // Marcar ticket como cancelado
             const { data: ticketsCancelados, error: errTicket } = await supabase
                 .from('tickets')
                 .update(payload)
@@ -665,7 +692,6 @@ export async function cancelarTicketPOS(folioOrId) {
                 .select();
 
             if (!errTicket && ticketsCancelados?.length > 0) {
-                // Marcar jugadas asociadas como canceladas
                 const idsTicket = ticketsCancelados.map(t => t.id);
                 await supabase
                     .from('jugadas')
@@ -679,7 +705,6 @@ export async function cancelarTicketPOS(folioOrId) {
             }
         }
 
-        // 4. Actualizar vista e historiales
         if (typeof window.cargarHistorialTickets === 'function') window.cargarHistorialTickets();
         if (typeof window.actualizarResumenDashboard === 'function') window.actualizarResumenDashboard();
 
@@ -690,120 +715,31 @@ export async function cancelarTicketPOS(folioOrId) {
 }
 
 // ==========================================================
-// FUNCIONES DE EXPORTACIÓN Y COMPARTIDO DE TICKETS (POS)
+// DELEGACIONES AL MÓDULO MANAGER (TICKETMANAGER.JS)
 // ==========================================================
 
-export function imprimirTicketTermica() {
-    window.print();
+export async function imprimirTicketTermica(ticketData) {
+    if (ticketData) {
+        await imprimirTermicaManager(ticketData);
+    } else {
+        window.print();
+    }
 }
 
 export async function generarImagenTicket(ticketElementId = 'ticket-print-area') {
-    const ticketElem = document.getElementById(ticketElementId);
-    if (!ticketElem) {
-        alert("No se encontró la plantilla del ticket para generar la imagen.");
-        return null;
-    }
-
-    try {
-        const canvas = await html2canvas(ticketElem, {
-            scale: 2,
-            useCORS: true,
-            backgroundColor: "#ffffff"
-        });
-        return canvas.toDataURL("image/png");
-    } catch (err) {
-        console.error("Error al generar la imagen del ticket:", err);
-        return null;
-    }
+    return await generarImagenTicketManager();
 }
 
 export async function compartirTicketWhatsApp(ticketData, numeroTelefono = '') {
-    const dataUrl = await generarImagenTicket();
-    
-    if (dataUrl) {
-        const blob = await (await fetch(dataUrl)).blob();
-        const file = new File([blob], `Ticket_${ticketData.codigo_ticket || 'POS'}.png`, { type: 'image/png' });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-                await navigator.share({
-                    files: [file],
-                    title: `Ticket ${ticketData.codigo_ticket}`,
-                    text: `Aquí tienes tu ticket de jugada #${ticketData.codigo_ticket}`
-                });
-                return;
-            } catch (e) {
-                console.log("Compartido nativo no completado:", e);
-            }
-        }
-    }
-
-    const mensajeText = encodeURIComponent(
-        `*TICKET DE JUGADA #${ticketData.codigo_ticket || ticketData.folio || ''}*\n` +
-        `Total: $${parseFloat(ticketData.monto_total || 0).toFixed(2)}\n\n` +
-        `¡Gracias por su compra!`
-    );
-    
-    const url = numeroTelefono 
-        ? `https://api.whatsapp.com/send?phone=${numeroTelefono}&text=${mensajeText}`
-        : `https://api.whatsapp.com/send?text=${mensajeText}`;
-        
-    window.open(url, '_blank');
+    await compartirWhatsAppManager(ticketData, numeroTelefono);
 }
 
-export async function descargarPDFTicket(ticketData, ticketElementId = 'ticket-print-area') {
-    const dataUrl = await generarImagenTicket(ticketElementId);
-    if (!dataUrl) return;
-
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-        orientation: 'p',
-        unit: 'mm',
-        format: [80, 200]
-    });
-
-    doc.addImage(dataUrl, 'PNG', 0, 0, 80, 0);
-    doc.save(`Ticket_${ticketData.codigo_ticket || 'POS'}.pdf`);
+export async function descargarPDFTicket(ticketData) {
+    await descargarPDFManager(ticketData);
 }
 
 export function mostrarOpcionesExportacionTicket(ticketData) {
-    const modalExistente = document.getElementById('modal-export-ticket');
-    if (modalExistente) modalExistente.remove();
-
-    const modalHTML = `
-        <div id="modal-export-ticket" class="modal-overlay-ticket">
-            <div class="modal-content-ticket">
-                <h3>Ticket #${ticketData.codigo_ticket || ticketData.folio || ''}</h3>
-                <p style="font-size: 13px; color: #64748b;">¿Cómo desea entregar el comprobante?</p>
-                
-                <div class="modal-buttons-grid">
-                    <button id="btn-print-thermal" style="background:#0284c7; color:#fff; padding:10px; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">
-                        🖨️ Imprimir Térmica (80mm)
-                    </button>
-                    <button id="btn-share-wapp" style="background:#22c55e; color:#fff; padding:10px; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">
-                        📲 Compartir Imagen (WhatsApp)
-                    </button>
-                    <button id="btn-download-pdf" style="background:#475569; color:#fff; padding:10px; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">
-                        📄 Descargar PDF
-                    </button>
-                </div>
-
-                <button id="btn-close-modal-export" style="margin-top: 15px; background: transparent; border: none; color: #ef4444; cursor: pointer; font-weight: bold;">
-                    Cerrar
-                </button>
-            </div>
-        </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-
-    document.getElementById('btn-print-thermal').onclick = () => window.print();
-    document.getElementById('btn-share-wapp').onclick = () => compartirTicketWhatsApp(ticketData);
-    document.getElementById('btn-download-pdf').onclick = () => descargarPDFTicket(ticketData);
-    document.getElementById('btn-close-modal-export').onclick = () => {
-        const modal = document.getElementById('modal-export-ticket');
-        if (modal) modal.remove();
-    };
+    mostrarOpcionesManager(ticketData);
 }
 
 // 🌐 Asignar explícitamente a window para compatibilidad global

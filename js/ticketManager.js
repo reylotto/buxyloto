@@ -3,22 +3,33 @@
 // Basado en el formato estándar POS JuegaGana / Buxyloto
 // ==========================================================
 
-function cargarLibreriaQR() {
+/**
+ * Carga dinámica de librerías requeridas (QRCode, html2canvas, jsPDF)
+ */
+function cargarLibreria(url, globalVar) {
     return new Promise((resolve, reject) => {
-        if (window.QRCode) {
+        if (window[globalVar]) {
             resolve();
             return;
         }
         const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+        script.src = url;
         script.onload = () => resolve();
-        script.onerror = () => reject(new Error("No se pudo cargar QRCode.js"));
+        script.onerror = () => reject(new Error(`No se pudo cargar la librería desde ${url}`));
         document.body.appendChild(script);
     });
 }
 
+async function asegurarLibrerias() {
+    await Promise.all([
+        cargarLibreria('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js', 'QRCode'),
+        cargarLibreria('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'html2canvas'),
+        cargarLibreria('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf')
+    ]);
+}
+
 async function generarQRDataURL(texto) {
-    await cargarLibreriaQR();
+    await cargarLibreria('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js', 'QRCode');
 
     return new Promise((resolve) => {
         const tempDiv = document.createElement('div');
@@ -49,7 +60,7 @@ async function generarQRDataURL(texto) {
 
             tempDiv.remove();
             resolve(dataUrl);
-        }, 100);
+        }, 150);
     });
 }
 
@@ -62,7 +73,7 @@ export async function renderizarPlantillaTicket(ticketData) {
         document.body.appendChild(ticketElem);
     }
 
-    // Configuración estética para renderizado exacto e impresión
+    // Configuración para renderizado preciso
     ticketElem.style.position = 'fixed';
     ticketElem.style.top = '-9999px';
     ticketElem.style.left = '-9999px';
@@ -81,10 +92,8 @@ export async function renderizarPlantillaTicket(ticketData) {
     const montoTotal = parseFloat(ticketData.monto_total || ticketData.monto || ticketData.total || 0).toFixed(2);
     const jugadas = ticketData.detalles || ticketData.jugadas || [];
 
-    // Nombre de la banca dinámico
     const nombreBanca = ticketData.banca_nombre || ticketData.nombre_banca || ticketData.banca || 'BUXYLOTO MAIN';
 
-    // Fecha y Hora
     const ahora = ticketData.created_at ? new Date(ticketData.created_at) : new Date();
     const fechaStr = ticketData.fecha || ahora.toLocaleDateString();
     const horaStr = ticketData.hora || ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -92,25 +101,21 @@ export async function renderizarPlantillaTicket(ticketData) {
     // Generar URL del QR
     const qrDataUrl = await generarQRDataURL(codigo);
 
-    // Formatear filas de jugadas en 3 columnas: SORTEO | JUGADA | MONTO (EN NEGRITA)
+    // Formatear filas de jugadas
     const filasHTML = jugadas.length > 0 ? jugadas.map(j => {
-        // Obtener nombre del sorteo específico para esta jugada
         let sorteoRaw = j.sorteo_nombre || j.sorteo || ticketData.sorteo_nombre || ticketData.sorteo || 'GENERAL';
         sorteoRaw = sorteoRaw.replace(/\[\vert{}\]/g, '').trim();
 
-        // Formatear la jugada (Ej: DIRECTO 33 o PALE 3673)
         const numeroLimpio = j.numero || '';
         const tipoLimpio = (j.tipo || '').toUpperCase();
         const jugadaTexto = tipoLimpio ? `${tipoLimpio} ${numeroLimpio}`.trim() : String(numeroLimpio);
-
-        // Formatear monto
         const montoFormateado = parseFloat(j.monto || 0).toFixed(2);
 
         return `
             <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: bold; padding: 2px 0; border-bottom: 1px dotted #000000;">
-                <span style="width: 40%; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: bold; text-transform: uppercase;">${sorteoRaw}</span>
-                <span style="width: 35%; text-align: center; font-weight: bold; text-transform: uppercase;">${jugadaTexto}</span>
-                <span style="width: 25%; text-align: right; font-weight: bold;">${montoFormateado}</span>
+                <span style="width: 40%; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: uppercase;">${sorteoRaw}</span>
+                <span style="width: 35%; text-align: center; text-transform: uppercase;">${jugadaTexto}</span>
+                <span style="width: 25%; text-align: right;">${montoFormateado}</span>
             </div>
         `;
     }).join('') : `
@@ -150,11 +155,11 @@ export async function renderizarPlantillaTicket(ticketData) {
 
         <div style="border-top: 1px dashed #000000; margin: 6px 0;"></div>
 
-        <!-- ENCABEZADO DE TABLA (EN NEGRITA RESALTADA) -->
+        <!-- ENCABEZADO DE TABLA -->
         <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 11px; border-bottom: 2px solid #000000; padding-bottom: 3px; margin-bottom: 4px; text-transform: uppercase;">
-            <span style="width: 40%; text-align: left; font-weight: 900;">SORTEO</span>
-            <span style="width: 35%; text-align: center; font-weight: 900;">JUGADA</span>
-            <span style="width: 25%; text-align: right; font-weight: 900;">MONTO</span>
+            <span style="width: 40%; text-align: left;">SORTEO</span>
+            <span style="width: 35%; text-align: center;">JUGADA</span>
+            <span style="width: 25%; text-align: right;">MONTO</span>
         </div>
 
         <!-- LISTA DE JUGADAS -->
@@ -185,9 +190,12 @@ export async function renderizarPlantillaTicket(ticketData) {
             ${qrDataUrl ? `<img src="${qrDataUrl}" style="width:100px; height:100px; display:inline-block;" alt="Código QR Ticket" />` : ''}
         </div>
     `;
+
+    return ticketElem;
 }
 
 export async function generarImagenTicket() {
+    await asegurarLibrerias();
     const ticketElem = document.getElementById('ticket-print-area');
     if (!ticketElem) return null;
 
@@ -203,6 +211,53 @@ export async function generarImagenTicket() {
         console.error("Error al generar la imagen del ticket:", err);
         return null;
     }
+}
+
+/**
+ * Imprime directamente el ticket en impresoras térmicas de 80mm
+ */
+export async function imprimirTicketTermica(ticketData) {
+    const ticketElem = await renderizarPlantillaTicket(ticketData);
+
+    const printWindow = window.open('', '_blank', 'width=350,height=600');
+    if (!printWindow) {
+        alert("Por favor habilita los pop-ups para imprimir el ticket.");
+        return;
+    }
+
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Imprimir Ticket #${ticketData.codigo_ticket || ticketData.codigo}</title>
+            <style>
+                @page {
+                    size: 80mm auto;
+                    margin: 0;
+                }
+                body {
+                    margin: 0;
+                    padding: 10px;
+                    background: #fff;
+                    display: flex;
+                    justify-content: center;
+                }
+            </style>
+        </head>
+        <body>
+            <div style="width: 280px;">
+                ${ticketElem.innerHTML}
+            </div>
+            <script>
+                window.onload = function() {
+                    window.print();
+                    setTimeout(() => { window.close(); }, 500);
+                };
+            </script>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
 }
 
 // ----------------------------------------------------------
@@ -228,11 +283,11 @@ export async function compartirTicketWhatsApp(ticketData, numeroTelefono = '') {
                 return;
             }
         } catch (e) {
-            console.log("Acción cancelada o no disponible:", e);
+            console.log("Acción WebShare cancelada o no soportada, recurriendo a enlace de texto:", e);
         }
     }
 
-    // Construir tabla en formato texto para el mensaje de WhatsApp si falla la imagen
+    // Texto fallback para WhatsApp
     const jugadas = ticketData.detalles || ticketData.jugadas || [];
     let lineasJugadas = "";
 
@@ -268,15 +323,21 @@ export async function compartirTicketWhatsApp(ticketData, numeroTelefono = '') {
 }
 
 export async function descargarPDFTicket(ticketData) {
+    await asegurarLibrerias();
     await renderizarPlantillaTicket(ticketData);
     const dataUrl = await generarImagenTicket();
     if (!dataUrl) return;
 
-    const { jsPDF } = window.jspdf;
+    const { jsPDF } = window.jspdf || window.jspdf?.jsPDF ? window.jspdf : { jsPDF: window.jsPDF };
+    
+    // Alto dinámico según cantidad de jugadas (Formato 80mm de ancho)
+    const totalJugadas = (ticketData.detalles || ticketData.jugadas || []).length;
+    const altoCalculado = Math.max(140, 100 + (totalJugadas * 8));
+
     const doc = new jsPDF({
         orientation: 'p',
         unit: 'mm',
-        format: [80, 160]
+        format: [80, altoCalculado]
     });
 
     doc.addImage(dataUrl, 'PNG', 0, 0, 80, 0);
@@ -316,7 +377,7 @@ export async function mostrarOpcionesExportacionTicket(ticketData) {
 
     document.body.insertAdjacentHTML('beforeend', modalHTML);
 
-    document.getElementById('btn-print-thermal').onclick = () => window.print();
+    document.getElementById('btn-print-thermal').onclick = () => imprimirTicketTermica(ticketData);
     document.getElementById('btn-share-wapp').onclick = () => compartirTicketWhatsApp(ticketData);
     document.getElementById('btn-download-pdf').onclick = () => descargarPDFTicket(ticketData);
     document.getElementById('btn-close-modal-export').onclick = () => {
@@ -325,10 +386,10 @@ export async function mostrarOpcionesExportacionTicket(ticketData) {
     };
 }
 
-
-// Asignaciones globales para garantizar llamadas desde otros módulos
+// Asignaciones globales para compatibilidad
 window.renderizarPlantillaTicket = renderizarPlantillaTicket;
 window.generarImagenTicket = generarImagenTicket;
+window.imprimirTicketTermica = imprimirTicketTermica;
 window.compartirTicketWhatsApp = compartirTicketWhatsApp;
 window.descargarPDFTicket = descargarPDFTicket;
 window.mostrarOpcionesExportacionTicket = mostrarOpcionesExportacionTicket;

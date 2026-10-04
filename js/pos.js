@@ -465,7 +465,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         alert("⚠️ Debe seleccionar al menos UN sorteo para emitir el ticket.");
         return;
     }
-
+    
     const sorteosSeleccionados = Array.from(checkboxesCheck).map(cb => ({
         id: cb.value,
         nombre: cb.dataset.nombre || 'Sorteo'
@@ -626,8 +626,12 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
             window.cargarTablaHistorial();
         }
 
-        // 📍 NUEVO: INVOCAR MODAL DE OPCIONES DE SALIDA
-        if (typeof mostrarOpcionesExportacionTicket === 'function' && ultimoTicketGuardado) {
+        // 📍 PASO 3: INVOCACIÓN SEGURA Y DIRECTA DEL MODAL O COMPARTIDO DE TICKET
+        if (enviarPorWhatsApp && ultimoTicketGuardado) {
+            compartirTicketWhatsApp(ultimoTicketGuardado);
+        } else if (typeof window.mostrarOpcionesExportacionTicket === 'function' && ultimoTicketGuardado) {
+            window.mostrarOpcionesExportacionTicket(ultimoTicketGuardado);
+        } else if (typeof mostrarOpcionesExportacionTicket === 'function' && ultimoTicketGuardado) {
             mostrarOpcionesExportacionTicket(ultimoTicketGuardado);
         } else {
             alert(`🎉 ¡Venta realizada con éxito!\n\n🎟️ Tickets generados: ${ticketsProcesados.length}\n💰 Total: $${montoTotal.toFixed(2)}`);
@@ -640,6 +644,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         if (btnEmitir) btnEmitir.disabled = false;
     }
 };
+
 /**
  * Cancela/Anula un ticket y todas sus jugadas asociadas en Supabase
  * @param {string|number} folioOrId Código de ticket (ej. BX-419776) o ID numérico
@@ -734,6 +739,7 @@ export async function cancelarTicketPOS(folioOrId) {
         alert("Ocurrió un error inesperado al validar o cancelar el ticket.");
     }
 }
+
 // ==========================================================
 // FUNCIONES DE EXPORTACIÓN Y COMPARTIDO DE TICKETS (POS)
 // ==========================================================
@@ -850,3 +856,11 @@ export function mostrarOpcionesExportacionTicket(ticketData) {
         if (modal) modal.remove();
     };
 }
+
+// 🌐 Asignar explícitamente a window para compatibilidad global
+window.cancelarTicketPOS = cancelarTicketPOS;
+window.imprimirTicketTermica = imprimirTicketTermica;
+window.generarImagenTicket = generarImagenTicket;
+window.compartirTicketWhatsApp = compartirTicketWhatsApp;
+window.descargarPDFTicket = descargarPDFTicket;
+window.mostrarOpcionesExportacionTicket = mostrarOpcionesExportacionTicket;

@@ -121,7 +121,6 @@ export async function renderizarPlantillaTicket(ticketData) {
                 </div>
         `;
 
-        // Emparejar jugadas de 2 en 2 para hacer las columnas izquierda y derecha
         for (let i = 0; i < listaJugadas.length; i += 2) {
             const j1 = listaJugadas[i];
             const j2 = listaJugadas[i + 1];
@@ -148,14 +147,12 @@ export async function renderizarPlantillaTicket(ticketData) {
     const qrDataUrl = await generarQRDataURL(codigo);
 
     ticketElem.innerHTML = `
-        <!-- ENCABEZADO CENTRAL CON TRÉBOL -->
         <div style="text-align: center;">
             <div style="font-size: 20px; line-height: 1;">☘️</div>
             <div style="font-size: 16px; font-weight: bold; text-transform: uppercase;">Rey Lotto</div>
             <div style="font-size: 11px; font-weight: bold;">$$ DINERO SEGURO $$</div>
         </div>
 
-        <!-- DATOS BANCA Y TICKET ALINEADOS A LA DERECHA -->
         <div style="text-align: right; margin-top: 6px; font-size: 11px; font-weight: bold;">
             <div>${nombreBanca}</div>
             <div>${codigo}</div>
@@ -164,18 +161,15 @@ export async function renderizarPlantillaTicket(ticketData) {
 
         <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
 
-        <!-- LISTADO DE SORTEOS Y JUGADAS EN 2 COLUMNAS -->
         ${bloquesSorteosHTML}
 
         <div style="border-top: 1px dashed #000; margin: 8px 0 4px 0;"></div>
 
-        <!-- TOTAL -->
         <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: bold;">
             <span>Total: ${totalItems}</span>
             <span>${montoTotal}</span>
         </div>
 
-        <!-- REGLAS Y CONDICIONES -->
         <div style="text-align: center; font-size: 9px; font-weight: bold; margin-top: 12px; line-height: 1.2;">
             <div>REVISE SU TICKET</div>
             <div>SIN TICKET NO SE PAGA</div>
@@ -185,7 +179,6 @@ export async function renderizarPlantillaTicket(ticketData) {
             <div>NO SE PAGA EL PALE DOBLE</div>
         </div>
 
-        <!-- CÓDIGO QR -->
         <div style="text-align: center; margin-top: 8px;">
             ${qrDataUrl ? `<img src="${qrDataUrl}" style="width:90px; height:90px; display:inline-block;" />` : ''}
         </div>
@@ -194,9 +187,6 @@ export async function renderizarPlantillaTicket(ticketData) {
     return ticketElem;
 }
 
-/**
- * Convierte el elemento renderedizado en un Blob de Imagen PNG
- */
 export async function generarImagenTicketBlob() {
     await asegurarLibrerias();
     const ticketElem = document.getElementById('ticket-print-area');
@@ -221,9 +211,25 @@ export async function generarImagenTicketBlob() {
     }
 }
 
-/**
- * Envía la IMAGEN real del ticket por WhatsApp / Web Share API
- */
+export async function generarImagenTicket() {
+    await asegurarLibrerias();
+    const ticketElem = document.getElementById('ticket-print-area');
+    if (!ticketElem) return null;
+
+    try {
+        const canvas = await html2canvas(ticketElem, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: "#ffffff",
+            logging: false
+        });
+        return canvas.toDataURL("image/png");
+    } catch (err) {
+        console.error("Error al generar dataURL:", err);
+        return null;
+    }
+}
+
 export async function compartirTicketWhatsApp(ticketData) {
     await renderizarPlantillaTicket(ticketData);
     const blob = await generarImagenTicketBlob();
@@ -236,7 +242,6 @@ export async function compartirTicketWhatsApp(ticketData) {
     const codigo = ticketData.codigo_ticket || ticketData.codigo || 'ticket';
     const file = new File([blob], `Ticket_${codigo}.png`, { type: 'image/png' });
 
-    // Intentar envío directo de archivo de imagen mediante la API Nativa del Navegador/Móvil
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
             await navigator.share({
@@ -252,7 +257,6 @@ export async function compartirTicketWhatsApp(ticketData) {
         }
     }
 
-    // Alternativa si el navegador web no soporta envío directo de archivos: Descargar imagen y redirigir
     const urlImagen = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = urlImagen;
@@ -263,9 +267,6 @@ export async function compartirTicketWhatsApp(ticketData) {
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(`Adjunto ticket #${codigo}`)}`, '_blank');
 }
 
-/**
- * Descarga la imagen del ticket directamente en PNG
- */
 export async function descargarImagenTicket(ticketData) {
     await renderizarPlantillaTicket(ticketData);
     const blob = await generarImagenTicketBlob();
@@ -280,8 +281,30 @@ export async function descargarImagenTicket(ticketData) {
 }
 
 /**
- * Imprime el ticket directamente en impresora térmica
+ * RESTAURADO: Función para exportar PDF y evitar error de 'Uncaught SyntaxError' en pos.js
  */
+export async function descargarPDFTicket(ticketData) {
+    await renderizarPlantillaTicket(ticketData);
+    const imgData = await generarImagenTicket();
+
+    if (!imgData) {
+        alert("❌ No se pudo generar el documento PDF.");
+        return;
+    }
+
+    await asegurarLibrerias();
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: [80, 150]
+    });
+
+    pdf.addImage(imgData, 'PNG', 0, 0, 80, 0);
+    const codigo = ticketData.codigo_ticket || ticketData.codigo || 'ticket';
+    pdf.save(`Ticket_${codigo}.pdf`);
+}
+
 export async function imprimirTicketTermica(ticketData) {
     const ticketElem = await renderizarPlantillaTicket(ticketData);
 
@@ -317,9 +340,6 @@ export async function imprimirTicketTermica(ticketData) {
     printWindow.document.close();
 }
 
-/**
- * Modal interactivo con las opciones
- */
 export function mostrarOpcionesExportacionTicket(ticketData) {
     const modalExistente = document.getElementById('modal-export-ticket');
     if (modalExistente) modalExistente.remove();
@@ -329,7 +349,7 @@ export function mostrarOpcionesExportacionTicket(ticketData) {
     const modalHTML = `
         <div id="modal-export-ticket" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 99999;">
             <div style="background: #1e293b; color: #fff; border-radius: 12px; padding: 24px; width: 90%; max-width: 380px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center;">
-                <h3 style="margin-top: 0; color: #10b981;">🎟️️ Ticket #${codigo}</h3>
+                <h3 style="margin-top: 0; color: #10b981;">🎟 Ticket #${codigo}</h3>
                 <p style="font-size: 14px; color: #94a3b8; margin-bottom: 20px;">Seleccione cómo desea emitir el ticket:</p>
                 
                 <div style="display: flex; flex-direction: column; gap: 10px;">
@@ -353,9 +373,12 @@ export function mostrarOpcionesExportacionTicket(ticketData) {
     };
 }
 
-// Ventana global
+// Asignaciones globales
 window.renderizarPlantillaTicket = renderizarPlantillaTicket;
+window.generarImagenTicket = generarImagenTicket;
+window.generarImagenTicketBlob = generarImagenTicketBlob;
 window.imprimirTicketTermica = imprimirTicketTermica;
 window.compartirTicketWhatsApp = compartirTicketWhatsApp;
 window.descargarImagenTicket = descargarImagenTicket;
+window.descargarPDFTicket = descargarPDFTicket;
 window.mostrarOpcionesExportacionTicket = mostrarOpcionesExportacionTicket;

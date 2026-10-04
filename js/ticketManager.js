@@ -1,7 +1,7 @@
 // ==========================================================
 // MÓDULO DE GESTIÓN Y EXPORTACIÓN DE TICKETS (ticketManager.js)
 // Replicación exacta de Ticket POS Térmico (58mm / 80mm)
-// Soporte Multi-Sorteo y Formato de Encabezado Completo
+// Soporte Completo para Múltiples Sorteos en un Mismo Ticket
 // ==========================================================
 
 function cargarLibreria(url, globalVar) {
@@ -63,7 +63,7 @@ async function generarQRDataURL(texto) {
 }
 
 /**
- * Renderiza la plantilla HTML emulando la estructura física exacta
+ * Renderiza la plantilla HTML emulando la estructura física exacta con Multi-Sorteo
  */
 export async function renderizarPlantillaTicket(ticketData) {
     let ticketElem = document.getElementById('ticket-print-area');
@@ -74,7 +74,7 @@ export async function renderizarPlantillaTicket(ticketData) {
         document.body.appendChild(ticketElem);
     }
 
-    // Configuración de lienzo térmico de 58mm/80mm
+    // Configuración de lienzo térmico
     ticketElem.style.position = 'fixed';
     ticketElem.style.top = '-9999px';
     ticketElem.style.left = '-9999px';
@@ -88,24 +88,43 @@ export async function renderizarPlantillaTicket(ticketData) {
     ticketElem.style.boxSizing = 'border-box';
     ticketElem.style.zIndex = '-9999';
 
-    // Extracción y normalización de datos
-    const codigo = ticketData.codigo_ticket || ticketData.codigo || ticketData.ticket_id || '9312-0917-4579-1660';
+    // Extracción de metadatos del ticket
+    const codigo = ticketData.codigo_ticket || ticketData.codigo || ticketData.ticket_id || 'BX-000000';
     const montoTotal = parseFloat(ticketData.monto_total || ticketData.monto || ticketData.total || 0).toFixed(2);
-    const jugadas = ticketData.detalles || ticketData.jugadas || ticketData.items || [];
     const nombreBanca = ticketData.banca_nombre || ticketData.nombre_banca || ticketData.banca || 'Jey';
-    const totalItems = jugadas.length.toString().padStart(3, '0');
 
     const ahora = ticketData.created_at ? new Date(ticketData.created_at) : new Date();
     const fechaStr = ticketData.fecha || ahora.toLocaleDateString('es-ES');
     const horaStr = ticketData.hora || ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 
-    // AGRUPAR JUGADAS POR SORTEO (Permite NICA, TICA, etc., juntas en el mismo ticket)
+    // ------------------------------------------------------------------
+    // ESTRATEGIA DE AGRUPACIÓN MULTI-SORTEO
+    // ------------------------------------------------------------------
     const jugadasPorSorteo = {};
+    let conteoTotalJugadas = 0;
 
-    if (Array.isArray(jugadas) && jugadas.length > 0) {
-        jugadas.forEach(j => {
-            let nombreSorteo = j.sorteo_nombre || j.sorteo || ticketData.sorteo_nombre || ticketData.sorteo || 'SORTEO GENERAL';
-            nombreSorteo = nombreSorteo.replace(/\[\vert{}\]/g, '').trim().toUpperCase();
+    // Caso A: Los datos vienen estructurados por arreglo de Sorteos (ej: ticketData.sorteos_seleccionados)
+    if (Array.isArray(ticketData.sorteos) && ticketData.sorteos.length > 0 && Array.isArray(ticketData.jugadas)) {
+        ticketData.sorteos.forEach(sorteoObj => {
+            const nombreSorteo = (typeof sorteoObj === 'string' ? sorteoObj : sorteoObj.nombre || sorteoObj.sorteo_nombre || 'SORTEO').toUpperCase();
+            if (!jugadasPorSorteo[nombreSorteo]) jugadasPorSorteo[nombreSorteo] = [];
+
+            ticketData.jugadas.forEach(j => {
+                jugadasPorSorteo[nombreSorteo].push(j);
+                conteoTotalJugadas++;
+            });
+        });
+    } 
+    // Caso B: Cada jugada dentro del arreglo `detalles` / `jugadas` tiene su propio campo de sorteo
+    else {
+        const listaJugadas = ticketData.detalles || ticketData.jugadas || ticketData.items || [];
+        
+        listaJugadas.forEach(j => {
+            conteoTotalJugadas++;
+            let nombreSorteo = j.sorteo_nombre || j.sorteo || j.nombre_sorteo || j.loteria || ticketData.sorteo_nombre || ticketData.sorteo || 'SORTEO';
+            
+            // Limpieza de formato
+            nombreSorteo = String(nombreSorteo).replace(/[\[\]{}"]/g, '').trim().toUpperCase();
 
             if (!jugadasPorSorteo[nombreSorteo]) {
                 jugadasPorSorteo[nombreSorteo] = [];
@@ -114,12 +133,14 @@ export async function renderizarPlantillaTicket(ticketData) {
         });
     }
 
-    // GENERAR HTML PARA CADA SORTEO Y SUS JUGADAS EN 2 COLUMNAS
+    const totalItems = conteoTotalJugadas.toString().padStart(3, '0');
+
+    // CONSTRUCCIÓN DEL HTML DE TODOS LOS SORTEOS
     let bloquesSorteosHTML = '';
 
     for (const [sorteoNombre, listaJugadas] of Object.entries(jugadasPorSorteo)) {
         bloquesSorteosHTML += `
-            <div style="margin-top: 10px;">
+            <div style="margin-top: 8px;">
                 <div style="font-weight: bold; font-size: 13px; text-transform: uppercase;">${sorteoNombre}</div>
                 <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; margin-top: 2px; margin-bottom: 2px;">
                     <span style="width: 25%; text-align: left;">JUGADA</span>
@@ -129,6 +150,7 @@ export async function renderizarPlantillaTicket(ticketData) {
                 </div>
         `;
 
+        // Iterar jugadas de 2 en 2 para formatearlas en 2 columnas paralelas
         for (let i = 0; i < listaJugadas.length; i += 2) {
             const j1 = listaJugadas[i];
             const j2 = listaJugadas[i + 1];
@@ -185,7 +207,7 @@ export async function renderizarPlantillaTicket(ticketData) {
 
         <div style="border-top: 1px dashed #000000; margin: 8px 0 4px 0;"></div>
 
-        <!-- TOTAL -->
+        <!-- TOTAL DE JUGADAS Y MONTO GLOBAL -->
         <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: bold;">
             <span>Total: ${totalItems}</span>
             <span>${montoTotal}</span>
@@ -373,8 +395,8 @@ export function mostrarOpcionesExportacionTicket(ticketData) {
                 <p style="font-size: 14px; color: #94a3b8; margin-bottom: 20px;">Seleccione cómo desea emitir el ticket:</p>
 
                 <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <button id="btn-print-thermal" style="background: #10b981; color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;">🖨️️ Imprimir Ticket (Térmica POS)</button>
-                    <button id="btn-share-wapp" style="background: #25d366; color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;">🖼️️ Enviar Imagen por WhatsApp</button>
+                    <button id="btn-print-thermal" style="background: #10b981; color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;">🖨 Imprimir Ticket (Térmica POS)</button>
+                    <button id="btn-share-wapp" style="background: #25d366; color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;">🖼 Enviar Imagen por WhatsApp</button>
                     <button id="btn-download-img" style="background: #3b82f6; color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;">📥 Descargar Imagen (PNG)</button>
                     <button id="btn-close-modal-export" style="background: #475569; color: #fff; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px;">Cerrar</button>
                 </div>
@@ -393,7 +415,7 @@ export function mostrarOpcionesExportacionTicket(ticketData) {
     };
 }
 
-// Asignaciones para acceso global
+// Ventana global
 window.renderizarPlantillaTicket = renderizarPlantillaTicket;
 window.generarImagenTicket = generarImagenTicket;
 window.generarImagenTicketBlob = generarImagenTicketBlob;

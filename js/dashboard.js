@@ -146,7 +146,7 @@ async function cerrarSesionAdmin() {
     } finally {
         localStorage.clear();
         sessionStorage.clear();
-        window.location.href = 'login.html';
+        window.location.href = '/';
     }
 }
 window.cerrarSesionAdmin = cerrarSesionAdmin;

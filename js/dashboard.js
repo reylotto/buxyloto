@@ -1,4 +1,5 @@
-// --- MÓDULO DASHBOARD Y MÉTRICAS ACTUALIZADO (SIN CORREO / SOLO USERNAME) ---
+// --- MÓDULO DASHBOARD Y MÉTRICAS ACTUALIZADO (PERFIL ADMIN & REALTIME CONECTADO) ---
+
 // Respaldo por si getSupabaseClient o getSupabaseClientDashboard no están definidos globalmente
 if (typeof window.getSupabaseClient !== 'function') {
     window.getSupabaseClient = function() {
@@ -12,6 +13,7 @@ if (typeof window.getSupabaseClient !== 'function') {
 if (typeof window.getSupabaseClientDashboard !== 'function') {
     window.getSupabaseClientDashboard = window.getSupabaseClient;
 }
+
 export function initDashboardModule() {
     console.log("Módulo Dashboard inicializado.");
     initSystemClock();
@@ -20,6 +22,7 @@ export function initDashboardModule() {
     initBancasSearch();
     cargarBancas();
     cargarHistorialTickets();
+    initPerfilAdmin();
 }
 
 // 1. Reloj del sistema
@@ -33,10 +36,127 @@ function initSystemClock() {
     }, 1000);
 }
 
-// 2. Métricas del Dashboard (EXCLUYENDO CANCELADOS)
+// ==========================================================
+// 2. GESTIÓN DE PERFIL Y CONTRASENA ADMINISTRADOR CENTRAL
+// ==========================================================
+function initPerfilAdmin() {
+    const formPerfil = document.getElementById('form-perfil-admin') || document.getElementById('form-admin-profile');
+    if (formPerfil) {
+        formPerfil.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await guardarPerfilAdmin();
+        });
+    }
+
+    // Cargar datos actuales de sesión si están disponibles
+    cargarDatosPerfilAdmin();
+}
+
+async function cargarDatosPerfilAdmin() {
+    try {
+        const supabase = window.getSupabaseClient();
+        if (!supabase || !supabase.auth) return;
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const usernameInput = document.getElementById('admin-username') || document.getElementById('perfil-admin-usuario');
+        if (usernameInput) {
+            usernameInput.value = user.user_metadata?.username || user.email || '';
+        }
+    } catch (err) {
+        console.warn("Aviso cargando datos de perfil:", err.message);
+    }
+}
+
+async function guardarPerfilAdmin() {
+    const supabase = window.getSupabaseClient();
+    if (!supabase || !supabase.auth) {
+        return alert("Error: No hay conexión con la autenticación de Supabase.");
+    }
+
+    const usernameInput = document.getElementById('admin-username') || document.getElementById('perfil-admin-usuario');
+    const passwordInput = document.getElementById('admin-password') || document.getElementById('perfil-admin-password');
+    const btnGuardar = document.getElementById('btn-guardar-perfil-admin') || document.getElementById('btn-save-admin');
+
+    const nuevoUsuario = usernameInput ? usernameInput.value.trim() : '';
+    const nuevaPassword = passwordInput ? passwordInput.value.trim() : '';
+
+    if (!nuevoUsuario && !nuevaPassword) {
+        return alert("Por favor, ingrese el nombre de usuario o la nueva contraseña a cambiar.");
+    }
+
+    if (btnGuardar) {
+        btnGuardar.disabled = true;
+        btnGuardar.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sincronizando con Supabase...';
+    }
+
+    try {
+        const updatePayload = {};
+
+        if (nuevaPassword) {
+            if (nuevaPassword.length < 6) {
+                alert("La contraseña debe tener al menos 6 caracteres.");
+                return;
+            }
+            updatePayload.password = nuevaPassword;
+        }
+
+        if (nuevoUsuario) {
+            updatePayload.data = { username: nuevoUsuario, full_name: nuevoUsuario };
+            if (nuevoUsuario.includes('@')) {
+                updatePayload.email = nuevoUsuario;
+            }
+        }
+
+        const { data, error } = await supabase.auth.updateUser(updatePayload);
+
+        if (error) throw error;
+
+        alert("¡Perfil de Administrador Central actualizado con éxito en Supabase!");
+
+        if (passwordInput) passwordInput.value = '';
+
+        const modalPerfil = document.getElementById('modal-perfil-admin') || document.getElementById('modal-admin-profile');
+        if (modalPerfil) modalPerfil.classList.add('hidden');
+
+    } catch (err) {
+        console.error("Error al actualizar perfil admin:", err);
+        alert("Error al actualizar en Supabase: " + (err.message || JSON.stringify(err)));
+    } finally {
+        if (btnGuardar) {
+            btnGuardar.disabled = false;
+            btnGuardar.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar Cambios';
+        }
+    }
+}
+window.guardarPerfilAdmin = guardarPerfilAdmin;
+
+// Cierre de sesión seguro y redirección
+async function cerrarSesionAdmin() {
+    if (!confirm("¿Estás seguro de que deseas cerrar sesión?")) return;
+
+    try {
+        const supabase = window.getSupabaseClient();
+        if (supabase && supabase.auth) {
+            await supabase.auth.signOut();
+        }
+    } catch (err) {
+        console.error("Error al cerrar sesión en Supabase:", err);
+    } finally {
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.href = 'login.html';
+    }
+}
+window.cerrarSesionAdmin = cerrarSesionAdmin;
+
+// ==========================================================
+// 3. MÉTRICAS DEL DASHBOARD (EXCLUYENDO CANCELADOS)
+// ==========================================================
 async function cargarMetricasSeguras() {
     try {
-        const supabase = window.supabase;
+        const supabase = window.getSupabaseClient();
         if (!supabase) return;
 
         // Consultar directamente la tabla 'tickets'
@@ -98,7 +218,7 @@ function getBancaForm() {
     return document.getElementById('form-crear-banca') || document.getElementById('form-crear-usuario');
 }
 
-// 3. Control del Modal
+// Control del Modal de Bancas
 function initBancasModal() {
     const modal = getBancaModal();
     const btnOpen = document.getElementById('btn-open-banca-modal');
@@ -162,7 +282,7 @@ function prepararModalParaCrear() {
     }
 }
 
-// 4. FUNCIÓN EDITAR
+// 4. FUNCIÓN EDITAR BANCA
 window.editarBanca = window.configurarBanca = function(id) {
     const modal = getBancaModal();
     if (!modal) return alert("Error: No se encontró el modal en la página.");
@@ -218,7 +338,7 @@ window.editarBanca = window.configurarBanca = function(id) {
 
 // 5. Guardar Banca en Supabase
 export async function guardarBanca() {
-    const supabase = window.supabase;
+    const supabase = window.getSupabaseClient();
     if (!supabase) return alert("Error: No hay conexión con Supabase.");
 
     const rol = document.getElementById('crear-rol')?.value || 'banca';
@@ -358,7 +478,7 @@ export async function cargarBancas(filtroTexto = '') {
         </tr>
     `;
 
-    const supabase = window.supabase;
+    const supabase = window.getSupabaseClient();
     if (!supabase) return;
 
     try {
@@ -448,7 +568,7 @@ window.cambiarPasswordBanca = async function(bancaId, nombreBanca) {
     const nuevaClave = prompt(`Nueva contraseña para la banca "${nombreBanca}":`);
     if (!nuevaClave || nuevaClave.length < 6) return alert("Cancelado. Mínimo 6 caracteres.");
     try {
-        const { error } = await window.supabase.from('bancas').update({ password: nuevaClave }).eq('id', bancaId);
+        const { error } = await window.getSupabaseClient().from('bancas').update({ password: nuevaClave }).eq('id', bancaId);
         if (error) throw error;
         alert("¡Contraseña actualizada con éxito!");
     } catch (err) {
@@ -459,7 +579,7 @@ window.cambiarPasswordBanca = async function(bancaId, nombreBanca) {
 window.eliminarBanca = async function(id) {
     if (!confirm("¿Estás seguro de eliminar esta banca por completo?")) return;
     try {
-        const { error } = await window.supabase.from('bancas').delete().eq('id', id);
+        const { error } = await window.getSupabaseClient().from('bancas').delete().eq('id', id);
         if (error) throw error;
         alert("Banca eliminada exitosamente.");
         await cargarBancas();
@@ -476,7 +596,7 @@ async function cargarHistorialTickets() {
     if (!tbody) return;
 
     try {
-        const supabase = window.supabase;
+        const supabase = window.getSupabaseClient();
         if (!supabase) return;
 
         // Consultar los tickets ordenados del más reciente al más antiguo
@@ -494,7 +614,6 @@ async function cargarHistorialTickets() {
             return;
         }
 
-        // Obtener el caché de bancas si está disponible
         const bancasCache = window._bancasCache || [];
 
         tickets.forEach(t => {
@@ -504,7 +623,6 @@ async function cargarHistorialTickets() {
             const codigo = t.codigo || t.codigo_ticket || `BX-${t.id}`;
             const fecha = t.created_at ? new Date(t.created_at).toLocaleString() : '--';
             
-            // Buscar nombre de banca desde la propiedad o desde el caché por banca_id / usuario_id
             let nombreBanca = t.banca_nombre || t.vendedor_nombre || t.banca || t.vendedor || '';
             if (!nombreBanca && (t.banca_id || t.usuario_id)) {
                 const bId = String(t.banca_id || t.usuario_id);
@@ -519,7 +637,6 @@ async function cargarHistorialTickets() {
             const montoPremio = Number(t.premio || t.monto_premio || 0).toFixed(2);
             const estado = (t.estatus || t.estado || 'pendiente').toLowerCase();
 
-            // Formatear resumen de jugadas
             let jugadasTexto = '-';
             const lista = t.detalles || t.jugadas;
             if (Array.isArray(lista)) {
@@ -533,7 +650,6 @@ async function cargarHistorialTickets() {
                 } catch(e) {}
             }
 
-            // Estatus y formato de premio
             let estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400">PENDIENTE</span>`;
             let textoPremio = `<span class="text-slate-500 font-mono">$0.00</span>`;
 
@@ -546,7 +662,6 @@ async function cargarHistorialTickets() {
                 estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400">CANCELADO</span>`;
             }
 
-            // Solo permitir anular si está PENDIENTE
             const puedeAnular = (estado === 'pendiente');
 
             tr.innerHTML = `
@@ -579,16 +694,14 @@ async function cargarHistorialTickets() {
     }
 }
 
-// Exponer la función globalmente
 window.cargarHistorialTickets = cargarHistorialTickets;
 window.cargarVentas = cargarHistorialTickets;
 
-// Función global para eliminar o anular tickets del historial
 window.eliminarTicketHistorial = async function(ticketId) {
     if (!confirm('¿Está seguro de que desea eliminar este ticket del historial?')) return;
 
     try {
-        const { error } = await window.supabase
+        const { error } = await window.getSupabaseClient()
             .from('tickets')
             .delete()
             .eq('id', ticketId);
@@ -603,78 +716,8 @@ window.eliminarTicketHistorial = async function(ticketId) {
     }
 };
 
-// 1. Cargar historial automáticamente al iniciar la página
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-        if (typeof window.cargarHistorialTickets === 'function') {
-            window.cargarHistorialTickets();
-        }
-    }, 500);
-});
-
-// 2. Enlazar la recarga al hacer clic en las pestañas del menú (Dashboard / Historial)
-document.querySelectorAll('[data-section], nav button, .nav-link, a[href*="historial"]').forEach(btn => {
-    btn.addEventListener('click', () => {
-        if (typeof window.cargarHistorialTickets === 'function') {
-            window.cargarHistorialTickets();
-        }
-    });
-});
-
-// Actualización automática al cambiar de pestaña
-document.querySelectorAll('[data-section], nav button, .nav-link, a[href*="section"]').forEach(btn => {
-    btn.addEventListener('click', () => {
-        setTimeout(() => {
-            if (typeof window.cargarHistorialTickets === 'function') window.cargarHistorialTickets();
-            if (typeof window.cargarMetricasSeguras === 'function') window.cargarMetricasSeguras();
-            if (typeof window.cargarBancas === 'function') window.cargarBancas();
-            if (typeof window.cargarHistorialResultados === 'function') window.cargarHistorialResultados();
-        }, 100);
-    });
-});
-
-//  CORRECTO: definir todos los .on() PRIMERO y llamar a .subscribe() al FINAL
-function suscribirTiempoReal() {
-    const supabase = typeof window.getSupabaseClient === 'function' 
-        ? window.getSupabaseClient() 
-        : (window.supabaseClient || window.supabase);
-
-    if (!supabase || typeof supabase.channel !== 'function') return;
-
-    // 1. Remover suscripciones anteriores para evitar duplicados al recargar
-    supabase.removeAllChannels();
-
-    // 2. Crear el canal y configurar eventos ANTES de suscribirse
-    const canal = supabase
-        .channel('schema-db-changes-tickets')
-        .on(
-            'postgres_changes', 
-            { event: '*', schema: 'public', table: 'tickets' }, 
-            (payload) => {
-                console.log('⚡ Cambio en tiempo real en tickets:', payload);
-                if (typeof window.cargarResumenOperacionesHoy === 'function') {
-                    window.cargarResumenOperacionesHoy();
-                }
-            }
-        )
-        .subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-                console.log('✅ Suscrito a cambios en tiempo real correctamente.');
-            }
-        });
-}
-
-// Exponer la función globalmente
-window.suscribirTiempoReal = suscribirTiempoReal;
-
-// Iniciar al cargar el módulo
-document.addEventListener('DOMContentLoaded', () => {
-    suscribirTiempoReal();
-});
-
-// Agrega o actualiza el manejador de navegación de secciones en dashboard.js / main.js
+// Navegación de secciones
 function cambiarSeccion(seccionId) {
-    // 1. Ocultar todas las secciones y mostrar la seleccionada
     document.querySelectorAll('.content-section').forEach(sec => sec.classList.add('hidden'));
     
     const seccionTarget = document.getElementById(seccionId);
@@ -682,7 +725,6 @@ function cambiarSeccion(seccionId) {
         seccionTarget.classList.remove('hidden');
     }
 
-    // 2. Si la sección seleccionada es Resultados & Escrutinio, forzar carga de datos
     if (seccionId === 'section-results') {
         console.log("🔄 Cargando sección Resultados & Escrutinio...");
         if (typeof window.cargarSorteosEscrutinio === 'function') {
@@ -694,25 +736,9 @@ function cambiarSeccion(seccionId) {
     }
 }
 
-// Vincular los clics del menú lateral / navegación
-document.addEventListener('DOMContentLoaded', () => {
-    const navLinks = document.querySelectorAll('[data-section]');
-    navLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const target = link.getAttribute('data-section');
-            cambiarSeccion(target);
-        });
-    });
-});
-
 // ==========================================================
-// RESUMEN DE OPERACIONES Y MÉTRICAS HOY (UNIFICADO Y EXCLUYENDO CANCELADOS)
+// RESUMEN DE OPERACIONES Y MÉTRICAS HOY CON GRÁFICOS
 // ==========================================================
-
-let intervaloCuentaRegresivaGrid = null;
-
-// Helper para actualizar textContent de un elemento si existe
 function actualizarTexto(id, valor) {
     const el = document.getElementById(id);
     if (el) el.textContent = valor;
@@ -720,13 +746,10 @@ function actualizarTexto(id, valor) {
 
 async function cargarResumenOperacionesHoy() {
     try {
-        const supabase = typeof getSupabaseClient === 'function' 
-            ? getSupabaseClient() 
-            : (window.supabaseClient || window.supabase);
-
+        const supabase = window.getSupabaseClient();
         if (!supabase) return;
 
-        // 1. Rango de fecha de hoy ajustado al día local del usuario
+        // 1. Rango de fecha de hoy ajustado al día local
         const hoy = new Date();
         const inicioDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0);
         const finDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59, 999);
@@ -745,7 +768,7 @@ async function cargarResumenOperacionesHoy() {
 
         const ticketsRaw = ticketsHoy || [];
 
-        // EXCLUIR ESTRICTAMENTE TICKETS CANCELADOS O ANULADOS
+        // EXCLUIR ESTRICTAMENTE CANCELADOS O ANULADOS
         const tickets = ticketsRaw.filter(t => {
             const est = String(t.estatus || t.status || t.estado || '').toLowerCase();
             return est !== 'cancelado' && est !== 'anulado';
@@ -753,7 +776,7 @@ async function cargarResumenOperacionesHoy() {
 
         const totalTickets = tickets.length;
 
-        // 3. Cálculos Financieros con Tickets Válidos
+        // 3. Cálculos Financieros
         let ventaTotal = 0;
         let comisionesTotal = 0;
         let premiosTotal = 0;
@@ -762,7 +785,6 @@ async function cargarResumenOperacionesHoy() {
         tickets.forEach(t => {
             const monto = parseFloat(t.total || t.monto || t.monto_total || 0);
             
-            // Usar % de comisión de la banca o del ticket si existe, o 10% por defecto
             let pctComision = 10;
             if (t.comision_porcentaje) pctComision = parseFloat(t.comision_porcentaje);
 
@@ -773,10 +795,8 @@ async function cargarResumenOperacionesHoy() {
             ventaTotal += monto;
             comisionesTotal += comision;
 
-            // Extraer premio acumulado en la raíz del ticket
             let premioVal = parseFloat(t.premio || t.monto_premio || t.total_premio || t.monto_ganado || 0);
 
-            // Si el ticket contiene jugadas en sub-arreglos
             const detallesJugadas = t.jugadas || t.detalles || t.apuestas || [];
             if (Array.isArray(detallesJugadas)) {
                 detallesJugadas.forEach(j => {
@@ -803,25 +823,20 @@ async function cargarResumenOperacionesHoy() {
         const totalComisionesFmt = `$${comisionesTotal.toFixed(2)}`;
         const totalPremiosFmt = `$${premiosTotal.toFixed(2)}`;
 
-        // Múltiples IDs posibles para Ventas Totales
         const idsVentas = ['ventasTotales', 'kpi-total-sales', 'montoVentasHoy', 'totalVentasHoy', 'resumen-ventas', 'total_ventas'];
         idsVentas.forEach(id => actualizarTexto(id, totalVentasFmt));
 
-        // Múltiples IDs posibles para Conteo de Tickets
         actualizarTexto('kpi-tickets-count', totalTickets);
         actualizarTexto('totalTicketsHoy', totalTickets.toString());
         actualizarTexto('cantTicketsHoy', totalTickets.toString());
 
-        // Múltiples IDs posibles para Comisiones
         actualizarTexto('kpi-total-commissions', totalComisionesFmt);
         actualizarTexto('totalComisionHoy', totalComisionesFmt);
 
-        // Múltiples IDs posibles para Premios
         actualizarTexto('kpi-total-prizes', totalPremiosFmt);
         actualizarTexto('totalPremiosHoy', totalPremiosFmt);
         actualizarTexto('kpi-winners-count', totalGanadores);
 
-        // Ganancia Neta
         const elemGanancia = document.getElementById('kpi-net-profit') || document.getElementById('gananciaNetaHoy') || document.getElementById('gananciaNeta');
         if (elemGanancia) {
             elemGanancia.textContent = `$${gananciaNeta.toFixed(2)}`;
@@ -830,15 +845,11 @@ async function cargarResumenOperacionesHoy() {
 
         console.log(`✅ Resumen y ventas actualizadas automáticamente: ${totalVentasFmt} en ${totalTickets} tickets.`);
 
-        // 5. Renderizar / Actualizar gráficos
-        if (typeof window.renderizarGraficoVendedores === 'function') {
-            window.renderizarGraficoVendedores(tickets);
-        }
-        if (typeof window.renderizarGraficoSorteos === 'function') {
-            window.renderizarGraficoSorteos(tickets);
-        }
+        // 5. RENDERIZAR GRÁFICOS
+        renderizarGraficoVendedores(tickets);
+        renderizarGraficoSorteos(tickets);
 
-        // 6. Cargar la grilla de sorteos en vivo y cuentas regresivas
+        // 6. Cargar grilla de sorteos
         await cargarGridSorteosEnVivo();
 
     } catch (err) {
@@ -846,13 +857,114 @@ async function cargarResumenOperacionesHoy() {
     }
 }
 
-// Cargar la grilla dinámica #dashboard-draws-grid
+// --- RENDERING DE GRÁFICOS (VENTA POR BANCA Y POR SORTEO) ---
+function renderizarGraficoVendedores(tickets) {
+    const canvas = document.getElementById('chart-ventas-vendedor') || document.getElementById('chartVentasBanca');
+    if (!canvas) return;
+
+    // Agrupar ventas por Banca / Vendedor
+    const bancasMap = {};
+    const bancasCache = window._bancasCache || [];
+
+    tickets.forEach(t => {
+        let nombre = t.banca_nombre || t.vendedor_nombre || t.banca || t.vendedor || '';
+        if (!nombre && (t.banca_id || t.usuario_id)) {
+            const bId = String(t.banca_id || t.usuario_id);
+            const encontrada = bancasCache.find(b => String(b.id) === bId);
+            if (encontrada) nombre = encontrada.nombre_banca || encontrada.vendedor_nombre;
+        }
+        if (!nombre) nombre = 'General';
+
+        const monto = parseFloat(t.total || t.monto || t.monto_total || 0);
+        bancasMap[nombre] = (bancasMap[nombre] || 0) + monto;
+    });
+
+    const labels = Object.keys(bancasMap);
+    const data = Object.values(bancasMap);
+
+    if (window.chartVendedoresInstance) {
+        window.chartVendedoresInstance.destroy();
+    }
+
+    if (typeof Chart !== 'undefined') {
+        const ctx = canvas.getContext('2d');
+        window.chartVendedoresInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels.length ? labels : ['Sin Datos'],
+                datasets: [{
+                    label: 'Venta por Banca ($)',
+                    data: data.length ? data : [0],
+                    backgroundColor: 'rgba(16, 185, 129, 0.6)',
+                    borderColor: '#10b981',
+                    borderWidth: 1.5,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(51, 65, 85, 0.3)' } },
+                    x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+                }
+            }
+        });
+    }
+}
+window.renderizarGraficoVendedores = renderizarGraficoVendedores;
+
+function renderizarGraficoSorteos(tickets) {
+    const canvas = document.getElementById('chart-distribucion-sorteo') || document.getElementById('chartDistribucionSorteo');
+    if (!canvas) return;
+
+    // Agrupar ventas por Sorteo
+    const sorteosMap = {};
+    tickets.forEach(t => {
+        const nombreSorteo = t.sorteo || t.nombre_sorteo || t.sorteo_nombre || 'Sorteo General';
+        const monto = parseFloat(t.total || t.monto || t.monto_total || 0);
+        sorteosMap[nombreSorteo] = (sorteosMap[nombreSorteo] || 0) + monto;
+    });
+
+    const labels = Object.keys(sorteosMap);
+    const data = Object.values(sorteosMap);
+
+    if (window.chartSorteosInstance) {
+        window.chartSorteosInstance.destroy();
+    }
+
+    if (typeof Chart !== 'undefined') {
+        const ctx = canvas.getContext('2d');
+        window.chartSorteosInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels.length ? labels : ['Sin Datos'],
+                datasets: [{
+                    data: data.length ? data : [1],
+                    backgroundColor: [
+                        '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#0f172a'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } }
+                }
+            }
+        });
+    }
+}
+window.renderizarGraficoSorteos = renderizarGraficoSorteos;
+
+// Grilla dinámica de sorteos en vivo
 async function cargarGridSorteosEnVivo() {
     try {
-        const supabase = typeof getSupabaseClient === 'function' 
-            ? getSupabaseClient() 
-            : (window.supabaseClient || window.supabase);
-            
+        const supabase = window.getSupabaseClient();
         const grid = document.getElementById('dashboard-draws-grid');
         if (!supabase || !grid) return;
 
@@ -866,7 +978,7 @@ async function cargarGridSorteosEnVivo() {
             return;
         }
 
-        grid.innerHTML = ''; // Limpiar contenedor
+        grid.innerHTML = '';
 
         sorteos.forEach(sorteo => {
             const nombre = sorteo.nombre || sorteo.descripcion || `Sorteo #${sorteo.id}`;
@@ -898,7 +1010,6 @@ async function cargarGridSorteosEnVivo() {
         window.intervaloCuentaRegresivaGrid = setInterval(() => {
             const ahora = new Date();
             let alertaActiva = false;
-            
             window._sorteosEnAlertaActual = []; 
 
             sorteos.forEach(sorteo => {
@@ -953,7 +1064,6 @@ async function cargarGridSorteosEnVivo() {
     }
 }
 
-// 5. NUEVA FUNCIÓN PARA EL BOTÓN "ENTENDIDO"
 window.dismissClosingAlert = function() {
     if (window._sorteosEnAlertaActual && window._sorteosEnAlertaActual.length > 0) {
         window._sorteosEnAlertaActual.forEach(id => {
@@ -966,13 +1076,10 @@ window.dismissClosingAlert = function() {
 };
 
 // ==========================================================
-// SUSCRIPCIÓN TIEMPO REAL (REALTIME) - ACTUALIZADO Y CORREGIDO
+// SUSCRIPCIÓN TIEMPO REAL (REALTIME)
 // ==========================================================
 async function suscribirEventosTiempoReal() {
-    const supabase = typeof getSupabaseClient === 'function' 
-        ? getSupabaseClient() 
-        : (window.supabaseClient || window.supabase);
-
+    const supabase = window.getSupabaseClient();
     if (!supabase || typeof supabase.channel !== 'function') return;
 
     if (window.realtimeChannel) {
@@ -1013,7 +1120,7 @@ async function suscribirEventosTiempoReal() {
         });
 }
 
-// Exposición de funciones en el ámbito global
+// Exposición global
 window.cargarResumenOperacionesHoy = cargarResumenOperacionesHoy;
 window.actualizarResumenOperaciones = cargarResumenOperacionesHoy;
 window.actualizarResumenDashboard = function() {
@@ -1022,16 +1129,14 @@ window.actualizarResumenDashboard = function() {
 };
 window.cargarGridSorteosEnVivo = cargarGridSorteosEnVivo;
 window.suscribirEventosTiempoReal = suscribirEventosTiempoReal;
-window.actualizarEstadoSorteosYCuentaRegresiva = function() {
-    cargarResumenOperacionesHoy();
-    cargarGridSorteosEnVivo();
-};
 
 // ==========================================================
-// EVENTOS E INICIALIZACIÓN DE INTERFAZ Y SESIÓN
+// INICIALIZACIÓN DE EVENTOS AL CARGAR LA PÁGINA
 // ==========================================================
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Botón manual para refrescar métricas
+    initDashboardModule();
+
+    // Botón manual de refresco
     const btnRefresh = document.getElementById('btn-refresh-dashboard');
     if (btnRefresh) {
         btnRefresh.addEventListener('click', () => {
@@ -1040,44 +1145,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 2. Navegación por pestañas
-    const navLinks = document.querySelectorAll('.nav-link, [data-tab], .tab-btn');
-    navLinks.forEach(link => {
-        link.addEventListener('click', () => {
-            const targetTab = link.getAttribute('data-tab') || link.getAttribute('href');
-            if (targetTab === '#dashboard' || targetTab === 'dashboard' || link.classList.contains('active-dashboard-tab')) {
-                setTimeout(() => {
-                    cargarResumenOperacionesHoy();
-                    cargarMetricasSeguras();
-                }, 100);
-            }
-        });
-    });
-
-    // 3. Control de Cerrar Sesión
-    const botonesCerrarSesion = document.querySelectorAll('#btn-logout, .btn-logout, [data-action="logout"]');
+    // Botones de cerrar sesión vinculados a la función de la app
+    const botonesCerrarSesion = document.querySelectorAll('#btn-logout, .btn-logout, [data-action="logout"], #btn-cerrar-sesion');
     botonesCerrarSesion.forEach(btn => {
-        btn.addEventListener('click', async (e) => {
+        btn.addEventListener('click', (e) => {
             e.preventDefault();
-            if (!confirm("¿Estás seguro de que deseas cerrar sesión?")) return;
-
-            try {
-                const supabase = typeof getSupabaseClient === 'function' ? getSupabaseClient() : window.supabaseClient;
-                if (supabase && supabase.auth) {
-                    await supabase.auth.signOut();
-                }
-                localStorage.clear();
-                sessionStorage.clear();
-                window.location.href = 'login.html';
-            } catch (err) {
-                console.error("Error al cerrar sesión:", err);
-                window.location.href = 'login.html';
-            }
+            cerrarSesionAdmin();
         });
     });
 
-    // 4. Carga inicial de métricas y activación de tiempo real
-    cargarResumenOperacionesHoy();
-    cargarMetricasSeguras();
+    // Navegación por pestañas
+    const navLinks = document.querySelectorAll('[data-section], nav button, .nav-link, a[href*="section"]');
+    navLinks.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const target = btn.getAttribute('data-section');
+            if (target) cambiarSeccion(target);
+
+            setTimeout(() => {
+                if (typeof window.cargarHistorialTickets === 'function') window.cargarHistorialTickets();
+                if (typeof window.cargarMetricasSeguras === 'function') window.cargarMetricasSeguras();
+                if (typeof window.cargarResumenOperacionesHoy === 'function') window.cargarResumenOperacionesHoy();
+            }, 100);
+        });
+    });
+
+    // Suscribir a tiempo real
     suscribirEventosTiempoReal();
 });

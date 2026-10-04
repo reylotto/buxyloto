@@ -36,6 +36,29 @@ function initSystemClock() {
     }, 1000);
 }
 
+function initPerfilAdmin() {
+    // 1. Cargar datos del perfil si existe la sesión
+    if (typeof cargarDatosPerfilAdmin === 'function') {
+        cargarDatosPerfilAdmin();
+    }
+
+    // 2. Vincular el botón de guardar perfil
+    const btnGuardar = document.getElementById('btn-guardar-perfil-admin') || document.getElementById('btn-save-admin') || document.querySelector('#modal-perfil-admin .btn-primary');
+    
+    if (btnGuardar) {
+        // Remover listeners viejos clonando el elemento
+        const btnLimpio = btnGuardar.cloneNode(true);
+        if (btnGuardar.parentNode) {
+            btnGuardar.parentNode.replaceChild(btnLimpio, btnGuardar);
+        }
+
+        btnLimpio.addEventListener('click', (e) => {
+            e.preventDefault();
+            guardarPerfilAdmin();
+        });
+    }
+}
+
 // ==========================================================
 // 2. GESTIÓN DE PERFIL Y CONTRASENA ADMINISTRADOR CENTRAL
 // ==========================================================
@@ -1195,3 +1218,5 @@ document.addEventListener('DOMContentLoaded', () => {
         suscribirEventosTiempoReal();
     }
 });
+window.initPerfilAdmin = initPerfilAdmin;
+window.guardarPerfilAdmin = guardarPerfilAdmin;

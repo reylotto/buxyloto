@@ -280,8 +280,8 @@ export async function compartirTicketWhatsApp(ticketData, numeroTelefono = '') {
                 try {
                     await navigator.share({
                         files: [file],
-                        title: `Ticket ${ticketData.codigo_ticket}`,
-                        text: `🎟️ Ticket de Jugada #${ticketData.codigo_ticket}`
+                        title: `Ticket ${ticketData.codigo_ticket || ticketData.codigo || ''}`,
+                        text: `🎟️ Ticket de Jugada #${ticketData.codigo_ticket || ticketData.codigo || ''}`
                     });
                     return; // Compartido con éxito como imagen
                 } catch (errShare) {
@@ -298,26 +298,30 @@ export async function compartirTicketWhatsApp(ticketData, numeroTelefono = '') {
     let lineasJugadas = '';
 
     jugadas.forEach(j => {
-        const sorteo = j.sorteo_nombre || ticketData.sorteo_nombre || '';
-        const tipo = (j.tipo || 'DIRECTO').toUpperCase();
+        let sorteo = j.sorteo_nombre || j.sorteo || ticketData.sorteo_nombre || ticketData.sorteo || 'GENERAL';
+        sorteo = sorteo.replace(/\[\vert{}\]/g, '').trim();
+
         const num = j.numero || '';
+        const tipo = (j.tipo || '').toUpperCase();
+        const jugadaTexto = tipo ? `${tipo} ${num}`.trim() : String(num);
         const monto = parseFloat(j.monto || 0).toFixed(2);
-        lineasJugadas += `• ${sorteo ? `[${sorteo}] ` : ''}${tipo} *${num}* -> $${monto}\n`;
+
+        lineasJugadas += `• *${sorteo.toUpperCase()}* | ${jugadaTexto} -> $${monto}\n`;
     });
 
     const textoCompleto = 
 `🍀 *BUXYLOTO POS* 🍀
 --------------------------------
 🎟️ *TICKET:* #${ticketData.codigo_ticket || ticketData.codigo || 'S/N'}
-🏪 *BANCA:* ${ticketData.banca || 'BUXYLOTO MAIN'}
+🏪 *BANCA:* ${ticketData.banca_nombre || ticketData.nombre_banca || ticketData.banca || 'BUXYLOTO MAIN'}
 📅 *FECHA:* ${ticketData.fecha || new Date().toLocaleDateString()} ${ticketData.hora || ''}
 --------------------------------
-*JUGADAS:*
+*JUGADAS (SORTEO | JUGADA | MONTO):*
 ${lineasJugadas || 'Sin detalles'}
 --------------------------------
-💵 *TOTAL:* $${parseFloat(ticketData.monto_total || ticketData.monto || 0).toFixed(2)} USD
+💵 *TOTAL:* $${parseFloat(ticketData.monto_total || ticketData.monto || ticketData.total || 0).toFixed(2)} USD
 --------------------------------
- Revise su ticket. Sin ticket no se paga.
+Revise su ticket. Sin ticket no se paga.
 ¡Gracias por su compra!`;
 
     const mensajeEncoded = encodeURIComponent(textoCompleto);

@@ -450,7 +450,7 @@ export function activarEventosPOS() {
 window.activarEventosPOS = activarEventosPOS;
 
 // ----------------------------------------------------------
-// 8. REGISTRO Y EMISIÓN EN SUPABASE
+// REGISTRO Y EMISIÓN DE TICKET MULTISORTEO (UN SOLO CÓDIGO)
 // ----------------------------------------------------------
 window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
     const supabase = window.supabase;
@@ -471,9 +471,9 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         nombre: cb.dataset.nombre || 'Sorteo'
     }));
 
-    // B. Capturar Jugadas (del carrito o entrada manual actual)
-    let jugadas = [...window.jugadasActuales];
-    if (jugadas.length === 0) {
+    // B. Capturar Jugadas del Carrito / Entrada manual
+    let jugadasBase = [...window.jugadasActuales];
+    if (jugadasBase.length === 0) {
         const inputNum = document.getElementById('pos-input-numbers');
         const inputMnt = document.getElementById('pos-input-amount');
         const num = inputNum ? inputNum.value.trim() : '';
@@ -481,139 +481,112 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         const modo = window.modoJuegoActual || 'directo';
 
         if (num && mnt > 0) {
-            if (!validarJugadaCompleta(num, modo)) {
+            if (typeof validarJugadaCompleta === 'function' && !validarJugadaCompleta(num, modo)) {
                 return;
             }
-            jugadas.push({ numero: num, monto: mnt, tipo: modo });
+            jugadasBase.push({ numero: num, monto: mnt, tipo: modo });
         }
     }
 
-    if (jugadas.length === 0) {
+    if (jugadasBase.length === 0) {
         alert("⚠️ Añada al menos una jugada con su monto antes de emitir.");
         return;
     }
 
-    const idBanca = obtenerIdVendedorAsignado();
-    const montoTotal = jugadas.reduce((sum, j) => sum + parseFloat(j.monto || 0), 0);
-    const ticketsProcesados = [];
-    let ultimoTicketGuardado = null; // Guardamos la referencia para el modal
+    // C. Replicar o Vincular las jugadas a los Sorteos Seleccionados
+    // Si seleccionó 2 sorteos y metió 2 jugadas, la combinación de jugadas se vincula a cada sorteo
+    const todasLasJugadas = [];
+    let montoTotal = 0;
 
+    sorteosSeleccionados.forEach(sorteo => {
+        jugadasBase.forEach(j => {
+            const montoM = parseFloat(j.monto || 0);
+            montoTotal += montoM;
+            todasLasJugadas.push({
+                numero: String(j.numero),
+                monto: montoM,
+                tipo: j.tipo || 'directo',
+                sorteo_id: sorteo.id,
+                sorteo_nombre: sorteo.nombre
+            });
+        });
+    });
+
+    const idBanca = typeof obtenerIdVendedorAsignado === 'function' ? obtenerIdVendedorAsignado() : null;
     const btnEmitir = document.getElementById('btn-pos-process-ticket');
     if (btnEmitir) btnEmitir.disabled = true;
 
     try {
-        for (const sItem of sorteosSeleccionados) {
-            const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
-            const sorteoIdParsed = isNaN(sItem.id) ? sItem.id : parseInt(sItem.id, 10);
+        // Generar UN SOLO Código de Ticket para toda la transacción
+        const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
+        
+        // Formatear el nombre del sorteo para la cabecera (Si son varios, los une con ' / ')
+        const nombresSorteos = sorteosSeleccionados.map(s => s.nombre).join(' / ');
+        const primerSorteoId = isNaN(sorteosSeleccionados[0].id) 
+            ? sorteosSeleccionados[0].id 
+            : parseInt(sorteosSeleccionados[0].id, 10);
 
-            // Mapear el nombre del sorteo a cada jugada
-            const jugadasConSorteo = jugadas.map(j => ({
-                ...j,
-                sorteo_nombre: sItem.nombre
-            }));
+        const payloadTicket = {
+            codigo: codigoTicket,
+            codigo_ticket: codigoTicket,
+            sorteo_id: primerSorteoId,
+            sorteo_nombre: nombresSorteos,
+            monto: montoTotal,
+            monto_total: montoTotal,
+            detalles: todasLasJugadas,
+            estatus: 'pendiente'
+        };
 
-            const payloadTicket = {
-                codigo: codigoTicket,
-                codigo_ticket: codigoTicket,
-                sorteo_id: sorteoIdParsed,
-                sorteo_nombre: sItem.nombre,
-                monto: montoTotal,
-                monto_total: montoTotal,
-                total: montoTotal,
-                detalles: jugadasConSorteo,
-                jugadas: jugadasConSorteo,
-                estatus: 'pendiente',
-                estado: 'pendiente'
-            };
-
-            if (idBanca) {
-                payloadTicket.usuario_id = idBanca;
-                payloadTicket.vendedor_id = idBanca;
-                payloadTicket.banca_id = idBanca;
-            }
-
-            console.log("📡 Registrando venta en Supabase:", payloadTicket);
-
-            let response = await supabase.from('tickets').insert([payloadTicket]).select();
-            let ticketGuardado = response.data ? response.data[0] : null;
-            let error = response.error;
-
-            if (error) {
-                console.warn("Intentando esquema simplificado en 'tickets':", error.message);
-                const payloadLimpio = {
-                    codigo_ticket: codigoTicket,
-                    sorteo_id: sorteoIdParsed,
-                    sorteo_nombre: sItem.nombre,
-                    monto_total: montoTotal,
-                    detalles: jugadasConSorteo,
-                    estatus: 'pendiente'
-                };
-                if (idBanca) payloadLimpio.vendedor_id = idBanca;
-
-                const res2 = await supabase.from('tickets').insert([payloadLimpio]).select();
-                if (!res2.error) {
-                    error = null;
-                    ticketGuardado = res2.data ? res2.data[0] : null;
-                } else {
-                    console.warn("Intentando en tabla 'ventas':", res2.error.message);
-                    const resVentas = await supabase.from('ventas').insert([payloadLimpio]).select();
-                    if (!resVentas.error) {
-                        error = null;
-                        ticketGuardado = resVentas.data ? resVentas.data[0] : null;
-                    } else {
-                        error = resVentas.error;
-                    }
-                }
-            }
-
-            if (error) {
-                console.error("❌ Error de Supabase al guardar:", error);
-                alert(`❌ Error al guardar en Supabase:\n${error.message}\n${error.details || ''}`);
-                return;
-            }
-
-            if (ticketGuardado && ticketGuardado.id) {
-                const idTicketNum = parseInt(ticketGuardado.id, 10);
-
-                const filasJugadas = jugadas.map(j => ({
-                    ticket_id: idTicketNum,
-                    numero: String(j.numero),
-                    monto: Number(j.monto) || 0,
-                    tipo: j.tipo || 'directo',
-                    estatus: 'pendiente'
-                }));
-
-                try {
-                    let resJugadas = await supabase.from('jugadas').insert(filasJugadas);
-
-                    if (resJugadas.error) {
-                        const filasLimpias = jugadas.map(j => ({
-                            ticket_id: idTicketNum,
-                            numero: String(j.numero),
-                            monto: Number(j.monto) || 0,
-                            tipo: j.tipo || 'directo'
-                        }));
-                        resJugadas = await supabase.from('jugadas').insert(filasLimpias);
-                    }
-
-                    if (resJugadas.error) {
-                        console.warn("Aviso (Tabla jugadas auxiliar):", resJugadas.error.message);
-                    }
-                } catch (errJugadas) {
-                    console.warn("Aviso (Tabla jugadas auxiliar):", errJugadas.message);
-                }
-            }
-
-            // Guardamos el objeto ticket enriquecido para enviarlo a la plantilla
-            ultimoTicketGuardado = ticketGuardado || payloadTicket;
-            if (!ultimoTicketGuardado.sorteo_nombre) {
-                ultimoTicketGuardado.sorteo_nombre = sItem.nombre;
-            }
-
-            ticketsProcesados.push({ codigo: codigoTicket, sorteo: sItem.nombre });
+        if (idBanca) {
+            payloadTicket.usuario_id = idBanca;
+            payloadTicket.vendedor_id = idBanca;
         }
 
-        // Limpiar formulario y carrito
+        console.log("📡 Registrando Ticket Unificado en Supabase:", payloadTicket);
+
+        // Guardar la cabecera del Ticket Único
+        let response = await supabase.from('tickets').insert([payloadTicket]).select();
+        let ticketGuardado = response.data ? response.data[0] : null;
+        let error = response.error;
+
+        if (error) {
+            console.error("❌ Error al guardar el ticket unificado:", error);
+            alert(`❌ Error al guardar en Supabase:\n${error.message}`);
+            return;
+        }
+
+        // Guardar los detalles de jugadas en la tabla 'jugadas'
+        if (ticketGuardado && ticketGuardado.id) {
+            const idTicketNum = parseInt(ticketGuardado.id, 10);
+            const filasJugadas = todasLasJugadas.map(j => ({
+                ticket_id: idTicketNum,
+                numero: j.numero,
+                monto: j.monto,
+                tipo: j.tipo,
+                sorteo_nombre: j.sorteo_nombre,
+                estatus: 'pendiente'
+            }));
+
+            try {
+                let resJugadas = await supabase.from('jugadas').insert(filasJugadas);
+                if (resJugadas.error) {
+                    // Reintento sin columnas opcionales si falla la estructura
+                    const filasLimpias = todasLasJugadas.map(j => ({
+                        ticket_id: idTicketNum,
+                        numero: j.numero,
+                        monto: j.monto,
+                        tipo: j.tipo
+                    }));
+                    await supabase.from('jugadas').insert(filasLimpias);
+                }
+            } catch (e) {
+                console.warn("Aviso en guardar jugadas auxiliares:", e.message);
+            }
+        }
+
+        const ticketParaImprimir = ticketGuardado || payloadTicket;
+
+        // D. Limpiar interfaz y carrito
         window.jugadasActuales = [];
         if (typeof renderizarCarrito === 'function') renderizarCarrito();
 
@@ -627,25 +600,17 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
 
         if (typeof window.cargarHistorialTickets === 'function') {
             window.cargarHistorialTickets();
-        } else if (typeof window.cargarVentas === 'function') {
-            window.cargarVentas();
-        } else if (typeof window.cargarTablaHistorial === 'function') {
-            window.cargarTablaHistorial();
         }
 
-        // Invocación del Modal / Compartir
-        if (enviarPorWhatsApp && ultimoTicketGuardado) {
+        // E. Emitir/Exportar Ticket Único
+        if (enviarPorWhatsApp) {
             if (typeof compartirTicketWhatsApp === 'function') {
-                compartirTicketWhatsApp(ultimoTicketGuardado);
-            } else if (typeof window.compartirTicketWhatsApp === 'function') {
-                window.compartirTicketWhatsApp(ultimoTicketGuardado);
+                compartirTicketWhatsApp(ticketParaImprimir);
             }
-        } else if (typeof window.mostrarOpcionesExportacionTicket === 'function' && ultimoTicketGuardado) {
-            window.mostrarOpcionesExportacionTicket(ultimoTicketGuardado);
-        } else if (typeof mostrarOpcionesExportacionTicket === 'function' && ultimoTicketGuardado) {
-            mostrarOpcionesExportacionTicket(ultimoTicketGuardado);
+        } else if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
+            window.mostrarOpcionesExportacionTicket(ticketParaImprimir);
         } else {
-            alert(`🎉 ¡Venta realizada con éxito!\n\n🎟️ Tickets generados: ${ticketsProcesados.length}\n💰 Total: $${montoTotal.toFixed(2)}`);
+            alert(`🎉 ¡Ticket Unificado Emitido!\n\n🎟️ Código: ${codigoTicket}\n💰 Total: $${montoTotal.toFixed(2)}`);
         }
 
     } catch (err) {

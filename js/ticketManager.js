@@ -94,12 +94,15 @@ export async function renderizarPlantillaTicket(ticketData) {
 
     // Renderizado de las jugadas
     const filasHTML = jugadas.map(j => `
-        <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; margin: 4px 0;">
+    <div style="margin-bottom: 4px;">
+        ${j.sorteo_nombre ? `<div style="font-size: 10px; color: #555; font-weight: bold;">[${j.sorteo_nombre}]</div>` : ''}
+        <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold;">
             <span style="width: 35%; text-transform: uppercase;">${j.tipo || 'DIRECTO'}</span>
             <span style="width: 35%; text-align: center;">${j.numero}</span>
             <span style="width: 30%; text-align: right;">${parseFloat(j.monto || 0).toFixed(2)}</span>
         </div>
-    `).join('');
+    </div>
+`).join('');
 
     ticketElem.innerHTML = `
         <!-- CABECERA DE MARCA -->

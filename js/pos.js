@@ -724,25 +724,6 @@ export function imprimirTicketTermica() {
     window.print();
 }
 
-export async function generarImagenTicket(ticketElementId = 'ticket-print-area') {
-    const ticketElem = document.getElementById(ticketElementId);
-    if (!ticketElem) {
-        alert("No se encontró la plantilla del ticket para generar la imagen.");
-        return null;
-    }
-
-    try {
-        const canvas = await html2canvas(ticketElem, {
-            scale: 2,
-            useCORS: true,
-            backgroundColor: "#ffffff"
-        });
-        return canvas.toDataURL("image/png");
-    } catch (err) {
-        console.error("Error al generar la imagen del ticket:", err);
-        return null;
-    }
-}
 
 export async function compartirTicketWhatsApp(ticketData, numeroTelefono = '') {
     const dataUrl = await generarImagenTicket();

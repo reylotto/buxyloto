@@ -1,0 +1,133 @@
+/* ==========================================================
+   ESTILOS PARA PLANTILLA DE TICKET Y SALIDA POS
+   ========================================================== */
+
+/* Contenedor del Ticket para pantalla */
+#ticket-print-area {
+    width: 280px;
+    padding: 12px;
+    background: #ffffff;
+    color: #000000;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+    line-height: 1.3;
+    margin: 0 auto;
+    border: 1px dashed #ccc;
+    box-sizing: border-box;
+    /* MEJORA 1: Garantiza contraste alto para conversión a imagen (html2canvas) */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+#ticket-print-area .header-ticket {
+    text-align: center;
+    border-bottom: 1px dashed #000;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+}
+
+#ticket-print-area .header-ticket h3 {
+    margin: 0 0 4px 0;
+    font-size: 14px;
+    text-transform: uppercase;
+}
+
+#ticket-print-area .header-ticket p {
+    margin: 2px 0;
+}
+
+#ticket-print-area table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#ticket-print-area table th,
+#ticket-print-area table td {
+    padding: 3px 0;
+    font-size: 11px;
+}
+
+#ticket-print-area .total-section {
+    border-top: 1px dashed #000;
+    margin-top: 8px;
+    padding-top: 6px;
+    text-align: right;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+/* Modal de Opciones al Compartir/Imprimir */
+.modal-overlay-ticket {
+    position: fixed;
+    top: 0; 
+    left: 0; 
+    width: 100vw; 
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.65);
+    display: flex; 
+    justify-content: center; 
+    align-items: center;
+    z-index: 9999;
+}
+
+.modal-content-ticket {
+    background: #ffffff;
+    padding: 24px;
+    border-radius: 8px;
+    max-width: 360px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.modal-content-ticket h3 {
+    margin-top: 0;
+    font-family: sans-serif;
+    color: #1e293b;
+}
+
+.modal-buttons-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+/* ==========================================================
+   CONFIGURACIÓN DE IMPRESIÓN TÉRMICA DIRECTA (80mm)
+   ========================================================== */
+@media print {
+    /* MEJORA 2: Oculta scrollbars y limpia márgenes del cuerpo en el spooler de impresión */
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+    }
+
+    /* Ocultar todo el sitio web excepto el ticket */
+    body * {
+        visibility: hidden !important;
+    }
+
+    #ticket-print-area, 
+    #ticket-print-area * {
+        visibility: visible !important;
+    }
+
+    /* Fijar medidas del ticket a la impresora de 80mm */
+    #ticket-print-area {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 80mm !important;
+        padding: 2mm !important;
+        margin: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    @page {
+        size: 80mm auto;
+        margin: 0;
+    }
+}

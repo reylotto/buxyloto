@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BuxyLoto POS & Dashboard Admin Central</title>
     <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="styles.css">
 
     <!-- Declaración preventiva de variables globales -->
     <script>
@@ -3596,6 +3597,11 @@ const supabase = createClient('https://ruruabsbkvfbudnqkjby.supabase.co', 'eyJhb
 
 <!-- Librería externa de Chart.js para renderizar los gráficos de ventas y sorteos -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- html2canvas para generar imágenes del ticket -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<!-- jspdf para generar PDF con dimensiones personalizadas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <!-- 2. Motor de Escrutinio y Reglas de Premios -->
 <script src="js/escrutinio.js"></script>

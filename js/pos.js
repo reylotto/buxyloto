@@ -8,13 +8,17 @@ import {
     imprimirTicketTermica as imprimirTermicaManager,
     compartirTicketWhatsApp as compartirWhatsAppManager,
     descargarPDFTicket as descargarPDFManager,
-    mostrarOpcionesExportacionTicket as mostrarOpcionesManager
+    mostrarOpcionesExportacionTicket as mostrarOpcionesManager,
+    anularOTicketCancelado
 } from './ticketManager.js';
 
 // Estado global de la venta activa
 window.modoJuegoActual = window.modoJuegoActual || 'directo';
 window.jugadasActuales = window.jugadasActuales || [];
 window.ultimoMontoIngresado = window.ultimoMontoIngresado || null;
+
+// Exponer la función globalmente para su uso desde cualquier parte del flujo del POS
+window.anularOTicketCancelado = anularOTicketCancelado;
 
 // ----------------------------------------------------------
 // 1. INICIALIZACIÓN DEL MÓDULO POS

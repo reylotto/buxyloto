@@ -404,3 +404,48 @@ window.compartirTicketWhatsApp = compartirTicketWhatsApp;
 window.descargarImagenTicket = descargarImagenTicket;
 window.descargarPDFTicket = descargarPDFTicket;
 window.mostrarOpcionesExportacionTicket = mostrarOpcionesExportacionTicket;
+
+// ==========================================================
+// FUNCIÓN CENTRAL PARA ANULAR / CANCELAR TICKET Y RECALCULAR
+// ==========================================================
+export async function anularOTicketCancelado(ticketId) {
+    if (!ticketId) return { success: false, error: 'ID de ticket no válido.' };
+
+    const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
+    if (!supabase) return { success: false, error: 'No hay conexión con Supabase.' };
+
+    try {
+        // 1. Cambiar el estatus del ticket a 'cancelado' (o eliminar si se prefiere)
+        const { error: updateError } = await supabase
+            .from('tickets')
+            .update({ estatus: 'cancelado', estado: 'cancelado' })
+            .eq('id', ticketId);
+
+        if (updateError) throw updateError;
+
+        // 2. Opcional: Eliminar o inactivar jugadas asociadas
+        await supabase
+            .from('jugadas')
+            .delete()
+            .eq('ticket_id', ticketId);
+
+        // 3. Forzar actualización de métricas locales y del Dashboard en pantalla
+        if (typeof window.cargarMetricasSeguras === 'function') {
+            await window.cargarMetricasSeguras();
+        }
+        if (typeof window.cargarResumenOperacionesHoy === 'function') {
+            await window.cargarResumenOperacionesHoy();
+        }
+        if (typeof window.cargarHistorialTickets === 'function') {
+            await window.cargarHistorialTickets();
+        }
+
+        return { success: true };
+    } catch (err) {
+        console.error('Error al anular ticket:', err);
+        return { success: false, error: err.message };
+    }
+}
+
+// Exponer globalmente
+window.anularOTicketCancelado = anularOTicketCancelado;

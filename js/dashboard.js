@@ -739,22 +739,39 @@ async function cargarHistorialTickets() {
 window.cargarHistorialTickets = cargarHistorialTickets;
 window.cargarVentas = cargarHistorialTickets;
 
+// BUSCAR ESTE BLOQUE EN dashboard.js (alrededor de la línea 447) Y REEMPLAZARLO:
+
 window.eliminarTicketHistorial = async function(ticketId) {
-    if (!confirm('¿Está seguro de que desea eliminar este ticket del historial?')) return;
+    if (!confirm('¿Está seguro de que desea anular/eliminar este ticket?')) return;
 
     try {
-        const { error } = await window.getSupabaseClient()
+        const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
+        
+        // 1. Anular/Eliminar jugadas en cascada primero
+        await supabase
+            .from('jugadas')
+            .delete()
+            .eq('ticket_id', ticketId);
+
+        // 2. Anular/Eliminar el ticket principal
+        const { error } = await supabase
             .from('tickets')
             .delete()
             .eq('id', ticketId);
 
         if (error) throw error;
 
-        alert('✅ Ticket eliminado del historial.');
+        alert('✅ Ticket anulado correctamente.');
+
+        // 3. Recalcular y actualizar Dashboard en tiempo real
         await cargarHistorialTickets();
         await cargarMetricasSeguras();
+        if (typeof cargarResumenOperacionesHoy === 'function') {
+            await cargarResumenOperacionesHoy();
+        }
+
     } catch (err) {
-        alert('❌ Error al eliminar el ticket: ' + err.message);
+        alert('❌ Error al anular el ticket: ' + err.message);
     }
 };
 

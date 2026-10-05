@@ -451,28 +451,33 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         const ticketRegistrado = (ticketData && ticketData.length > 0) ? ticketData[0] : payloadTicket;
         const ticketIdGenerado = ticketRegistrado.id || null;
 
-        // Payload universal para la tabla 'jugadas' (compatibilidad doble con ticket_id y codigo_ticket)
-        const registrosJugadas = listaJugadas.map(j => {
-            const fila = {
-                codigo_ticket: codigoTicket,
-                numero: j.numero,
-                monto: j.monto,
-                tipo: j.tipo,
-                sorteo_nombre: j.sorteo_nombre,
-                banca: nombreBanca,
-                estatus: 'pendiente'
-            };
+        // Payload ajustado según tu esquema exacto en Supabase
+const registrosJugadas = listaJugadas.map(j => {
+    const fila = {
+        ticket_id: parseInt(ticketIdGenerado, 10),
+        numero: String(j.numero).trim(),
+        monto: j.monto,
+        tipo: j.tipo,
+        estatus: 'pendiente',
+        estado: 'pendiente'
+    };
 
-            if (ticketIdGenerado) {
-                fila.ticket_id = parseInt(ticketIdGenerado, 10);
-            }
+    // Asignar num1 y num2 en caso de que lo utilices para palés o jugadas compuestas
+    if (j.numero.includes('-')) {
+        const partes = j.numero.split('-');
+        fila.num1 = partes[0];
+        fila.num2 = partes[1] || null;
+    } else {
+        fila.num1 = j.numero;
+        fila.num2 = null;
+    }
 
-            if (j.sorteo_id && !isNaN(parseInt(j.sorteo_id, 10))) {
-                fila.sorteo_id = parseInt(j.sorteo_id, 10);
-            }
+    if (j.sorteo_id && !isNaN(parseInt(j.sorteo_id, 10))) {
+        fila.sorteo_id = parseInt(j.sorteo_id, 10);
+    }
 
-            return fila;
-        });
+    return fila;
+});
 
         const { error: jugadasError } = await supabase
             .from('jugadas')

@@ -248,7 +248,7 @@ if (!window.jugadasActuales) {
 window.ultimoMontoIngresado = null;
 
 // ----------------------------------------------------------
-// 1. AGREGAR JUGADAS AL CARRITO (VALIDACIÓN & AUTO-TIPO)
+// 1. AGREGAR JUGADA AL CARRITO (VALIDACIÓN RIGUROSA)
 // ----------------------------------------------------------
 window.agregarJugadaAlCarrito = function() {
     const inputNum = document.getElementById('pos-input-numbers');
@@ -259,10 +259,10 @@ window.agregarJugadaAlCarrito = function() {
     const numero = inputNum.value.trim();
     const monto = parseFloat(inputMnt.value);
 
-    // REGLA 1: Exigir al menos un sorteo seleccionado
+    // REGLA 1: Debe haber sorteos seleccionados
     const checkboxesCheck = document.querySelectorAll('input[name="pos-sorteos-selected"]:checked');
     if (checkboxesCheck.length === 0) {
-        alert("⚠️ Debe seleccionar al menos un sorteo antes de agregar una jugada.");
+        alert("⚠️ Debe seleccionar al menos un sorteo antes de ingresar una jugada.");
         return;
     }
 
@@ -273,9 +273,9 @@ window.agregarJugadaAlCarrito = function() {
         return;
     }
 
-    // REGLA 3: Determinación / Validación del Tipo de Juego por dígitos
-    let tipo = window.modoJuegoActual || 'auto';
+    // REGLA 3: Control estricto de dígitos (Solo 2, 4 o 6)
     const numLen = numero.length;
+    let tipo = '';
 
     if (numLen === 2) {
         tipo = 'directo';
@@ -284,15 +284,15 @@ window.agregarJugadaAlCarrito = function() {
     } else if (numLen === 6) {
         tipo = 'tripleta';
     } else {
-        alert("⚠️ Cantidad de dígitos inválida. Debe ingresar:\n - 2 dígitos (Directo)\n - 4 dígitos (Palé)\n - 6 dígitos (Tripleta)");
+        alert("⚠️️ Jugada incorrecta: Solo se permiten jugadas de 2 dígitos (Directo), 4 dígitos (Palé) o 6 dígitos (Tripleta). No se aceptan 3 o 5 dígitos.");
         inputNum.focus();
         return;
     }
 
-    // Guardar monto en memoria para la siguiente jugada
+    // Guardar último monto usado
     window.ultimoMontoIngresado = monto;
 
-    // Obtener los datos de los sorteos seleccionados
+    // Obtener sorteos marcados
     let sorteosSeleccionados = Array.from(checkboxesCheck).map(cb => {
         const labelText = cb.closest('label')?.textContent?.trim() || cb.nextElementSibling?.textContent?.trim() || '';
         const nombreDetectado = cb.dataset.nombre || cb.dataset.sorteoNombre || labelText || 'SORTEO';
@@ -302,7 +302,7 @@ window.agregarJugadaAlCarrito = function() {
         };
     });
 
-    // Insertar jugada por cada sorteo marcado
+    // Agregar la jugada duplicada por cada sorteo seleccionado
     sorteosSeleccionados.forEach(sorteo => {
         window.jugadasActuales.push({
             id: Date.now() + Math.random(),
@@ -314,32 +314,32 @@ window.agregarJugadaAlCarrito = function() {
         });
     });
 
-    // Mantener el monto y limpiar el número
+    // Mantener el monto y limpiar la entrada del número
     inputNum.value = '';
     inputMnt.value = window.ultimoMontoIngresado.toFixed(2);
     inputNum.focus();
 
-    // Refrescar carrito en pantalla
+    // Actualizar pantalla
     window.renderizarCarrito();
 };
 
 // ----------------------------------------------------------
-// 2. RENDERIZADO VISUAL EN TICKET ACTUAL (LISTA Y TOTALES)
+// 2. RENDERIZAR VISTA EN TICKET ACTUAL Y CALCULADORA
 // ----------------------------------------------------------
 window.renderizarCarrito = function() {
-    // Buscar los contenedores flexibles por ID o Clase
-    const contenedorCarrito = document.getElementById('pos-cart-items') || 
-                              document.getElementById('ticket-actual-list') || 
+    // Buscar los elementos usando los selectores específicos de tu HTML
+    const contenedorCarrito = document.getElementById('ticket-actual-list') || 
+                              document.getElementById('pos-cart-items') || 
                               document.querySelector('.ticket-actual-list') ||
                               document.getElementById('lista-jugadas-carrito');
 
-    const totalElem = document.getElementById('pos-cart-total') || 
-                      document.getElementById('lbl-total-pagar') || 
+    const totalElem = document.getElementById('lbl-total-pagar') || 
+                      document.getElementById('pos-cart-total') || 
                       document.getElementById('monto-total-ticket') ||
                       document.querySelector('.total-pagar-monto');
 
-    const conteoElem = document.getElementById('pos-cart-count') || 
-                       document.getElementById('lbl-cantidad-jugadas');
+    const conteoElem = document.getElementById('lbl-cantidad-jugadas') || 
+                       document.getElementById('pos-cart-count');
 
     let totalMonto = 0;
 
@@ -348,29 +348,28 @@ window.renderizarCarrito = function() {
 
         if (window.jugadasActuales.length === 0) {
             contenedorCarrito.innerHTML = `
-                <div style="text-align: center; color: #94a3b8; padding: 20px 10px; font-size: 13px;">
-                    No hay jugadas en el ticket
+                <div style="text-align: center; color: #94a3b8; padding: 30px 10px; font-size: 13px;">
+                    No hay jugadas añadidas en este ticket
                 </div>`;
         } else {
-            // Recorrer e insertar jugadas en el DOM
             window.jugadasActuales.forEach((j, index) => {
                 totalMonto += parseFloat(j.monto || 0);
 
                 const itemDiv = document.createElement('div');
-                itemDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px; margin-bottom: 4px; background: rgba(255, 255, 255, 0.05); border: 1px solid #334155; border-radius: 4px; color: #ffffff;';
+                itemDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px; margin-bottom: 6px; background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; border-radius: 6px; color: #ffffff;';
 
                 itemDiv.innerHTML = `
                     <div style="flex: 1; text-align: left;">
-                        <div style="font-size: 10px; color: #38bdf8; font-weight: bold;">[${j.sorteo_nombre}]</div>
-                        <div style="margin-top: 2px;">
-                            <strong style="color: #facc15; font-size: 14px;">#${j.numero}</strong> 
-                            <span style="font-size: 10px; opacity: 0.8; text-transform: uppercase; background: #334155; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">${j.tipo}</span>
+                        <div style="font-size: 11px; color: #38bdf8; font-weight: bold; text-transform: uppercase;">[${j.sorteo_nombre}]</div>
+                        <div style="margin-top: 3px; display: flex; align-items: center; gap: 8px;">
+                            <strong style="color: #facc15; font-size: 15px; font-family: monospace;">#${j.numero}</strong> 
+                            <span style="font-size: 10px; opacity: 0.9; text-transform: uppercase; background: #0f172a; padding: 2px 6px; border-radius: 4px; border: 1px solid #475569;">${j.tipo}</span>
                         </div>
                     </div>
-                    <div style="font-weight: bold; color: #10b981; font-size: 14px; margin-right: 10px;">
+                    <div style="font-weight: bold; color: #10b981; font-size: 15px; margin-right: 12px; font-family: monospace;">
                         $${parseFloat(j.monto).toFixed(2)}
                     </div>
-                    <button onclick="window.eliminarJugadaCarrito(${index})" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px; font-weight: bold;">✕</button>
+                    <button onclick="window.eliminarJugadaCarrito(${index})" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-size: 12px; font-weight: bold; display: flex; align-items: center; justify-content: center;">✕</button>
                 `;
 
                 contenedorCarrito.appendChild(itemDiv);
@@ -378,7 +377,7 @@ window.renderizarCarrito = function() {
         }
     }
 
-    // Actualizar texto del Total y Cantidad
+    // Actualizar Totales e Indicadores visuales en la columna derecha
     if (totalElem) {
         totalElem.textContent = `$${totalMonto.toFixed(2)}`;
     }
@@ -388,7 +387,7 @@ window.renderizarCarrito = function() {
 };
 
 // ----------------------------------------------------------
-// 3. ELIMINAR JUGADA DEL CARRITO
+// 3. ELIMINAR ITEM
 // ----------------------------------------------------------
 window.eliminarJugadaCarrito = function(index) {
     if (window.jugadasActuales && window.jugadasActuales[index] !== undefined) {
@@ -398,7 +397,7 @@ window.eliminarJugadaCarrito = function(index) {
 };
 
 // ----------------------------------------------------------
-// 4. CONTROLADOR DE TECLADO (ENTER)
+// 4. BINDING DE TECLADO Y NAVEGACIÓN RÁPIDA
 // ----------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
     const inputNum = document.getElementById('pos-input-numbers');
@@ -428,7 +427,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ----------------------------------------------------------
-// 5. EMISIÓN DE TICKET Y REINICIO
+// 5. EMISIÓN Y GUARDADO DE TICKET EN SUPABASE
 // ----------------------------------------------------------
 window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
     const supabase = window.supabase;
@@ -438,11 +437,11 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
     }
 
     if (!window.jugadasActuales || window.jugadasActuales.length === 0) {
-        alert("⚠️️ Añada al menos una jugada antes de emitir el ticket.");
+        alert("⚠️ Añada al menos una jugada antes de emitir el ticket.");
         return;
     }
 
-    const btnEmitir = document.getElementById('btn-pos-process-ticket');
+    const btnEmitir = document.getElementById('btn-pos-process-ticket') || document.querySelector('.btn-procesar-ticket');
     if (btnEmitir) btnEmitir.disabled = true;
 
     try {
@@ -484,7 +483,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
 
         const ticketGuardado = data ? data[0] : payloadTicket;
 
-        // REINICIALIZACIÓN COMPLETA
+        // Limpiar para el siguiente ticket
         window.jugadasActuales = [];
         window.ultimoMontoIngresado = null;
 

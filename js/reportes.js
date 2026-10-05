@@ -621,38 +621,52 @@ window.verTicketHistorial = async function(uniqueId) {
     const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
     let nombreSorteo = ticket.sorteo_nombre || ticket.sorteo || ticket.nombre_sorteo || ticket.loteria;
 
-    // Si el nombre del sorteo viene nulo en la tabla tickets, lo obtenemos de public.sorteos
-    if (!nombreSorteo && ticket.sorteo_id && supabase) {
+    // Si el nombre del sorteo está vacío en el ticket, lo obtenemos mediante sorteo_id
+    if ((!nombreSorteo || nombreSorteo === 'N/A') && ticket.sorteo_id && supabase) {
         try {
             const { data: sorteoData } = await supabase
                 .from('sorteos')
-                .select('nombre')
+                .select('nombre, descripcion')
                 .eq('id', ticket.sorteo_id)
                 .maybeSingle();
-            
-            if (sorteoData && sorteoData.nombre) {
-                nombreSorteo = sorteoData.nombre;
+
+            if (sorteoData) {
+                nombreSorteo = sorteoData.nombre || sorteoData.descripcion;
             }
         } catch (e) {
-            console.warn("No se pudo consultar el nombre del sorteo:", e);
+            console.warn("No se pudo consultar el sorteo:", e);
         }
     }
 
-    const items = normalizarItemsTicket(ticket);
+    // Obtener las jugadas vinculadas
+    let items = normalizarItemsTicket(ticket);
+    if ((!items || items.length === 0) && supabase) {
+        try {
+            const { data: jugadasBD } = await supabase
+                .from('jugadas')
+                .select('*')
+                .eq('ticket_id', ticket.id);
+            if (jugadasBD && jugadasBD.length > 0) items = jugadasBD;
+        } catch (e) {
+            console.warn("Error al cargar jugadas:", e);
+        }
+    }
+
     const estatusActual = String(ticket.estatus || ticket.status || ticket.estado || 'pendiente').toLowerCase();
     const esCancelado = estatusActual === 'cancelado' || estatusActual === 'anulado';
 
     const ticketNormalizado = {
         ...ticket,
         folio: ticket.codigo_ticket || ticket.folio || ticket.ticket_numero || ticket.id,
-        sorteo: nombreSorteo || 'Sorteo General',
         sorteo_nombre: nombreSorteo || 'Sorteo General',
+        sorteo: nombreSorteo || 'Sorteo General',
         items: items,
         jugadas: items,
         apuestas: items,
         banca_nombre: obtenerNombreBanca(ticket.banca_id, ticket),
         estatus: esCancelado ? 'CANCELADO' : estatusActual.toUpperCase(),
-        esCancelado: esCancelado
+        esCancelado: esCancelado,
+        esCopia: true // Marca que es una reimpresión / vista secundaria
     };
 
     if (typeof window.showTicketModal === 'function') {
@@ -660,7 +674,7 @@ window.verTicketHistorial = async function(uniqueId) {
             window.showTicketModal(ticketNormalizado);
             return;
         } catch (e) {
-            console.warn("Fallo showTicketModal:", e);
+            console.warn("Error en showTicketModal:", e);
         }
     }
 
@@ -670,24 +684,56 @@ window.verTicketHistorial = async function(uniqueId) {
 };
 
 window.cancelarTicketHistorial = async function(uniqueId) {
-    if (!confirm(`¿Está seguro de que desea anular/cancelar el ticket #${uniqueId}?`)) return;
+    if (!confirm(`¿Está seguro de que desea anular el ticket #${uniqueId}?`)) return;
 
     try {
-        if (typeof window.anularOTicketCancelado === 'function') {
-            const res = await window.anularOTicketCancelado(uniqueId);
-            if (!res.success) throw new Error(res.error);
-        } else {
-            throw new Error("La función de anulación no está cargada.");
+        const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
+        
+        // 1. Obtener el ticket para conocer su ID numérico real
+        const { data: ticket, error: errBusqueda } = await supabase
+            .from('tickets')
+            .select('id, codigo_ticket, folio')
+            .or(`codigo_ticket.eq.${uniqueId},folio.eq.${uniqueId}${/^\d+$/.test(uniqueId) ? `,id.eq.${uniqueId}` : ''}`)
+            .maybeSingle();
+
+        if (errBusqueda || !ticket) {
+            throw new Error("No se encontró el ticket en la base de datos.");
         }
+
+        const idReal = ticket.id;
+
+        // 2. Anular Ticket en Supabase
+        const { error: errTicket } = await supabase
+            .from('tickets')
+            .update({ estatus: 'cancelado', estado: 'cancelado', status: 'cancelado' })
+            .eq('id', idReal);
+
+        if (errTicket) throw errTicket;
+
+        // 3. Anular Jugadas asociadas en Supabase
+        await supabase
+            .from('jugadas')
+            .update({ estatus: 'cancelado', estado: 'cancelado' })
+            .eq('ticket_id', idReal);
 
         alert(`✅ Ticket #${uniqueId} anulado correctamente.`);
 
-        // Recargar datos en pantalla
-        if (typeof filtrarYRenderizarTicketsLocal === 'function') {
-            const ticket = buscarTicketEnCache(uniqueId);
-            if (ticket) ticket.estatus = 'cancelado';
-            filtrarYRenderizarTicketsLocal();
+        // 4. Actualizar memoria local (ticketsCache) para refrescar la tabla sin recargar
+        if (Array.isArray(window.ticketsCache)) {
+            const tCache = window.ticketsCache.find(t => String(t.id) === String(idReal) || t.codigo_ticket === uniqueId || t.folio === uniqueId);
+            if (tCache) {
+                tCache.estatus = 'cancelado';
+                tCache.estado = 'cancelado';
+            }
         }
+
+        // 5. Renderizar de nuevo la tabla local
+        if (typeof filtrarYRenderizarTicketsLocal === 'function') {
+            filtrarYRenderizarTicketsLocal();
+        } else if (typeof cargarHistorialTickets === 'function') {
+            await cargarHistorialTickets();
+        }
+
     } catch (err) {
         alert('❌ Error al anular el ticket: ' + err.message);
     }
@@ -843,6 +889,74 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// ==========================================================
+// REIMPRESIÓN Y COMPARTIR TICKET COMO COPIA (WHATSAPP / IMPRESIÓN)
+// ==========================================================
+
+window.imprimirTicketHistorial = async function(uniqueId) {
+    const ticket = buscarTicketEnCache(uniqueId);
+    if (!ticket) {
+        alert("No se encontró el ticket.");
+        return;
+    }
+
+    const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
+    let nombreSorteo = ticket.sorteo_nombre || ticket.sorteo || 'Sorteo General';
+
+    if ((!nombreSorteo || nombreSorteo === 'Sorteo General') && ticket.sorteo_id && supabase) {
+        const { data: s } = await supabase.from('sorteos').select('nombre').eq('id', ticket.sorteo_id).maybeSingle();
+        if (s && s.nombre) nombreSorteo = s.nombre;
+    }
+
+    const items = normalizarItemsTicket(ticket);
+    const folio = ticket.codigo_ticket || ticket.folio || ticket.id;
+    const estatus = String(ticket.estatus || ticket.estado || 'pendiente').toUpperCase();
+
+    // 1. Generación de texto estructurado con marca de COPIA para WhatsApp
+    let mensajeWA = `*--- TICKET DE JUGADA (COPIA) ---*\n`;
+    if (estatus === 'CANCELADO') mensajeWA += `*=== TICKET CANCELADO ===*\n`;
+    mensajeWA += `*Folio:* ${folio}\n`;
+    mensajeWA += `*Sorteo:* ${nombreSorteo}\n`;
+    mensajeWA += `*Banca:* ${obtenerNombreBanca(ticket.banca_id, ticket)}\n`;
+    mensajeWA += `--------------------------------\n`;
+    mensajeWA += `*JUGADAS:*\n`;
+
+    items.forEach(j => {
+        const tipo = (j.tipo || 'DIRECTO').toUpperCase();
+        const num = j.numero || j.num1 || '';
+        const monto = parseFloat(j.monto || 0).toFixed(2);
+        mensajeWA += `• [${tipo}] ${num} -> $${monto}\n`;
+    });
+
+    mensajeWA += `--------------------------------\n`;
+    mensajeWA += `*TOTAL:* $${parseFloat(ticket.monto_total || ticket.monto || 0).toFixed(2)}\n`;
+    mensajeWA += `*ESTADO:* ${estatus}\n`;
+    mensajeWA += `*** REIMPRESIÓN / COPIA ***`;
+
+    // 2. Preguntar al usuario la vía de envío
+    const opcion = confirm("¿Desea enviar esta COPIA por WhatsApp?\n\n(Aceptar = WhatsApp / Cancelar = Imprimir en Ticketera)");
+
+    if (opcion) {
+        const urlWA = `https://api.whatsapp.com/send?text=${encodeURIComponent(mensajeWA)}`;
+        window.open(urlWA, '_blank');
+    } else {
+        // Objeto preparado para la impresora térmica con la etiqueta de COPIA
+        const ticketParaImprimir = {
+            ...ticket,
+            folio: folio,
+            sorteo: nombreSorteo,
+            items: items,
+            esCopia: true,
+            encabezado_tipo: '*** COPIA ***'
+        };
+
+        if (typeof window.imprimirTicketTermico === 'function') {
+            window.imprimirTicketTermico(ticketParaImprimir);
+        } else {
+            window.verTicketHistorial(uniqueId);
+        }
+    }
+};
 // Exportaciones globales
 window.initReportesModule = initReportesModule;
 window.generarReporte = generarReporte;

@@ -396,7 +396,7 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
     }
 
     if (!window.jugadasActuales || window.jugadasActuales.length === 0) {
-        alert("⚠️ Agregue al menos una jugada al ticket antes de emitir.");
+        alert("⚠️ Agregue al menos una jugada visible al ticket antes de emitir.");
         return;
     }
 
@@ -421,10 +421,11 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
         const nombreBanca = obtenerNombreBancaActual();
 
-        // Objeto de inserción limpio sin la columna 'banca' que arrojaba el error en Supabase
+        // Payload de la tabla 'tickets'
         const payloadTicket = {
             codigo: codigoTicket,
             codigo_ticket: codigoTicket,
+            banca: nombreBanca,
             banca_nombre: nombreBanca,
             vendedor: nombreBanca,
             sorteo_nombre: sorteosUnicos,
@@ -449,32 +450,33 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         const ticketRegistrado = (ticketData && ticketData.length > 0) ? ticketData[0] : payloadTicket;
         const ticketIdGenerado = ticketRegistrado.id || null;
 
-        // Inserción en la tabla 'jugadas'
-        const registrosJugadas = listaJugadas.map(j => {
-            const fila = {
-                ticket_id: ticketIdGenerado ? parseInt(ticketIdGenerado, 10) : null,
-                numero: j.numero,
-                monto: j.monto,
-                tipo: j.tipo,
-                estatus: 'pendiente',
-                estado: 'pendiente'
-            };
+        // Payload ajustado según tu esquema exacto en Supabase
+const registrosJugadas = listaJugadas.map(j => {
+    const fila = {
+        ticket_id: parseInt(ticketIdGenerado, 10),
+        numero: String(j.numero).trim(),
+        monto: j.monto,
+        tipo: j.tipo,
+        estatus: 'pendiente',
+        estado: 'pendiente'
+    };
 
-            if (j.numero.includes('-')) {
-                const partes = j.numero.split('-');
-                fila.num1 = partes[0];
-                fila.num2 = partes[1] || null;
-            } else {
-                fila.num1 = j.numero;
-                fila.num2 = null;
-            }
+    // Asignar num1 y num2 en caso de que lo utilices para palés o jugadas compuestas
+    if (j.numero.includes('-')) {
+        const partes = j.numero.split('-');
+        fila.num1 = partes[0];
+        fila.num2 = partes[1] || null;
+    } else {
+        fila.num1 = j.numero;
+        fila.num2 = null;
+    }
 
-            if (j.sorteo_id && !isNaN(parseInt(j.sorteo_id, 10))) {
-                fila.sorteo_id = parseInt(j.sorteo_id, 10);
-            }
+    if (j.sorteo_id && !isNaN(parseInt(j.sorteo_id, 10))) {
+        fila.sorteo_id = parseInt(j.sorteo_id, 10);
+    }
 
-            return fila;
-        });
+    return fila;
+});
 
         const { error: jugadasError } = await supabase
             .from('jugadas')
@@ -482,6 +484,7 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
 
         if (jugadasError) {
             console.error("❌ Error guardando en la tabla 'jugadas':", jugadasError);
+            alert(`⚠️ Atención: El ticket se creó, pero hubo un problema guardando las jugadas individuales: ${jugadasError.message}`);
         } else {
             console.log("✅ Jugadas guardadas exitosamente en la tabla 'jugadas'");
         }

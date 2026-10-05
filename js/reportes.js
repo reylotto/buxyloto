@@ -699,54 +699,74 @@ window.verTicketHistorial = async function(uniqueId) {
 };
 
 // ==========================================================
-// CANCELACIÓN DE TICKET (FIX ERROR 400 EN SUPABASE)
+// CANCELACIÓN DE TICKET - ACTUALIZACIÓN REAL EN BD
 // ==========================================================
 window.cancelarTicketHistorial = async function(uniqueId) {
-    if (!confirm(`¿Está seguro de que desea anular el ticket #${uniqueId}?`)) return;
+    const ticketObj = buscarTicketEnCache(uniqueId);
+    const folioTarget = ticketObj ? (ticketObj.codigo_ticket || ticketObj.folio || uniqueId) : uniqueId;
+
+    if (!confirm(`¿Está seguro de que desea anular el ticket #${folioTarget}?`)) return;
 
     try {
         const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
-        if (!supabase) throw new Error("Sin conexión con la base de datos.");
+        if (!supabase) throw new Error("No hay conexión con la base de datos Supabase.");
 
-        const refStr = String(uniqueId).trim();
+        const refStr = String(folioTarget).trim();
 
-        // 1. Buscar en la base de datos para obtener la clave primaria 'id' numérico
-        let query = supabase.from('tickets').select('id, codigo_ticket');
+        // 1. Obtener el ID numérico primario de la tabla 'tickets'
+        let query = supabase.from('tickets').select('id, estatus, estado');
         if (/^\d+$/.test(refStr)) {
             query = query.eq('id', parseInt(refStr, 10));
         } else {
-            query = query.eq('codigo_ticket', refStr);
+            query = query.or(`codigo_ticket.eq.${refStr},folio.eq.${refStr}`);
         }
 
         const { data: ticketBD, error: errSearch } = await query.maybeSingle();
 
         if (errSearch || !ticketBD) {
-            throw new Error("No se localizó el ticket en Supabase.");
+            throw new Error("No se encontró el ticket en la base de datos.");
         }
 
         const numericId = ticketBD.id;
 
-        // 2. Anular el ticket con su ID numérico
-        const { error: errUpdate } = await supabase
+        // 2. Anular actualizando 'estatus' y 'estado' simultáneamente por si varía la columna en Supabase
+        const { error: errUpdateTicket } = await supabase
             .from('tickets')
-            .update({ estatus: 'cancelado', estado: 'cancelado' })
+            .update({ 
+                estatus: 'cancelado', 
+                estado: 'cancelado' 
+            })
             .eq('id', numericId);
 
-        if (errUpdate) throw errUpdate;
+        if (errUpdateTicket) throw errUpdateTicket;
 
-        // 3. Anular las jugadas vinculadas
+        // 3. Anular también las jugadas asociadas en la tabla 'jugadas'
         await supabase
             .from('jugadas')
-            .update({ estatus: 'cancelado', estado: 'cancelado' })
+            .update({ 
+                estatus: 'cancelado', 
+                estado: 'cancelado' 
+            })
             .eq('ticket_id', numericId);
 
-        alert(`✅ Ticket #${uniqueId} anulado con éxito.`);
+        // 4. Actualizar memoria local (ticketsCache)
+        if (typeof ticketsCache !== 'undefined' && Array.isArray(ticketsCache)) {
+            const itemInCache = ticketsCache.find(t => String(t.id) === String(numericId) || t.codigo_ticket === refStr);
+            if (itemInCache) {
+                itemInCache.estatus = 'cancelado';
+                itemInCache.estado = 'cancelado';
+            }
+        }
 
-        // 4. Refrescar la tabla del historial
+        alert(`✅ El ticket #${folioTarget} ha sido anulado correctamente.`);
+
+        // 5. Refrescar la tabla o vista inmediatamente
         if (typeof cargarHistorialTickets === 'function') {
             await cargarHistorialTickets();
         } else if (typeof filtrarYRenderizarTicketsLocal === 'function') {
             filtrarYRenderizarTicketsLocal();
+        } else {
+            window.location.reload();
         }
 
     } catch (err) {

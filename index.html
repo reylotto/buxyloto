@@ -1788,45 +1788,140 @@
         // --- INTEGRACIÓN WHATSAPP API ---
         function setupWhatsAppButton(ticket) {
             activeTicketForWhatsApp = ticket;
-            const btnWhatsApp = document.getElementById('btn-send-whatsapp-api');
+            
+            // Buscar el botón y el input por ID principal o por fallback de selectores
+            const btnWhatsApp = document.getElementById('btn-send-whatsapp-api') || 
+                                document.getElementById('btn-send-whatsapp') || 
+                                document.querySelector('#modal-ticket-view button.bg-emerald-600');
+
+            const phoneInputEl = document.getElementById('whatsapp-phone-input') || 
+                                 document.getElementById('whatsapp-phone') || 
+                                 document.querySelector('#modal-ticket-view input');
+
+            if (!btnWhatsApp) return;
 
             btnWhatsApp.onclick = () => {
-                const phoneInput = document.getElementById('whatsapp-phone-input').value.trim();
+                const phoneInput = phoneInputEl ? phoneInputEl.value.trim() : '';
                 if (!phoneInput) {
-                    alert('Por favor ingrese el número de teléfono del cliente con código de país (Ej: +50760000000).');
+                    alert('Por favor ingrese el número de teléfono del cliente con código de país (Ej: 50760000000).');
                     return;
                 }
 
-                const cfg = AppState.ticketConfig || DEFAULT_STATE.ticketConfig;
-                const banca = AppState.bancas.find(b => b.id === ticket.bancaId);
-                const loteriaNames = ticket.loteriaIds.map(lId => {
-                    const l = AppState.loterias.find(lot => lot.id === lId);
-                    return l ? l.name : 'Sorteo';
-                }).join(', ');
+                const cfg = AppState?.ticketConfig || AppState?.config || DEFAULT_STATE?.ticketConfig || {
+                    companyName: 'BUXY LOTO',
+                    footerMessage: '¡Gracias por su compra! Conserve este boleto.'
+                };
 
-                let message = `*🎫 ${cfg.companyName} - TICKET EMITIDO*%0n`;
-                message += `--------------------------------%0n`;
-                message += `*Folio:* #${ticket.folio}%0n`;
-                message += `*Fecha:* ${ticket.createdAt}%0n`;
-                message += `*Banca:* ${banca ? banca.name : 'Central'}%0n`;
-                message += `*Sorteo(s):* ${loteriaNames}%0n`;
-                message += `--------------------------------%0n`;
-                message += `*JUGADAS:*%0n`;
+                // Identificar banca
+                const banca = AppState?.bancas?.find(b => b.id === ticket.bancaId);
+                const bancaNombre = ticket.bancaNombre || (banca ? banca.name || banca.nombre : 'Central');
 
-                ticket.items.forEach(it => {
-                    message += `• [${it.mod.toUpperCase()}] *${it.number}* - $${it.amount.toFixed(2)}%0n`;
+                // Identificar loterías / sorteos
+                let loteriaNames = ticket.loteriaNombre || ticket.sorteo_nombre || ticket.sorteo || '';
+                if (!loteriaNames && Array.isArray(ticket.loteriaIds)) {
+                    loteriaNames = ticket.loteriaIds.map(lId => {
+                        const l = AppState?.loterias?.find(lot => lot.id === lId);
+                        return l ? (l.name || l.nombre) : 'Sorteo';
+                    }).join(', ');
+                }
+                if (!loteriaNames) loteriaNames = 'Sorteo General';
+
+                // Encabezado
+                const esCopia = ticket.esCopia ? "*** REIMPRESIÓN / COPIA ***\n" : "";
+                let rawText = `${esCopia}🎫 *${cfg.companyName || 'BUXY LOTO'} - TICKET EMITIDO*\n`;
+                rawText += `--------------------------------\n`;
+                rawText += `*Folio:* #${ticket.folio || ticket.codigo_ticket || ticket.id}\n`;
+                rawText += `*Fecha:* ${ticket.createdAt || ticket.created_at || new Date().toLocaleString()}\n`;
+                rawText += `*Banca:* ${bancaNombre}\n`;
+                rawText += `*Sorteo(s):* ${loteriaNames}\n`;
+                rawText += `--------------------------------\n`;
+                rawText += `*JUGADAS:*\n`;
+
+                // Construcción segura de ítems (evita el crash de toUpperCase)
+                const items = Array.isArray(ticket.items) ? ticket.items : [];
+                items.forEach(it => {
+                    const modTipo = String(it.mod || it.type || it.tipo || 'DIRECTO').toUpperCase();
+                    const num = it.number || it.numero || it.num1 || '';
+                    const monto = parseFloat(it.amount || it.monto || 0).toFixed(2);
+                    rawText += `• [${modTipo}] *${num}* -> $${monto}\n`;
                 });
 
-                message += `--------------------------------%0n`;
-                message += `*TOTAL A PAGAR: $${ticket.total.toFixed(2)}*%0n`;
-                message += `${cfg.footerMessage} 🍀`;
+                const totalMonto = parseFloat(ticket.total || ticket.monto_total || 0).toFixed(2);
 
+                rawText += `--------------------------------\n`;
+                rawText += `*TOTAL A PAGAR: $${totalMonto}*\n`;
+                rawText += `${cfg.footerMessage || '¡Gracias por su compra!'} 🍀`;
+
+                // Formatear teléfono limpiando caracteres especiales
                 const cleanPhone = phoneInput.replace(/[^0-9]/g, '');
-                const whatsappUrl = `https://wa.me/${cleanPhone}?text=${message}`;
+                
+                // Usar encodeURIComponent de JS estándar para saltos de línea correctos
+                const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(rawText)}`;
 
                 window.open(whatsappUrl, '_blank');
             };
         }
+        // --- FUNCIÓN DE IMPRESIÓN IMPRESORES TÉRMICOS (80mm) ---
+        function imprimirTicketTermico() {
+            const ticketContainer = document.getElementById('printable-ticket') || 
+                                    document.querySelector('.ticket-container') || 
+                                    document.querySelector('#modal-ticket-view .bg-white');
+
+            if (!ticketContainer) {
+                alert("No se encontró la plantilla del ticket para imprimir.");
+                return;
+            }
+
+            const printWin = window.open('', '_blank', 'width=380,height=600');
+            printWin.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Imprimir Ticket</title>
+                    <style>
+                        @page { size: 80mm auto; margin: 0; }
+                        body {
+                            font-family: 'Courier New', Courier, monospace;
+                            width: 78mm;
+                            margin: 0 auto;
+                            padding: 8px;
+                            color: #000;
+                            background: #fff;
+                            font-size: 12px;
+                        }
+                        .text-center { text-align: center; }
+                        .font-bold { font-weight: bold; }
+                        .flex { display: flex; justify-content: space-between; }
+                        .border-dashed { border-bottom: 1px dashed #000; margin: 6px 0; }
+                        img { display: block; margin: 0 auto; max-width: 80px; }
+                        #ticket-view-copy-badge {
+                            border: 1px dashed #000 !important;
+                            color: #000 !important;
+                            background: transparent !important;
+                        }
+                    </style>
+                </head>
+                <body>
+                    ${ticketContainer.innerHTML}
+                    <script>
+                        window.onload = function() {
+                            window.print();
+                            setTimeout(function(){ window.close(); }, 500);
+                        };
+                    <\/script>
+                </body>
+                </html>
+            `);
+            printWin.document.close();
+        }
+
+        // Vincular el botón de imprimir del modal
+        document.addEventListener('DOMContentLoaded', () => {
+            const btnPrint = document.getElementById('btn-print-ticket-window');
+            if (btnPrint) {
+                btnPrint.onclick = imprimirTicketTermico;
+            }
+        });
 
         function checkClosingDrawsAlert() {
             const now = new Date();

@@ -609,7 +609,7 @@ function buscarTicketEnCache(targetId) {
 }
 
 // ==========================================================
-// VISUALIZACIÓN DEL TICKET USANDO EL MISMO MODAL DEL POS
+// VISUALIZACIÓN DEL TICKET DESDE EL HISTORIAL
 // ==========================================================
 window.verTicketHistorial = async function(uniqueId) {
     const ticket = buscarTicketEnCache(uniqueId);
@@ -649,7 +649,12 @@ window.verTicketHistorial = async function(uniqueId) {
         } catch (e) {}
     }
 
-    // Estructura adaptada idéntica a la que consume showTicketModal en el POS
+    // Declarar 'cfg' globalmente en window por si showTicketModal la requiere directamente
+    if (typeof window.cfg === 'undefined') {
+        window.cfg = window.AppState || {};
+    }
+
+    // Estructura adaptada idéntica a la que consume showTicketModal
     const ticketParaPOSModal = {
         id: ticket.id,
         folio: ticket.codigo_ticket || ticket.folio || ticket.id,
@@ -665,87 +670,87 @@ window.verTicketHistorial = async function(uniqueId) {
         esCopia: true
     };
 
-    // Llamar directamente al modal modalizado del POS
-    const fnModal = typeof showTicketModal === 'function' ? showTicketModal : window.showTicketModal;
-    if (typeof fnModal === 'function') {
-        fnModal(ticketParaPOSModal);
+    // Llamar al modal de manera segura
+    try {
+        const fnModal = typeof showTicketModal === 'function' ? showTicketModal : window.showTicketModal;
+        if (typeof fnModal === 'function') {
+            fnModal(ticketParaPOSModal);
 
-        // Inyectar marca visual de COPIA dentro del modal del POS
-        setTimeout(() => {
-            const container = document.querySelector('#ticketModal .modal-body') || 
-                              document.querySelector('#ticketModal') || 
-                              document.querySelector('.ticket-container');
-            if (container && !document.getElementById('etiqueta-copia-historial')) {
-                const copiaDiv = document.createElement('div');
-                copiaDiv.id = 'etiqueta-copia-historial';
-                copiaDiv.style.cssText = 'text-align: center; font-weight: bold; font-size: 16px; color: #ef4444; margin: 8px 0; border: 1px dashed #ef4444; padding: 4px; border-radius: 4px; background: rgba(239, 68, 68, 0.1);';
-                copiaDiv.innerHTML = '*** REIMPRESIÓN / COPIA ***';
-                container.insertBefore(copiaDiv, container.firstChild);
-            }
-        }, 150);
-    } else {
-        alert("La función showTicketModal no está disponible globalmente.");
+            // Inyectar marca visual de REIMPRESIÓN / COPIA
+            setTimeout(() => {
+                const container = document.querySelector('#ticketModal .modal-body') || 
+                                  document.querySelector('#ticketModal') || 
+                                  document.querySelector('.ticket-container');
+                if (container && !document.getElementById('etiqueta-copia-historial')) {
+                    const copiaDiv = document.createElement('div');
+                    copiaDiv.id = 'etiqueta-copia-historial';
+                    copiaDiv.style.cssText = 'text-align: center; font-weight: bold; font-size: 16px; color: #ef4444; margin: 8px 0; border: 1px dashed #ef4444; padding: 4px; border-radius: 4px; background: rgba(239, 68, 68, 0.1);';
+                    copiaDiv.innerHTML = '*** REIMPRESIÓN / COPIA ***';
+                    container.insertBefore(copiaDiv, container.firstChild);
+                }
+            }, 150);
+        } else {
+            alert("La función showTicketModal no está disponible.");
+        }
+    } catch (err) {
+        console.error("Error al abrir modal del ticket:", err);
+        alert("Ocurrió un error al desplegar el ticket: " + err.message);
     }
 };
 
 // ==========================================================
-// CANCELACIÓN DE TICKET (SOLUCIÓN DEFINTIVA AL ERROR 400)
+// CANCELACIÓN DE TICKET (FIX ERROR 400 EN SUPABASE)
 // ==========================================================
 window.cancelarTicketHistorial = async function(uniqueId) {
     if (!confirm(`¿Está seguro de que desea anular el ticket #${uniqueId}?`)) return;
 
     try {
         const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
-        if (!supabase) throw new Error("Sin conexión con Supabase.");
+        if (!supabase) throw new Error("Sin conexión con la base de datos.");
 
         const refStr = String(uniqueId).trim();
 
-        // 1. Consultar únicamente por id numérico o por código exacto
-        let query = supabase.from('tickets').select('id');
+        // 1. Buscar en la base de datos para obtener la clave primaria 'id' numérico
+        let query = supabase.from('tickets').select('id, codigo_ticket');
         if (/^\d+$/.test(refStr)) {
             query = query.eq('id', parseInt(refStr, 10));
         } else {
             query = query.eq('codigo_ticket', refStr);
         }
 
-        const { data: ticket, error: errSearch } = await query.maybeSingle();
+        const { data: ticketBD, error: errSearch } = await query.maybeSingle();
 
-        if (errSearch || !ticket) throw new Error("No se pudo localizar el ticket en la base de datos.");
+        if (errSearch || !ticketBD) {
+            throw new Error("No se localizó el ticket en Supabase.");
+        }
 
-        const ticketId = ticket.id;
+        const numericId = ticketBD.id;
 
-        // 2. Ejecutar UPDATE sobre la clave primaria id para evitar error 400
-        const { error: errUpdateTicket } = await supabase
+        // 2. Anular el ticket con su ID numérico
+        const { error: errUpdate } = await supabase
             .from('tickets')
             .update({ estatus: 'cancelado', estado: 'cancelado' })
-            .eq('id', ticketId);
+            .eq('id', numericId);
 
-        if (errUpdateTicket) throw errUpdateTicket;
+        if (errUpdate) throw errUpdate;
 
-        // 3. Cancelar las jugadas vinculadas
+        // 3. Anular las jugadas vinculadas
         await supabase
             .from('jugadas')
             .update({ estatus: 'cancelado', estado: 'cancelado' })
-            .eq('ticket_id', ticketId);
+            .eq('ticket_id', numericId);
 
         alert(`✅ Ticket #${uniqueId} anulado con éxito.`);
 
-        // 4. Actualizar estado local y refrescar la tabla
-        if (Array.isArray(ticketsCache)) {
-            const tCache = ticketsCache.find(t => String(t.id) === String(ticketId) || String(t.codigo_ticket) === refStr);
-            if (tCache) {
-                tCache.estatus = 'cancelado';
-                tCache.estado = 'cancelado';
-            }
-        }
-
-        if (typeof filtrarYRenderizarTicketsLocal === 'function') {
-            filtrarYRenderizarTicketsLocal();
-        } else if (typeof cargarHistorialTickets === 'function') {
+        // 4. Refrescar la tabla del historial
+        if (typeof cargarHistorialTickets === 'function') {
             await cargarHistorialTickets();
+        } else if (typeof filtrarYRenderizarTicketsLocal === 'function') {
+            filtrarYRenderizarTicketsLocal();
         }
 
     } catch (err) {
+        console.error("Error al anular ticket:", err);
         alert("❌ Error al anular el ticket: " + err.message);
     }
 };

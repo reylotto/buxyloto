@@ -2454,10 +2454,18 @@ if (btnProcessEl) {
             renderPOSCart();
         }
 
-        function showTicketModal(ticket) {
+       function showTicketModal(ticket) {
     if (!ticket) return;
 
-    // Normalizar items/apuestas/jugadas para evitar el TypeError (.map)
+    // Proteger cfg para evitar ReferenceError
+    const cfg = (window.AppState && window.AppState.config) || window.cfg || {
+        companyName: 'BUXY LOTO',
+        iconClass: 'fa-ticket',
+        footerMessage: '¡Gracias por su compra! Conserve este boleto.',
+        phone: '507-0000-0000'
+    };
+
+    // Normalizar items/apuestas/jugadas
     let items = ticket.items || ticket.apuestas || ticket.jugadas || ticket.detalles || [];
     if (typeof items === 'string') {
         try { items = JSON.parse(items); } catch(e) { items = []; }
@@ -2465,52 +2473,111 @@ if (btnProcessEl) {
     if (!Array.isArray(items)) items = [];
     ticket.items = items;
 
-    // ... Continúa el resto del código de showTicketModal ...
+    // Normalizar datos de banca y loterías
+    const banca = ticket.bancaObj || (window.AppState?.bancas?.find(b => b.id === ticket.bancaId));
+    const loteriaNames = ticket.loteriaNombre || ticket.sorteo_nombre || ticket.sorteo || 'Sorteo General';
 
-    document.getElementById('ticket-view-company-name').textContent = cfg.companyName;
-    document.getElementById('ticket-view-logo-icon').className = `fa-solid ${cfg.iconClass} text-emerald-600 text-base mr-1`;
-    document.getElementById('ticket-view-footer-msg').textContent = cfg.footerMessage;
-    document.getElementById('ticket-view-phone').textContent = `Tel: ${cfg.phone}`;
+    // Rellenar datos en la plantilla
+    const compEl = document.getElementById('ticket-view-company-name');
+    if (compEl) compEl.textContent = cfg.companyName || 'BUXY LOTO';
 
-    document.getElementById('ticket-view-banca').textContent = banca ? `${banca.name} (${banca.code})` : 'Banca Central';
-    document.getElementById('ticket-view-date').textContent = ticket.createdAt;
-    document.getElementById('ticket-view-folio').textContent = `#${ticket.folio}`;
-    document.getElementById('ticket-view-loterias').textContent = loteriaNames;
-    document.getElementById('ticket-view-total').textContent = `$${ticket.total.toFixed(2)}`;
+    const iconEl = document.getElementById('ticket-view-logo-icon');
+    if (iconEl) iconEl.className = `fa-solid ${cfg.iconClass || 'fa-ticket'} text-emerald-600 text-base mr-1`;
 
+    const footEl = document.getElementById('ticket-view-footer-msg');
+    if (footEl) footEl.textContent = cfg.footerMessage || '¡Gracias por su compra!';
+
+    const phoneEl = document.getElementById('ticket-view-phone');
+    if (phoneEl) phoneEl.textContent = `Tel: ${cfg.phone || 'N/A'}`;
+
+    const bancaEl = document.getElementById('ticket-view-banca');
+    if (bancaEl) bancaEl.textContent = ticket.bancaNombre || (banca ? `${banca.nombre || banca.name} (${banca.codigo || banca.code || ''})` : 'Banca Central');
+
+    const dateEl = document.getElementById('ticket-view-date');
+    if (dateEl) dateEl.textContent = ticket.createdAt || new Date().toLocaleString();
+
+    const folioEl = document.getElementById('ticket-view-folio');
+    if (folioEl) folioEl.textContent = `#${ticket.folio}`;
+
+    const loteriaEl = document.getElementById('ticket-view-loterias');
+    if (loteriaEl) loteriaEl.textContent = loteriaNames;
+
+    const totalEl = document.getElementById('ticket-view-total');
+    if (totalEl) totalEl.textContent = `$${parseFloat(ticket.total || 0).toFixed(2)}`;
+
+    // Manejar etiqueta de COPIA si aplica
+    const copyBadge = document.getElementById('ticket-view-copy-badge');
+    if (ticket.esCopia) {
+        if (!copyBadge) {
+            const badge = document.createElement('div');
+            badge.id = 'ticket-view-copy-badge';
+            badge.className = 'text-center font-bold text-red-500 text-sm border border-dashed border-red-500 my-2 p-1 rounded';
+            badge.textContent = '*** REIMPRESIÓN / COPIA ***';
+            const printable = document.getElementById('printable-ticket') || document.getElementById('modal-ticket-view');
+            if (printable) printable.insertBefore(badge, printable.firstChild);
+        } else {
+            copyBadge.classList.remove('hidden');
+        }
+    } else if (copyBadge) {
+        copyBadge.classList.add('hidden');
+    }
+
+    // Renderizar lista de jugadas
     const itemsContainer = document.getElementById('ticket-view-items-list');
-    itemsContainer.innerHTML = '';
-    ticket.items.forEach(it => {
-        const row = document.createElement('div');
-        row.className = 'flex justify-between';
-        row.innerHTML = `
-            <span>[${it.mod.toUpperCase()}] ${it.number}</span>
-            <span class="font-bold">$${it.amount.toFixed(2)}</span>
-        `;
-        itemsContainer.appendChild(row);
-    });
+    if (itemsContainer) {
+        itemsContainer.innerHTML = '';
+        ticket.items.forEach(it => {
+            const tipo = (it.mod || it.type || it.tipo || 'DIRECTO').toUpperCase();
+            const numero = it.number || it.numero || it.num1 || '';
+            const monto = parseFloat(it.amount || it.monto || 0).toFixed(2);
 
-    const qrContainer = document.getElementById('ticket-qrcode');
-    qrContainer.innerHTML = '';
-    new QRCode(qrContainer, {
-        text: ticket.folio,
-        width: 70,
-        height: 70
-    });
-
-    setupWhatsAppButton(ticket);
-
-    document.getElementById('modal-ticket-view').classList.remove('hidden');
-
-    document.getElementById('btn-print-ticket-window').onclick = () => { window.print(); };
-    document.getElementById('btn-download-ticket-img').onclick = () => {
-        html2canvas(document.getElementById('printable-ticket')).then(canvas => {
-            const link = document.createElement('a');
-            link.download = `ticket-${ticket.folio}.png`;
-            link.href = canvas.toDataURL();
-            link.click();
+            const row = document.createElement('div');
+            row.className = 'flex justify-between text-xs py-0.5 border-b border-slate-100/10';
+            row.innerHTML = `
+                <span>[${tipo}] ${numero}</span>
+                <span class="font-bold">$${monto}</span>
+            `;
+            itemsContainer.appendChild(row);
         });
-    };
+    }
+
+    // Código QR
+    const qrContainer = document.getElementById('ticket-qrcode');
+    if (qrContainer) {
+        qrContainer.innerHTML = '';
+        if (typeof QRCode !== 'undefined') {
+            new QRCode(qrContainer, {
+                text: String(ticket.folio),
+                width: 70,
+                height: 70
+            });
+        }
+    }
+
+    if (typeof setupWhatsAppButton === 'function') {
+        setupWhatsAppButton(ticket);
+    }
+
+    const modal = document.getElementById('modal-ticket-view');
+    if (modal) modal.classList.remove('hidden');
+
+    const btnPrint = document.getElementById('btn-print-ticket-window');
+    if (btnPrint) btnPrint.onclick = () => { window.print(); };
+
+    const btnDownload = document.getElementById('btn-download-ticket-img');
+    if (btnDownload) {
+        btnDownload.onclick = () => {
+            const printArea = document.getElementById('printable-ticket');
+            if (typeof html2canvas !== 'undefined' && printArea) {
+                html2canvas(printArea).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = `ticket-${ticket.folio}.png`;
+                    link.href = canvas.toDataURL();
+                    link.click();
+                });
+            }
+        };
+    }
 }
 
         function initEscrutinioForm() {

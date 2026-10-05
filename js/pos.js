@@ -439,7 +439,7 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         const sorteosIdsUnicos = [...new Set(listaJugadas.map(j => j.sorteo_id).filter(Boolean))];
         const sorteosNombresUnicos = [...new Set(listaJugadas.map(j => j.sorteo_nombre))].join(' / ');
         const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
-        const nombreBanca = obtenerNombreBancaActual();
+        const nombreBanca = typeof obtenerNombreBancaActual === 'function' ? obtenerNombreBancaActual() : 'Banca Principal';
 
         // Extraer usuario/vendedor de la sesión activa
         let usuarioId = null;
@@ -448,15 +448,15 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             usuarioId = sesion.id || sesion.user_id || sesion.uuid || null;
         } catch (e) {}
 
-        // Payload completo para la tabla 'tickets'
+        // Payload para la tabla 'tickets'
         const payloadTicket = {
             codigo_ticket: codigoTicket,
             sorteo_id: sorteosIdsUnicos.length === 1 ? sorteosIdsUnicos[0] : null,
             sorteo_nombre: sorteosNombresUnicos,
             monto_total: parseFloat(montoTotal.toFixed(2)),
             monto: parseFloat(montoTotal.toFixed(2)),
-            jugadas: listaJugadas, // Formato JSONB
-            detalles: listaJugadas, // Formato JSONB duplicado por compatibilidad
+            jugadas: listaJugadas,
+            detalles: listaJugadas,
             estatus: 'pendiente',
             estado: 'pendiente',
             usuario_id: usuarioId,
@@ -465,6 +465,7 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             banca_nombre: nombreBanca
         };
 
+        // 1. Insertar en tabla 'tickets'
         const { data: ticketData, error: ticketError } = await supabase
             .from('tickets')
             .insert([payloadTicket])
@@ -483,29 +484,30 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             return;
         }
 
-        // INSERCIÓN DIRECTA EN LA TABLA RELACIONAL 'jugadas'
-        if (ticketIdGenerado) {
-            const registrosJugadas = listaJugadas.map(j => ({
-                ticket_id: parseInt(ticketIdGenerado, 10),
-                numero: String(j.numero).trim(),
-                monto: parseFloat(j.monto),
-                tipo: String(j.tipo || 'directo').toLowerCase(),
-                sorteo_id: j.sorteo_id ? parseInt(j.sorteo_id, 10) : null,
-                estatus: 'pendiente'
-            }));
+        // 2. Insertar desglosado en tabla 'jugadas' usando ticketRegistrado.id
+        const registrosJugadas = listaJugadas.map(j => ({
+            ticket_id: ticketRegistrado.id,
+            numero: j.numero,
+            monto: j.monto,
+            tipo: j.tipo,
+            sorteo_id: j.sorteo_id,
+            estatus: 'pendiente'
+        }));
 
-            const { data: jugadasData, error: jugadasError } = await supabase
-                .from('jugadas')
-                .insert(registrosJugadas)
-                .select();
+        const { data: jugadasData, error: jugadasError } = await supabase
+            .from('jugadas')
+            .insert(registrosJugadas)
+            .select();
 
-            if (jugadasError) {
-                console.error("❌ Error insertando en 'jugadas':", jugadasError);
-                alert(`⚠️ Atención: El ticket se emitió, pero hubo un detalle en 'jugadas': ${jugadasError.message}`);
-            } else {
-                console.log("✅ Jugadas sincronizadas con éxito:", jugadasData);
-            }
+        if (jugadasError) {
+            console.error("❌ Error sincronizando tabla 'jugadas':", jugadasError);
+            alert(`⚠️ Ticket emitido (#${codigoTicket}), pero hubo un problema guardando el desglose en 'jugadas': ${jugadasError.message}`);
+        } else {
+            console.log("✅ Desglose de jugadas insertado con éxito en Supabase:", jugadasData);
         }
+
+        // Verificar éxito visual en UI
+        console.log(`Proceso finalizado. Ticket ID: ${ticketRegistrado.id}`);
 
         const ticketParaImprimir = {
             ...ticketRegistrado,
@@ -514,7 +516,7 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             jugadas: listaJugadas
         };
 
-        vaciarCarrito();
+        if (typeof vaciarCarrito === 'function') vaciarCarrito();
         document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = false);
         if (typeof actualizarResumenSorteos === 'function') actualizarResumenSorteos();
 

@@ -739,42 +739,45 @@ async function cargarHistorialTickets() {
 window.cargarHistorialTickets = cargarHistorialTickets;
 window.cargarVentas = cargarHistorialTickets;
 
-// BUSCAR ESTE BLOQUE EN dashboard.js (alrededor de la línea 447) Y REEMPLAZARLO:
-
+// ==========================================================
+// ANULACIÓN / ELIMINACIÓN DE TICKETS EN DASHBOARD (CORREGIDA)
+// ==========================================================
 window.eliminarTicketHistorial = async function(ticketId) {
-    if (!confirm('¿Está seguro de que desea anular/eliminar este ticket?')) return;
+    if (!confirm('¿Está seguro de que desea anular/cancelar este ticket?')) return;
 
     try {
-        const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
-        
-        // 1. Anular/Eliminar jugadas en cascada primero
-        await supabase
-            .from('jugadas')
-            .delete()
-            .eq('ticket_id', ticketId);
+        if (typeof window.anularOTicketCancelado === 'function') {
+            const res = await window.anularOTicketCancelado(ticketId);
+            if (!res.success) throw new Error(res.error);
+        } else {
+            // Fallback directo a Supabase con búsqueda por ID o Folio
+            const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
+            const ref = String(ticketId).trim();
+            const esNumero = /^\d+$/.test(ref);
 
-        // 2. Anular/Eliminar el ticket principal
-        const { error } = await supabase
-            .from('tickets')
-            .delete()
-            .eq('id', ticketId);
+            let query = supabase.from('tickets').update({ estatus: 'cancelado', estado: 'cancelado' });
 
-        if (error) throw error;
+            if (esNumero) {
+                query = query.eq('id', parseInt(ref, 10));
+            } else {
+                query = query.or(`folio.eq.${ref},codigo_ticket.eq.${ref}`);
+            }
+
+            const { error } = await query;
+            if (error) throw error;
+        }
 
         alert('✅ Ticket anulado correctamente.');
 
-        // 3. Recalcular y actualizar Dashboard en tiempo real
-        await cargarHistorialTickets();
-        await cargarMetricasSeguras();
-        if (typeof cargarResumenOperacionesHoy === 'function') {
-            await cargarResumenOperacionesHoy();
-        }
+        // Recalcular métricas
+        if (typeof cargarHistorialTickets === 'function') await cargarHistorialTickets();
+        if (typeof cargarMetricasSeguras === 'function') await cargarMetricasSeguras();
+        if (typeof cargarResumenOperacionesHoy === 'function') await cargarResumenOperacionesHoy();
 
     } catch (err) {
         alert('❌ Error al anular el ticket: ' + err.message);
     }
 };
-
 // Navegación de secciones
 function cambiarSeccion(seccionId) {
     document.querySelectorAll('.content-section').forEach(sec => sec.classList.add('hidden'));

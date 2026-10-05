@@ -608,6 +608,10 @@ function buscarTicketEnCache(targetId) {
     );
 }
 
+// ==========================================================
+// VISUALIZACIÓN Y CANCELACIÓN DE TICKETS DESDE EL HISTORIAL
+// ==========================================================
+
 window.verTicketHistorial = function(uniqueId) {
     const ticket = buscarTicketEnCache(uniqueId);
     if (!ticket) {
@@ -616,14 +620,23 @@ window.verTicketHistorial = function(uniqueId) {
     }
 
     const items = normalizarItemsTicket(ticket);
+    const estatusActual = String(ticket.estatus || ticket.status || ticket.estado || 'pendiente').toLowerCase();
+    const esCancelado = estatusActual === 'cancelado' || estatusActual === 'anulado';
+
+    // Normalización de datos con Sorteo/Lotería para el Ticket Térmico
     const ticketNormalizado = {
         ...ticket,
         folio: ticket.codigo_ticket || ticket.folio || ticket.ticket_numero || ticket.id,
+        sorteo: ticket.sorteo || ticket.nombre_sorteo || ticket.loteria || ticket.sorteo_nombre || 'Sorteo General',
         items: items,
+        jugadas: items,
         apuestas: items,
-        banca_nombre: obtenerNombreBanca(ticket.banca_id, ticket)
+        banca_nombre: obtenerNombreBanca(ticket.banca_id, ticket),
+        estatus: esCancelado ? 'CANCELADO' : estatusActual.toUpperCase(),
+        esCancelado: esCancelado
     };
 
+    // Intentar mostrar modal unificado si está definido
     if (typeof window.showTicketModal === 'function') {
         try {
             window.showTicketModal(ticketNormalizado);
@@ -633,7 +646,34 @@ window.verTicketHistorial = function(uniqueId) {
         }
     }
 
-    mostrarModalTermicoRespaldo(ticketNormalizado);
+    // Modal térmico de respaldo
+    if (typeof mostrarModalTermicoRespaldo === 'function') {
+        mostrarModalTermicoRespaldo(ticketNormalizado);
+    }
+};
+
+window.cancelarTicketHistorial = async function(uniqueId) {
+    if (!confirm(`¿Está seguro de que desea anular/cancelar el ticket #${uniqueId}?`)) return;
+
+    try {
+        if (typeof window.anularOTicketCancelado === 'function') {
+            const res = await window.anularOTicketCancelado(uniqueId);
+            if (!res.success) throw new Error(res.error);
+        } else {
+            throw new Error("La función de anulación no está cargada.");
+        }
+
+        alert(`✅ Ticket #${uniqueId} anulado correctamente.`);
+
+        // Recargar datos en pantalla
+        if (typeof filtrarYRenderizarTicketsLocal === 'function') {
+            const ticket = buscarTicketEnCache(uniqueId);
+            if (ticket) ticket.estatus = 'cancelado';
+            filtrarYRenderizarTicketsLocal();
+        }
+    } catch (err) {
+        alert('❌ Error al anular el ticket: ' + err.message);
+    }
 };
 
 window.imprimirTicketHistorial = function(uniqueId) {

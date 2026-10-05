@@ -406,7 +406,7 @@ window.descargarPDFTicket = descargarPDFTicket;
 window.mostrarOpcionesExportacionTicket = mostrarOpcionesExportacionTicket;
 
 // ==========================================================
-// FUNCIÓN CENTRAL PARA ANULAR / CANCELAR TICKET Y RECALCULAR (CORREGIDA)
+// FUNCIÓN CENTRAL PARA ANULAR TICKET (CORREGIDA SIN ERROR 400)
 // ==========================================================
 export async function anularOTicketCancelado(ticketId) {
     if (!ticketId) return { success: false, error: 'ID de ticket no válido.' };
@@ -416,42 +416,35 @@ export async function anularOTicketCancelado(ticketId) {
 
     try {
         const ticketRef = String(ticketId).trim();
-        const esNumero = /^\d+$/.test(ticketRef);
+        const esNumeroPuro = /^\d+$/.test(ticketRef);
 
-        // 1. Construir la condición de búsqueda segura según el tipo de dato
+        // Construir la consulta según el tipo de identificador recibidob
         let query = supabase.from('tickets').update({ estatus: 'cancelado', estado: 'cancelado' });
 
-        if (esNumero) {
-            query = query.or(`id.eq.${ticketRef},folio.eq.${ticketRef},codigo_ticket.eq.${ticketRef}`);
+        if (esNumeroPuro) {
+            query = query.eq('id', parseInt(ticketRef, 10));
         } else {
-            // Si tiene prefijo como 'BX-173095', solo buscar por columnas de texto (folio o codigo_ticket)
+            // Si es un folio/código texto tipo "BX-173095", NO incluir id
             query = query.or(`folio.eq.${ticketRef},codigo_ticket.eq.${ticketRef}`);
         }
 
-        const { data: ticketActualizado, error: updateError } = await query.select();
+        const { data: ticketsActualizados, error: updateError } = await query.select();
 
         if (updateError) throw updateError;
 
-        // Obtener el ID numérico real del ticket cancelado para limpiar las jugadas
-        const realId = ticketActualizado && ticketActualizado[0] ? ticketActualizado[0].id : null;
+        // Obtener el ID numérico real del ticket para limpiar o marcar sus jugadas
+        const idReal = ticketsActualizados && ticketsActualizados.length > 0 ? ticketsActualizados[0].id : null;
 
-        // 2. Eliminar o inactivar jugadas asociadas usando el ID o el código del ticket
-        if (realId) {
-            await supabase.from('jugadas').delete().eq('ticket_id', realId);
+        if (idReal) {
+            await supabase.from('jugadas').update({ estatus: 'cancelado' }).eq('ticket_id', idReal);
         } else {
-            await supabase.from('jugadas').delete().or(`codigo_ticket.eq.${ticketRef},folio.eq.${ticketRef}`);
+            await supabase.from('jugadas').update({ estatus: 'cancelado' }).or(`codigo_ticket.eq.${ticketRef},folio.eq.${ticketRef}`);
         }
 
-        // 3. Actualizar vistas y métricas en pantalla
-        if (typeof window.cargarMetricasSeguras === 'function') {
-            await window.cargarMetricasSeguras();
-        }
-        if (typeof window.cargarResumenOperacionesHoy === 'function') {
-            await window.cargarResumenOperacionesHoy();
-        }
-        if (typeof window.cargarHistorialTickets === 'function') {
-            await window.cargarHistorialTickets();
-        }
+        // Actualizar vistas locales y métricas automáticamente
+        if (typeof window.cargarMetricasSeguras === 'function') await window.cargarMetricasSeguras();
+        if (typeof window.cargarResumenOperacionesHoy === 'function') await window.cargarResumenOperacionesHoy();
+        if (typeof window.cargarHistorialTickets === 'function') await window.cargarHistorialTickets();
 
         return { success: true };
     } catch (err) {

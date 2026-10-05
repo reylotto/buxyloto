@@ -1863,57 +1863,59 @@
         }
         // --- FUNCIÓN DE IMPRESIÓN IMPRESORES TÉRMICOS (80mm) ---
         function imprimirTicketTermico() {
-            const ticketContainer = document.getElementById('printable-ticket') || 
-                                    document.querySelector('.ticket-container') || 
-                                    document.querySelector('#modal-ticket-view .bg-white');
+    const ticketContainer = document.getElementById('printable-ticket') || 
+                            document.querySelector('.ticket-container') || 
+                            document.querySelector('#modal-ticket-view');
 
-            if (!ticketContainer) {
-                alert("No se encontró la plantilla del ticket para imprimir.");
-                return;
-            }
+    if (!ticketContainer) {
+        alert("No se encontró la plantilla del ticket.");
+        return;
+    }
 
-            const printWin = window.open('', '_blank', 'width=380,height=600');
-            printWin.document.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Imprimir Ticket</title>
-                    <style>
-                        @page { size: 80mm auto; margin: 0; }
-                        body {
-                            font-family: 'Courier New', Courier, monospace;
-                            width: 78mm;
-                            margin: 0 auto;
-                            padding: 8px;
-                            color: #000;
-                            background: #fff;
-                            font-size: 12px;
-                        }
-                        .text-center { text-align: center; }
-                        .font-bold { font-weight: bold; }
-                        .flex { display: flex; justify-content: space-between; }
-                        .border-dashed { border-bottom: 1px dashed #000; margin: 6px 0; }
-                        img { display: block; margin: 0 auto; max-width: 80px; }
-                        #ticket-view-copy-badge {
-                            border: 1px dashed #000 !important;
-                            color: #000 !important;
-                            background: transparent !important;
-                        }
-                    </style>
-                </head>
-                <body>
-                    ${ticketContainer.innerHTML}
-                    <script>
-                        window.onload = function() {
-                            window.print();
-                            setTimeout(function(){ window.close(); }, 500);
-                        };
-                    <\/script>
-                </body>
-                </html>
-            `);
-            printWin.document.close();
-        }
+    const printWin = window.open('', '_blank', 'width=380,height=600');
+    
+    // Validar si el navegador bloqueó la ventana emergente
+    if (!printWin) {
+        alert("El navegador bloqueó la ventana de impresión. Por favor, permita las ventanas emergentes (pop-ups) para este sitio.");
+        return;
+    }
+
+    printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Imprimir Ticket</title>
+            <style>
+                @page { size: 80mm auto; margin: 0; }
+                body {
+                    font-family: monospace;
+                    width: 78mm;
+                    margin: 0 auto;
+                    padding: 8px;
+                    color: #000;
+                    background: #fff;
+                    font-size: 12px;
+                }
+                .text-center { text-align: center; }
+                .font-bold { font-weight: bold; }
+                .flex { display: flex; justify-content: space-between; }
+                .border-dashed { border-bottom: 1px dashed #000; margin: 6px 0; }
+                img { display: block; margin: 0 auto; max-width: 80px; }
+            </style>
+        </head>
+        <body>
+            ${ticketContainer.innerHTML}
+            <script>
+                window.onload = function() {
+                    window.print();
+                    setTimeout(function(){ window.close(); }, 500);
+                };
+            <\/script>
+        </body>
+        </html>
+    `);
+    printWin.document.close();
+}
 
         // Vincular el botón de imprimir del modal
         document.addEventListener('DOMContentLoaded', () => {

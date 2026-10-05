@@ -699,79 +699,60 @@ window.verTicketHistorial = async function(uniqueId) {
 };
 
 // ==========================================================
-// CANCELACIÓN DE TICKET - ACTUALIZACIÓN REAL EN BD
+// CANCELACIÓN DE TICKET (SIN ERROR 400 EN SUPABASE)
 // ==========================================================
 window.cancelarTicketHistorial = async function(uniqueId) {
-    const ticketObj = buscarTicketEnCache(uniqueId);
-    const folioTarget = ticketObj ? (ticketObj.codigo_ticket || ticketObj.folio || uniqueId) : uniqueId;
-
-    if (!confirm(`¿Está seguro de que desea anular el ticket #${folioTarget}?`)) return;
+    if (!confirm(`¿Está seguro de que desea anular el ticket #${uniqueId}?`)) return;
 
     try {
         const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
-        if (!supabase) throw new Error("No hay conexión con la base de datos Supabase.");
+        if (!supabase) throw new Error("Sin conexión con Supabase.");
 
-        const refStr = String(folioTarget).trim();
+        const refStr = String(uniqueId).trim();
+        let targetId = null;
 
-        // 1. Obtener el ID numérico primario de la tabla 'tickets'
-        let query = supabase.from('tickets').select('id, estatus, estado');
+        // Si refStr es un número entero puro, buscamos por ID
         if (/^\d+$/.test(refStr)) {
-            query = query.eq('id', parseInt(refStr, 10));
-        } else {
-            query = query.or(`codigo_ticket.eq.${refStr},folio.eq.${refStr}`);
+            const { data } = await supabase.from('tickets').select('id').eq('id', parseInt(refStr, 10)).maybeSingle();
+            if (data) targetId = data.id;
         }
 
-        const { data: ticketBD, error: errSearch } = await query.maybeSingle();
-
-        if (errSearch || !ticketBD) {
-            throw new Error("No se encontró el ticket en la base de datos.");
+        // Si no se encontró o es un código en texto (ej: BX-976964), buscamos solo en columnas de texto
+        if (!targetId) {
+            const { data } = await supabase.from('tickets').select('id').eq('codigo_ticket', refStr).maybeSingle();
+            if (data) targetId = data.id;
         }
 
-        const numericId = ticketBD.id;
+        if (!targetId) {
+            throw new Error(`No se encontró el ticket ${refStr} en la base de datos.`);
+        }
 
-        // 2. Anular actualizando 'estatus' y 'estado' simultáneamente por si varía la columna en Supabase
-        const { error: errUpdateTicket } = await supabase
+        // 1. Actualizar el estado en la tabla 'tickets' usando la clave id numérica
+        const { error: errTicket } = await supabase
             .from('tickets')
-            .update({ 
-                estatus: 'cancelado', 
-                estado: 'cancelado' 
-            })
-            .eq('id', numericId);
+            .update({ estatus: 'cancelado', estado: 'cancelado' })
+            .eq('id', targetId);
 
-        if (errUpdateTicket) throw errUpdateTicket;
+        if (errTicket) throw errTicket;
 
-        // 3. Anular también las jugadas asociadas en la tabla 'jugadas'
+        // 2. Actualizar las jugadas en la tabla 'jugadas'
         await supabase
             .from('jugadas')
-            .update({ 
-                estatus: 'cancelado', 
-                estado: 'cancelado' 
-            })
-            .eq('ticket_id', numericId);
+            .update({ estatus: 'cancelado', estado: 'cancelado' })
+            .eq('ticket_id', targetId);
 
-        // 4. Actualizar memoria local (ticketsCache)
-        if (typeof ticketsCache !== 'undefined' && Array.isArray(ticketsCache)) {
-            const itemInCache = ticketsCache.find(t => String(t.id) === String(numericId) || t.codigo_ticket === refStr);
-            if (itemInCache) {
-                itemInCache.estatus = 'cancelado';
-                itemInCache.estado = 'cancelado';
-            }
-        }
+        alert(`✅ Ticket #${refStr} anulado correctamente en la base de datos.`);
 
-        alert(`✅ El ticket #${folioTarget} ha sido anulado correctamente.`);
-
-        // 5. Refrescar la tabla o vista inmediatamente
+        // 3. Refrescar la vista
         if (typeof cargarHistorialTickets === 'function') {
             await cargarHistorialTickets();
-        } else if (typeof filtrarYRenderizarTicketsLocal === 'function') {
-            filtrarYRenderizarTicketsLocal();
         } else {
             window.location.reload();
         }
 
     } catch (err) {
         console.error("Error al anular ticket:", err);
-        alert("❌ Error al anular el ticket: " + err.message);
+        alert("❌ No se pudo anular: " + err.message);
     }
 };
 

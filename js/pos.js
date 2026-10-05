@@ -490,7 +490,6 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             monto: j.monto,
             tipo: j.tipo,
             sorteo_id: j.sorteo_id,
-            sorteo_nombre: j.sorteo_nombre,
             estatus: 'pendiente'
         }));
 

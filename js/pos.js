@@ -289,33 +289,44 @@ window.agregarJugadaAlCarrito = agregarJugadaAlCarrito;
 
 export function renderizarCarrito() {
     let totalMonto = 0;
-    const cantidadJugadas = window.jugadasActuales ? window.jugadasActuales.length : 0;
+
+    let contenedorTicket = document.getElementById('ticket-actual-container') || 
+                           document.querySelector('.ticket-actual-card');
+
+    if (!contenedorTicket) {
+        const paneles = document.querySelectorAll('div, section');
+        paneles.forEach(p => {
+            if (p.textContent && (p.textContent.includes('Ticket Actual') || p.textContent.includes('TOTAL A PAGAR'))) {
+                contenedorTicket = p;
+            }
+        });
+    }
 
     let areaLista = document.getElementById('ticket-actual-list') || 
                     document.querySelector('.ticket-actual-list');
 
-    if (!areaLista) {
-        const tarjetaTicket = document.querySelector('.ticket-actual-card') || document.body;
-        areaLista = tarjetaTicket.querySelector('.space-y-2') || 
-                    tarjetaTicket.querySelector('.overflow-y-auto');
+    if (!areaLista && contenedorTicket) {
+        areaLista = contenedorTicket.querySelector('.space-y-2') || 
+                    contenedorTicket.querySelector('.overflow-y-auto') || 
+                    contenedorTicket.querySelector('div[class*="list"]');
     }
 
     if (areaLista) {
+        areaLista.id = 'ticket-actual-list';
         areaLista.innerHTML = '';
 
-        if (cantidadJugadas === 0) {
+        if (!window.jugadasActuales || window.jugadasActuales.length === 0) {
             areaLista.innerHTML = `
                 <div style="text-align: center; color: #94a3b8; padding: 25px 10px; font-size: 13px;">
                     <div style="font-size: 22px; margin-bottom: 6px; opacity: 0.5;">📋</div>
-                    No hay jugadas añadidas
+                    No hay jugadas añadidas en este ticket
                 </div>`;
         } else {
             const wrapper = document.createElement('div');
-            wrapper.style.cssText = 'max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px;';
+            wrapper.style.cssText = 'max-height: 260px; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 6px;';
 
             window.jugadasActuales.forEach((j, index) => {
-                const mnt = parseFloat(j.monto || 0);
-                totalMonto += mnt;
+                totalMonto += parseFloat(j.monto || 0);
 
                 const itemRow = document.createElement('div');
                 itemRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #ffffff;';
@@ -325,22 +336,14 @@ export function renderizarCarrito() {
                         <div style="font-size: 10px; color: #38bdf8; font-weight: bold;">[${j.sorteo_nombre}]</div>
                         <div style="margin-top: 2px; display: flex; align-items: center; gap: 6px;">
                             <strong style="color: #facc15; font-size: 14px; font-family: monospace;">#${j.numero}</strong> 
-                            <span style="font-size: 9px; text-transform: uppercase; background: #0f172a; color: #cbd5e1; padding: 1px 5px; border-radius: 3px; border: 1px solid #475569;">${j.tipo}</span>
+                            <span style="font-size: 9px; text-transform: uppercase; background: #0f172a; padding: 1px 5px; border-radius: 3px; border: 1px solid #475569;">${j.tipo}</span>
                         </div>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-weight: bold; color: #10b981; font-size: 14px; font-family: monospace;">$${mnt.toFixed(2)}</span>
-                        <button type="button" data-index="${index}" class="btn-remove-item" style="background: #ef4444; color: #ffffff; border: none; border-radius: 4px; width: 22px; height: 22px; cursor: pointer; font-size: 11px; font-weight: bold;">✕</button>
+                    <div style="font-weight: bold; color: #10b981; font-size: 14px; margin-right: 10px; font-family: monospace;">
+                        $${parseFloat(j.monto).toFixed(2)}
                     </div>
+                    <button type="button" onclick="window.eliminarJugadaCarrito(${index})" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; width: 22px; height: 22px; cursor: pointer; font-size: 11px; font-weight: bold;">✕</button>
                 `;
-
-                const btnBorrar = itemRow.querySelector('.btn-remove-item');
-                btnBorrar.onclick = (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    window.eliminarJugadaCarrito(index);
-                };
-
                 wrapper.appendChild(itemRow);
             });
 
@@ -350,17 +353,15 @@ export function renderizarCarrito() {
         window.jugadasActuales.forEach(j => totalMonto += parseFloat(j.monto || 0));
     }
 
-    // ACTUALIZACIÓN DE CANTIDAD DE JUGADAS EN PANTALLA
-    const nodosCantidad = document.querySelectorAll('#lbl-cantidad-jugadas, .lbl-cantidad-jugadas, [id*="cantidad"], [class*="cantidad"]');
-    nodosCantidad.forEach(el => {
-        if (el.tagName !== 'INPUT') el.textContent = cantidadJugadas;
-    });
+    const totalElem = document.getElementById('lbl-total-pagar') || document.querySelector('.total-pagar-monto');
+    if (totalElem) {
+        totalElem.textContent = `$${totalMonto.toFixed(2)}`;
+    }
 
-    // ACTUALIZACIÓN DEL TOTAL A PAGAR EN PANTALLA
-    const nodosTotal = document.querySelectorAll('#lbl-total-pagar, .lbl-total-pagar, [id*="total-pagar"], .total-pagar-monto');
-    nodosTotal.forEach(el => {
-        if (el.tagName !== 'INPUT') el.textContent = `$${totalMonto.toFixed(2)}`;
-    });
+    const cantidadElem = document.getElementById('lbl-cantidad-jugadas') || document.querySelector('.lbl-cantidad-jugadas');
+    if (cantidadElem) {
+        cantidadElem.textContent = window.jugadasActuales ? window.jugadasActuales.length : 0;
+    }
 }
 window.renderizarCarrito = renderizarCarrito;
 
@@ -450,33 +451,28 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         const ticketRegistrado = (ticketData && ticketData.length > 0) ? ticketData[0] : payloadTicket;
         const ticketIdGenerado = ticketRegistrado.id || null;
 
-        // Payload ajustado según tu esquema exacto en Supabase
-const registrosJugadas = listaJugadas.map(j => {
-    const fila = {
-        ticket_id: parseInt(ticketIdGenerado, 10),
-        numero: String(j.numero).trim(),
-        monto: j.monto,
-        tipo: j.tipo,
-        estatus: 'pendiente',
-        estado: 'pendiente'
-    };
+        // Payload universal para la tabla 'jugadas' (compatibilidad doble con ticket_id y codigo_ticket)
+        const registrosJugadas = listaJugadas.map(j => {
+            const fila = {
+                codigo_ticket: codigoTicket,
+                numero: j.numero,
+                monto: j.monto,
+                tipo: j.tipo,
+                sorteo_nombre: j.sorteo_nombre,
+                banca: nombreBanca,
+                estatus: 'pendiente'
+            };
 
-    // Asignar num1 y num2 en caso de que lo utilices para palés o jugadas compuestas
-    if (j.numero.includes('-')) {
-        const partes = j.numero.split('-');
-        fila.num1 = partes[0];
-        fila.num2 = partes[1] || null;
-    } else {
-        fila.num1 = j.numero;
-        fila.num2 = null;
-    }
+            if (ticketIdGenerado) {
+                fila.ticket_id = parseInt(ticketIdGenerado, 10);
+            }
 
-    if (j.sorteo_id && !isNaN(parseInt(j.sorteo_id, 10))) {
-        fila.sorteo_id = parseInt(j.sorteo_id, 10);
-    }
+            if (j.sorteo_id && !isNaN(parseInt(j.sorteo_id, 10))) {
+                fila.sorteo_id = parseInt(j.sorteo_id, 10);
+            }
 
-    return fila;
-});
+            return fila;
+        });
 
         const { error: jugadasError } = await supabase
             .from('jugadas')

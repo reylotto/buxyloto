@@ -495,8 +495,8 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
 
         console.log(`✅ Ticket #${ticketCreado.id} guardado con éxito. Insertando ${listaJugadas.length} jugadas...`);
 
-       // Mapeo adaptado a la tabla jugadas
-       const registrosJugadas = listaJugadas.map(j => {
+       // Preparar registros limpios para Supabase
+        const registrosJugadas = listaJugadas.map(j => {
             const numStr = String(j.numero || '').trim();
             const partes = numStr.includes('-') ? numStr.split('-') : [numStr];
 
@@ -504,28 +504,23 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
                 ticket_id: parseInt(ticketCreado.id, 10),
                 tipo: String(j.tipo || 'directo').toLowerCase(),
                 numero: numStr,
-                num1: String(partes[0] || numStr),
+                num1: partes[0] ? String(partes[0]) : null,
                 num2: partes[1] ? String(partes[1]) : null,
-                monto: parseFloat(j.monto) || 0,
-                sorteo_id: j.sorteo_id ? parseInt(j.sorteo_id, 10) : null,
-                sorteo_nombre: j.sorteo_nombre || null,
-                estatus: 'activo',
-                estado: 'pendiente'
+                monto: parseFloat(j.monto) || 0
             };
         });
 
-        console.log("➡️ Enviando jugadas a Supabase:", registrosJugadas);
+        console.log("➡️ Guardando jugadas en Supabase:", registrosJugadas);
 
+        // Inserción sin enviar campos innecesarios
         const { data: jugadasData, error: jugadasError } = await supabase
             .from('jugadas')
-            .insert(registrosJugadas)
-            .select('*');
+            .insert(registrosJugadas);
 
         if (jugadasError) {
-            console.error("❌ ERROR DIRECTO DE SUPABASE EN JUGADAS:", jugadasError);
-            alert(`⚠️ Ticket emitido (#${codigoTicket}), pero falló 'jugadas': ${jugadasError.message}`);
+            console.error("❌ Error al insertar jugadas:", jugadasError);
         } else {
-            console.log("🎉 JUGADAS INSERTADAS CON ÉXITO EN TABLE EDITOR:", jugadasData);
+            console.log("✅ Jugadas guardadas exitosamente.");
         }
 
         // Limpieza de UI y resúmenes

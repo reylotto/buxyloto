@@ -441,23 +441,28 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
         const nombreBanca = obtenerNombreBancaActual();
 
-        // Obtener ID del vendedor/usuario activo si existe en sesión
+        // Extraer usuario/vendedor de la sesión activa
         let usuarioId = null;
         try {
             const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
-            usuarioId = sesion.id || sesion.user_id || null;
+            usuarioId = sesion.id || sesion.user_id || sesion.uuid || null;
         } catch (e) {}
 
-        // Objeto compatible con el esquema real de Supabase (tickets)
+        // Payload completo para la tabla 'tickets'
         const payloadTicket = {
             codigo_ticket: codigoTicket,
             sorteo_id: sorteosIdsUnicos.length === 1 ? sorteosIdsUnicos[0] : null,
             sorteo_nombre: sorteosNombresUnicos,
             monto_total: parseFloat(montoTotal.toFixed(2)),
-            jugadas: listaJugadas, // Columna JSONB en Supabase
+            monto: parseFloat(montoTotal.toFixed(2)),
+            jugadas: listaJugadas, // Formato JSONB
+            detalles: listaJugadas, // Formato JSONB duplicado por compatibilidad
             estatus: 'pendiente',
+            estado: 'pendiente',
+            usuario_id: usuarioId,
             vendedor_id: usuarioId,
-            usuario_id: usuarioId
+            vendedor: nombreBanca,
+            banca_nombre: nombreBanca
         };
 
         const { data: ticketData, error: ticketError } = await supabase
@@ -471,27 +476,34 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             return;
         }
 
-        const ticketRegistrado = (ticketData && ticketData.length > 0) ? ticketData[0] : payloadTicket;
-        const ticketIdGenerado = ticketRegistrado.id || null;
+        const ticketRegistrado = (ticketData && ticketData.length > 0) ? ticketData[0] : null;
 
-        // REGISTRO DE FILAS EN LA TABLA 'jugadas'
-        if (ticketIdGenerado) {
-            const registrosJugadas = listaJugadas.map(j => ({
-                ticket_id: parseInt(ticketIdGenerado, 10),
-                numero: j.numero,
-                monto: j.monto,
-                tipo: j.tipo,
-                sorteo_id: j.sorteo_id || null,
-                estatus: 'pendiente'
-            }));
+        if (!ticketRegistrado || !ticketRegistrado.id) {
+            alert("❌ El ticket se guardó pero no devolvió un ID válido.");
+            return;
+        }
 
-            const { error: jugadasError } = await supabase
-                .from('jugadas')
-                .insert(registrosJugadas);
+        // INSERCIÓN DIRECTA EN LA TABLA RELACIONAL 'jugadas'
+        const registrosJugadas = listaJugadas.map(j => ({
+            ticket_id: ticketRegistrado.id,
+            numero: j.numero,
+            monto: j.monto,
+            tipo: j.tipo,
+            sorteo_id: j.sorteo_id,
+            sorteo_nombre: j.sorteo_nombre,
+            estatus: 'pendiente'
+        }));
 
-            if (jugadasError) {
-                console.error("❌ Advertencia al guardar en tabla 'jugadas':", jugadasError.message);
-            }
+        const { data: jugadasData, error: jugadasError } = await supabase
+            .from('jugadas')
+            .insert(registrosJugadas)
+            .select();
+
+        if (jugadasError) {
+            console.error("❌ Error sincronizando tabla 'jugadas':", jugadasError);
+            alert(`⚠️ Ticket emitido (#${codigoTicket}), pero hubo un problema guardando el desglose en 'jugadas': ${jugadasError.message}`);
+        } else {
+            console.log("✅ Desglose de jugadas insertado con éxito en Supabase:", jugadasData);
         }
 
         const ticketParaImprimir = {
@@ -512,12 +524,12 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         } else if (typeof mostrarOpcionesManager === 'function') {
             mostrarOpcionesManager(ticketParaImprimir);
         } else {
-            alert(`✅ Ticket #${codigoTicket} registrado exitosamente.`);
+            alert(`✅ Ticket #${codigoTicket} registrado e insertado correctamente.`);
         }
 
     } catch (err) {
-        console.error("❌ Error en la emisión:", err);
-        alert("❌ Error crítico procesando ticket: " + err.message);
+        console.error("❌ Error general:", err);
+        alert("❌ Error procesando ticket: " + err.message);
     } finally {
         if (btnEmitir) btnEmitir.disabled = false;
     }

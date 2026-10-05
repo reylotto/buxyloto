@@ -237,90 +237,64 @@ function actualizarResumenSorteos() {
 }
 window.actualizarResumenSorteos = actualizarResumenSorteos;
 
-// ----------------------------------------------------------
-// 5. GESTIÓN DEL CARRITO DE JUGADAS LOCAL
-// ----------------------------------------------------------
-function agregarJugadaAlCarrito(e) {
-    if (e) e.preventDefault();
-    const inputNumero = document.getElementById('pos-input-numbers');
-    const inputMonto = document.getElementById('pos-input-amount');
+// ==========================================================
+// AGREGAR JUGADAS CON MULTI-SORTEO AUTOMÁTICO EN POS.JS
+// ==========================================================
+window.agregarJugadaAlCarrito = function() {
+    const inputNum = document.getElementById('pos-input-numbers');
+    const inputMnt = document.getElementById('pos-input-amount');
 
-    const num = inputNumero ? inputNumero.value.trim() : '';
-    const mnt = inputMonto ? parseFloat(inputMonto.value) : 0;
-    const modo = window.modoJuegoActual || 'directo';
+    if (!inputNum || !inputMnt) return;
 
-    if (!num) {
-        alert("⚠️ Ingrese un número para la jugada.");
+    const numero = inputNum.value.trim();
+    const monto = parseFloat(inputMnt.value);
+    const tipo = window.modoJuegoActual || 'directo';
+
+    if (!numero || isNaN(monto) || monto <= 0) {
+        alert("⚠️ Ingrese un número válido y un monto mayor a 0.");
         return;
     }
 
-    if (!validarJugadaCompleta(num, modo)) {
-        return;
-    }
-
-    if (isNaN(mnt) || mnt <= 0) {
-        alert("⚠️ Ingrese un monto válido.");
-        return;
-    }
-
-    window.jugadasActuales.push({ 
-        numero: num, 
-        monto: mnt,
-        tipo: modo
+    // Capturar todos los sorteos seleccionados en las casillas
+    const checkboxesCheck = document.querySelectorAll('input[name="pos-sorteos-selected"]:checked');
+    
+    let sorteosSeleccionados = Array.from(checkboxesCheck).map(cb => {
+        const labelText = cb.closest('label')?.textContent?.trim() || cb.nextElementSibling?.textContent?.trim();
+        return {
+            id: cb.value,
+            nombre: (cb.dataset.nombre || cb.dataset.sorteoNombre || labelText || 'SORTEO').replace(/[\n\r]+/g, ' ').trim().toUpperCase()
+        };
     });
 
-    if (inputNumero) inputNumero.value = '';
-    renderizarCarrito();
-}
-window.agregarJugadaAlCarrito = agregarJugadaAlCarrito;
-
-function renderizarCarrito() {
-    const container = document.getElementById('pos-cart-items-container');
-    const totalEl = document.getElementById('pos-cart-total');
-    const countEl = document.getElementById('pos-cart-count');
-
-    if (!container) return;
-
-    if (window.jugadasActuales.length === 0) {
-        container.innerHTML = `
-            <div class="text-center py-8 text-slate-500 text-xs">
-                <i class="fa-solid fa-ticket text-3xl mb-2 text-slate-600 block"></i>
-                No hay jugadas añadidas en este ticket.
-            </div>`;
-        if (totalEl) totalEl.textContent = '$0.00';
-        if (countEl) countEl.textContent = '0';
-        return;
+    // Si no hay ninguno seleccionado, asignar sorteo general por defecto
+    if (sorteosSeleccionados.length === 0) {
+        sorteosSeleccionados = [{ id: null, nombre: 'SORTEO GENERAL' }];
     }
 
-    let html = '';
-    let total = 0;
+    if (!window.jugadasActuales) {
+        window.jugadasActuales = [];
+    }
 
-    window.jugadasActuales.forEach((j, idx) => {
-        total += j.monto;
-        html += `
-            <div class="flex justify-between items-center bg-slate-800 p-2.5 rounded-lg border border-slate-700 text-xs">
-                <div>
-                    <span class="font-mono font-bold text-emerald-400 text-sm">#${j.numero}</span>
-                    <span class="text-[10px] text-slate-400 uppercase ml-2">(${j.tipo || 'directo'})</span>
-                </div>
-                <div class="flex items-center gap-3">
-                    <span class="font-mono font-bold text-white">$${j.monto.toFixed(2)}</span>
-                    <button type="button" onclick="eliminarJugada(${idx})" class="text-rose-400 hover:text-rose-300">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-            </div>`;
+    // MULTIPLICAR LA JUGADA POR CADA SORTEO SELECCIONADO
+    sorteosSeleccionados.forEach(sorteo => {
+        window.jugadasActuales.push({
+            numero: numero,
+            monto: monto,
+            tipo: tipo,
+            sorteo_id: sorteo.id,
+            sorteo_nombre: sorteo.nombre
+        });
     });
 
-    container.innerHTML = html;
-    if (totalEl) totalEl.textContent = `$${total.toFixed(2)}`;
-    if (countEl) countEl.textContent = window.jugadasActuales.length.toString();
-}
-window.renderizarCarrito = renderizarCarrito;
+    // Limpiar campos de entrada
+    inputNum.value = '';
+    inputMnt.value = '';
+    inputNum.focus();
 
-window.eliminarJugada = function(index) {
-    window.jugadasActuales.splice(index, 1);
-    renderizarCarrito();
+    // Renderizar tabla del carrito actual
+    if (typeof renderizarCarrito === 'function') {
+        renderizarCarrito();
+    }
 };
 
 // ----------------------------------------------------------

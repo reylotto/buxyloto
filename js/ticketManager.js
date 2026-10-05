@@ -63,7 +63,7 @@ async function generarQRDataURL(texto) {
 }
 
 /**
- * Renderiza la plantilla HTML emulando la estructura física exacta con Multi-Sorteo
+ * Renderiza la plantilla HTML emulando exactamente la estructura de Rey Lotto / BuxyLoto
  */
 export async function renderizarPlantillaTicket(ticketData) {
     let ticketElem = document.getElementById('ticket-print-area');
@@ -74,7 +74,7 @@ export async function renderizarPlantillaTicket(ticketData) {
         document.body.appendChild(ticketElem);
     }
 
-    // Configuración de lienzo térmico
+    // Configuración de papel térmico (58mm / 80mm)
     ticketElem.style.position = 'fixed';
     ticketElem.style.top = '-9999px';
     ticketElem.style.left = '-9999px';
@@ -88,30 +88,24 @@ export async function renderizarPlantillaTicket(ticketData) {
     ticketElem.style.boxSizing = 'border-box';
     ticketElem.style.zIndex = '-9999';
 
-    // Extracción de metadatos del ticket
-    const codigo = ticketData.codigo_ticket || ticketData.codigo || ticketData.ticket_id || 'BX-000000';
+    // Datos principales
+    const codigo = ticketData.codigo_ticket || ticketData.codigo || ticketData.ticket_id || '9312-0917-4579-1660';
     const montoTotal = parseFloat(ticketData.monto_total || ticketData.monto || ticketData.total || 0).toFixed(2);
     const nombreBanca = ticketData.banca_nombre || ticketData.nombre_banca || ticketData.banca || 'Jey';
+    const tituloHeader = ticketData.titulo_empresa || 'BuxyLoto';
 
     const ahora = ticketData.created_at ? new Date(ticketData.created_at) : new Date();
     const fechaStr = ticketData.fecha || ahora.toLocaleDateString('es-ES');
     const horaStr = ticketData.hora || ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 
-    // ------------------------------------------------------------------
-    // ESTRATEGIA DE AGRUPACIÓN MULTI-SORTEO
-    // ------------------------------------------------------------------
+    // Agrupar jugadas por sorteo
     const jugadasPorSorteo = {};
     let conteoTotalJugadas = 0;
-
     const listaJugadas = ticketData.detalles || ticketData.jugadas || ticketData.items || [];
-    
+
     listaJugadas.forEach(j => {
         conteoTotalJugadas++;
-        
-        // Prioridad de extracción de nombre del sorteo
-        let nombreSorteo = j.sorteo_nombre || j.sorteo || j.nombre_sorteo || j.loteria || ticketData.sorteo_nombre || ticketData.sorteo || 'SORTEO';
-        
-        // Limpieza de caracteres no deseados
+        let nombreSorteo = j.sorteo_nombre || j.sorteo || j.nombre_sorteo || ticketData.sorteo_nombre || 'SORTEO';
         nombreSorteo = String(nombreSorteo).replace(/[\[\]{}"]/g, '').trim().toUpperCase();
 
         if (!jugadasPorSorteo[nombreSorteo]) {
@@ -122,14 +116,14 @@ export async function renderizarPlantillaTicket(ticketData) {
 
     const totalItems = conteoTotalJugadas.toString().padStart(3, '0');
 
-    // CONSTRUCCIÓN DEL HTML DE TODOS LOS SORTEOS
+    // CONSTRUCCIÓN DE BLOQUES POR SORTEO EN 2 COLUMNAS (IGUAL A LA FOTO)
     let bloquesSorteosHTML = '';
 
     for (const [sorteoNombre, listaJugadasSorteo] of Object.entries(jugadasPorSorteo)) {
         bloquesSorteosHTML += `
-            <div style="margin-top: 10px; border-top: 1px dashed #000; padding-top: 5px;">
-                <div style="font-weight: bold; font-size: 13px; text-transform: uppercase;">${sorteoNombre}</div>
-                <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; margin-top: 4px; margin-bottom: 4px; border-bottom: 1px solid #000; padding-bottom: 2px;">
+            <div style="margin-top: 8px;">
+                <div style="font-weight: bold; font-size: 12px; text-transform: uppercase;">${sorteoNombre}</div>
+                <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; margin-top: 2px; margin-bottom: 2px;">
                     <span style="width: 25%; text-align: left;">JUGADA</span>
                     <span style="width: 25%; text-align: right;">MONTO</span>
                     <span style="width: 25%; text-align: center;">JUGADA</span>
@@ -137,7 +131,6 @@ export async function renderizarPlantillaTicket(ticketData) {
                 </div>
         `;
 
-        // Iterar jugadas de 2 en 2 para formatearlas en 2 columnas paralelas
         for (let i = 0; i < listaJugadasSorteo.length; i += 2) {
             const j1 = listaJugadasSorteo[i];
             const j2 = listaJugadasSorteo[i + 1];
@@ -149,7 +142,7 @@ export async function renderizarPlantillaTicket(ticketData) {
             const mnt2 = j2 ? parseFloat(j2.monto || j2.valor || 0).toFixed(2) : '';
 
             bloquesSorteosHTML += `
-                <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; line-height: 1.3;">
+                <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; line-height: 1.2;">
                     <span style="width: 25%; text-align: left;">${num1}</span>
                     <span style="width: 25%; text-align: right;">${mnt1}</span>
                     <span style="width: 25%; text-align: center;">${num2}</span>
@@ -166,12 +159,12 @@ export async function renderizarPlantillaTicket(ticketData) {
     ticketElem.innerHTML = `
         <!-- ENCABEZADO CENTRAL -->
         <div style="text-align: center;">
-            <div style="font-size: 20px; line-height: 1;">☘️</div>
-            <div style="font-size: 16px; font-weight: bold; text-transform: uppercase;">REY LOTTO</div>
-            <div style="font-size: 11px; font-weight: bold;">$$ DINERO SEGURO $$</div>
+            <div style="font-size: 22px; line-height: 1;">☘️</div>
+            <div style="font-size: 16px; font-weight: bold;">${tituloHeader}</div>
+            <div style="font-size: 11px; font-weight: bold; margin-top: 2px;">$$ DINERO SEGURO $$</div>
         </div>
 
-        <!-- DATOS ENCABEZADO: BANCA, TICKET, FECHA Y HORA -->
+        <!-- METADATOS (BANCA, TICKET, FECHA) -->
         <div style="margin-top: 10px; font-size: 11px; font-weight: bold;">
             <div style="display: flex; justify-content: space-between;">
                 <span>BANCA</span>
@@ -187,18 +180,20 @@ export async function renderizarPlantillaTicket(ticketData) {
             </div>
         </div>
 
-        <!-- BLOQUES DE TODOS LOS SORTEOS Y JUGADAS -->
+        <div style="border-top: 1px dashed #000; margin: 6px 0;"></div>
+
+        <!-- BLOQUES DE SORTEOS Y JUGADAS -->
         ${bloquesSorteosHTML}
 
-        <div style="border-top: 1px dashed #000000; margin: 8px 0 4px 0;"></div>
+        <div style="border-top: 1px dashed #000; margin: 8px 0 4px 0;"></div>
 
-        <!-- TOTAL DE JUGADAS Y MONTO GLOBAL -->
+        <!-- TOTAL GENERAL -->
         <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: bold;">
             <span>Total: ${totalItems}</span>
             <span>${montoTotal}</span>
         </div>
 
-        <!-- REGLAS DE PAGO Y CONDICIONES -->
+        <!-- REGLAS Y CONDICIONES DEL PIE -->
         <div style="text-align: center; font-size: 9px; font-weight: bold; margin-top: 12px; line-height: 1.2;">
             <div>REVISE SU TICKET</div>
             <div>SIN TICKET NO SE PAGA</div>
@@ -209,8 +204,8 @@ export async function renderizarPlantillaTicket(ticketData) {
         </div>
 
         <!-- CÓDIGO QR -->
-        <div style="text-align: center; margin-top: 8px;">
-            ${qrDataUrl ? `<img src="${qrDataUrl}" style="width:90px; height:90px; display:inline-block;" />` : ''}
+        <div style="text-align: center; margin-top: 10px;">
+            ${qrDataUrl ? `<img src="${qrDataUrl}" style="width:95px; height:95px; display:inline-block;" />` : ''}
         </div>
     `;
 

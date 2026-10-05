@@ -238,14 +238,15 @@ function actualizarResumenSorteos() {
 window.actualizarResumenSorteos = actualizarResumenSorteos;
 
 // ==========================================================
-// MÓDULO POS - BUXYLOTO POS
+// MÓDULO POS - BUXYLOTO POS (TIEMPO REAL & SUPABASE)
 // ==========================================================
 
-// Asegurar alcance global
 window.jugadasActuales = window.jugadasActuales || [];
 window.ultimoMontoIngresado = window.ultimoMontoIngresado || null;
 
+// ----------------------------------------------------------
 // 1. OBTENER BANCA / VENDEDOR ACTUAL
+// ----------------------------------------------------------
 window.obtenerNombreBancaActual = function() {
     const selectBanca = document.querySelector('select[name="pos-banca-destino"]') || 
                         document.getElementById('pos-select-banca') ||
@@ -268,12 +269,17 @@ window.obtenerNombreBancaActual = function() {
     return 'Banca Principal';
 };
 
-// 2. AGREGAR JUGADAS AL CARRITO (BOTÓN +)
+// ----------------------------------------------------------
+// 2. AGREGAR JUGADA AL CARRITO (BOTÓN + O TECLA ENTER)
+// ----------------------------------------------------------
 window.agregarJugadaAlCarrito = function() {
-    const inputNum = document.getElementById('pos-input-numbers');
-    const inputMnt = document.getElementById('pos-input-amount');
+    const inputNum = document.getElementById('pos-input-numbers') || document.querySelector('input[placeholder*="Número"]');
+    const inputMnt = document.getElementById('pos-input-amount') || document.querySelector('input[placeholder*="Monto"]');
 
-    if (!inputNum || !inputMnt) return;
+    if (!inputNum || !inputMnt) {
+        alert("⚠️ No se encontraron los campos de entrada de número o monto.");
+        return;
+    }
 
     const numero = inputNum.value.trim();
     const monto = parseFloat(inputMnt.value);
@@ -292,7 +298,7 @@ window.agregarJugadaAlCarrito = function() {
         return;
     }
 
-    // Validar formato de dígitos
+    // Validar tipo de jugada según longitud de dígitos
     const numLen = numero.length;
     let tipo = '';
     if (numLen === 2) tipo = 'directo';
@@ -306,6 +312,7 @@ window.agregarJugadaAlCarrito = function() {
 
     window.ultimoMontoIngresado = monto;
 
+    // Agregar una entrada por cada sorteo marcado
     checkboxesCheck.forEach(cb => {
         const labelText = cb.closest('label')?.textContent?.trim() || cb.nextElementSibling?.textContent?.trim() || 'SORTEO';
         const nombreSorteo = (cb.dataset.nombre || labelText).replace(/[\n\r]+/g, ' ').trim().toUpperCase();
@@ -320,21 +327,46 @@ window.agregarJugadaAlCarrito = function() {
         });
     });
 
+    // Limpiar campo de número y conservar el último monto para agilizar la venta
     inputNum.value = '';
     inputMnt.value = window.ultimoMontoIngresado.toFixed(2);
     inputNum.focus();
 
+    // Renderizar inmediatamente la lista y actualizar totales
     window.renderizarCarrito();
 };
 
-// 3. RENDERIZAR TABLA DE JUGADAS Y TOTALES
+// ----------------------------------------------------------
+// 3. RENDERIZAR VISTA EN TIEMPO REAL (LISTA, CANTIDAD Y TOTALES)
+// ----------------------------------------------------------
 window.renderizarCarrito = function() {
     let totalMonto = 0;
 
-    const areaLista = document.getElementById('ticket-actual-list') || 
+    // Localizar la tarjeta o panel del Ticket Actual
+    let contenedorTicket = document.querySelector('#ticket-actual-container') || 
+                           document.querySelector('.ticket-actual-card');
+
+    if (!contenedorTicket) {
+        const paneles = document.querySelectorAll('div, section, cards');
+        paneles.forEach(p => {
+            if (p.textContent && (p.textContent.includes('Ticket Actual') || p.textContent.includes('TOTAL A PAGAR'))) {
+                contenedorTicket = p;
+            }
+        });
+    }
+
+    // Localizar o crear el área interna donde se dibujan las jugadas
+    let areaLista = document.getElementById('ticket-actual-list') || 
                       document.querySelector('.ticket-actual-list');
 
+    if (!areaLista && contenedorTicket) {
+        areaLista = contenedorTicket.querySelector('.space-y-2') || 
+                    contenedorTicket.querySelector('.overflow-y-auto') ||
+                    contenedorTicket.querySelector('div[class*="list"]');
+    }
+
     if (areaLista) {
+        areaLista.id = 'ticket-actual-list';
         areaLista.innerHTML = '';
 
         if (!window.jugadasActuales || window.jugadasActuales.length === 0) {
@@ -345,26 +377,26 @@ window.renderizarCarrito = function() {
                 </div>`;
         } else {
             const wrapper = document.createElement('div');
-            wrapper.style.cssText = 'max-height: 240px; overflow-y: auto; padding-right: 2px; display: flex; flex-direction: column; gap: 6px;';
+            wrapper.style.cssText = 'max-height: 250px; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 6px;';
 
             window.jugadasActuales.forEach((j, index) => {
                 totalMonto += parseFloat(j.monto || 0);
 
                 const itemRow = document.createElement('div');
-                itemRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #ffffff;';
+                itemRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #ffffff;';
 
                 itemRow.innerHTML = `
                     <div style="flex: 1; text-align: left;">
                         <div style="font-size: 10px; color: #38bdf8; font-weight: bold;">[${j.sorteo_nombre}]</div>
                         <div style="margin-top: 2px; display: flex; align-items: center; gap: 6px;">
-                            <strong style="color: #facc15; font-size: 13px; font-family: monospace;">#${j.numero}</strong> 
-                            <span style="font-size: 8px; text-transform: uppercase; background: #0f172a; padding: 1px 4px; border-radius: 3px; border: 1px solid #475569;">${j.tipo}</span>
+                            <strong style="color: #facc15; font-size: 14px; font-family: monospace;">#${j.numero}</strong> 
+                            <span style="font-size: 9px; text-transform: uppercase; background: #0f172a; padding: 1px 5px; border-radius: 3px; border: 1px solid #475569;">${j.tipo}</span>
                         </div>
                     </div>
-                    <div style="font-weight: bold; color: #10b981; font-size: 13px; margin-right: 8px; font-family: monospace;">
+                    <div style="font-weight: bold; color: #10b981; font-size: 14px; margin-right: 10px; font-family: monospace;">
                         $${parseFloat(j.monto).toFixed(2)}
                     </div>
-                    <button type="button" onclick="window.eliminarJugadaCarrito(${index})" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; width: 20px; height: 20px; cursor: pointer; font-size: 10px; font-weight: bold;">✕</button>
+                    <button type="button" onclick="window.eliminarJugadaCarrito(${index})" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; width: 22px; height: 22px; cursor: pointer; font-size: 11px; font-weight: bold;">✕</button>
                 `;
                 wrapper.appendChild(itemRow);
             });
@@ -372,18 +404,33 @@ window.renderizarCarrito = function() {
             areaLista.appendChild(wrapper);
         }
     } else {
+        // En caso de que no exista el área física de lista, calcular el monto acumulado
         window.jugadasActuales.forEach(j => totalMonto += parseFloat(j.monto || 0));
     }
 
-    // Actualizar Totales e Indicadores
+    // Actualizar indicador de TOTAL A PAGAR
     const totalElem = document.getElementById('lbl-total-pagar') || document.querySelector('.total-pagar-monto');
-    if (totalElem) totalElem.textContent = `$${totalMonto.toFixed(2)}`;
+    if (totalElem) {
+        totalElem.textContent = `$${totalMonto.toFixed(2)}`;
+    } else if (contenedorTicket) {
+        const spans = contenedorTicket.querySelectorAll('span, div');
+        spans.forEach(s => {
+            if (s.textContent.includes('$')) {
+                s.textContent = `$${totalMonto.toFixed(2)}`;
+            }
+        });
+    }
 
+    // Actualizar indicador de CANTIDAD DE JUGADAS
     const cantidadElem = document.getElementById('lbl-cantidad-jugadas') || document.querySelector('.lbl-cantidad-jugadas');
-    if (cantidadElem) cantidadElem.textContent = window.jugadasActuales ? window.jugadasActuales.length : 0;
+    if (cantidadElem) {
+        cantidadElem.textContent = window.jugadasActuales ? window.jugadasActuales.length : 0;
+    }
 };
 
-// 4. ELIMINAR JUGADA INDIVIDUAL
+// ----------------------------------------------------------
+// 4. ELIMINAR ITEM INDIVIDUAL
+// ----------------------------------------------------------
 window.eliminarJugadaCarrito = function(index) {
     if (window.jugadasActuales && window.jugadasActuales[index] !== undefined) {
         window.jugadasActuales.splice(index, 1);
@@ -391,20 +438,24 @@ window.eliminarJugadaCarrito = function(index) {
     }
 };
 
+// ----------------------------------------------------------
 // 5. VACIAR TICKET COMPLETO
+// ----------------------------------------------------------
 window.vaciarCarrito = function() {
     window.jugadasActuales = [];
     window.ultimoMontoIngresado = null;
     
-    const inputNum = document.getElementById('pos-input-numbers');
-    const inputMnt = document.getElementById('pos-input-amount');
+    const inputNum = document.getElementById('pos-input-numbers') || document.querySelector('input[placeholder*="Número"]');
+    const inputMnt = document.getElementById('pos-input-amount') || document.querySelector('input[placeholder*="Monto"]');
     if (inputNum) inputNum.value = '';
     if (inputMnt) inputMnt.value = '';
 
     window.renderizarCarrito();
 };
 
-// 6. EMITIR TICKET E INSERTAR EN 'TICKETS' Y 'JUGADAS' EN SUPABASE
+// ----------------------------------------------------------
+// 6. GUARDAR EN SUPABASE ('tickets' Y 'jugadas')
+// ----------------------------------------------------------
 window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
     const supabase = window.supabase;
     if (!supabase) {
@@ -413,7 +464,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
     }
 
     if (!window.jugadasActuales || window.jugadasActuales.length === 0) {
-        alert("⚠️ Añada al menos una jugada antes de emitir el ticket.");
+        alert("⚠️️ Añada al menos una jugada visible antes de emitir el ticket.");
         return;
     }
 
@@ -438,7 +489,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
         const nombreBanca = window.obtenerNombreBancaActual();
 
-        // Guardar encabezado en 'tickets'
+        // Guardar encabezado del ticket
         const payloadTicket = {
             codigo: codigoTicket,
             codigo_ticket: codigoTicket,
@@ -459,14 +510,14 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
             .select();
 
         if (ticketError) {
-            console.error("❌ Error al guardar ticket:", ticketError);
+            console.error("❌ Error al guardar en tickets:", ticketError);
             alert(`❌ Error al registrar ticket: ${ticketError.message}`);
             return;
         }
 
         const ticketRegistrado = ticketData ? ticketData[0] : payloadTicket;
 
-        // Guardar detalle individual en 'jugadas'
+        // Guardar cada jugada individualmente en la tabla 'jugadas'
         const registrosJugadas = listaJugadas.map(j => ({
             codigo_ticket: codigoTicket,
             numero: j.numero,
@@ -483,10 +534,10 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
             .insert(registrosJugadas);
 
         if (jugadasError) {
-            console.warn("⚠️ Advertencia al guardar en 'jugadas':", jugadasError.message);
+            console.warn("⚠️ Advertencia al guardar en tabla 'jugadas':", jugadasError.message);
         }
 
-        // Limpiar formulario y carrito
+        // Limpiar el carrito y los checkboxes
         window.vaciarCarrito();
         document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = false);
 
@@ -499,14 +550,16 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         }
 
     } catch (err) {
-        console.error("❌ Error al procesar ticket:", err);
-        alert("❌ Error: " + err.message);
+        console.error("❌ Error en la emisión:", err);
+        alert("❌ Ocurrió un error al emitir el ticket: " + err.message);
     } finally {
         if (btnEmitir) btnEmitir.disabled = false;
     }
 };
 
-// 7. INICIALIZADOR DE EVENTOS POS
+// ----------------------------------------------------------
+// 7. INICIALIZACIÓN DE EVENTOS Y SOPORTE TECLA ENTER
+// ----------------------------------------------------------
 window.activarEventosPOS = function() {
     const btnAgregar = document.getElementById('pos-btn-add') || document.querySelector('.btn-add-jugada');
     if (btnAgregar) {
@@ -524,15 +577,36 @@ window.activarEventosPOS = function() {
         };
     }
 
+    // Interceptar la tecla Enter en las cajas de entrada de texto
+    const inputNum = document.getElementById('pos-input-numbers') || document.querySelector('input[placeholder*="Número"]');
+    const inputMnt = document.getElementById('pos-input-amount') || document.querySelector('input[placeholder*="Monto"]');
+
+    const manejarEnter = function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            window.agregarJugadaAlCarrito();
+        }
+    };
+
+    if (inputNum) inputNum.addEventListener('keydown', manejarEnter);
+    if (inputMnt) inputMnt.addEventListener('keydown', manejarEnter);
+
     window.renderizarCarrito();
 };
 
-// Vinculación segura en carga de documento
+// Vinculación en carga inicial
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', window.activarEventosPOS);
 } else {
     window.activarEventosPOS();
 }
+
+// Delegación global para el botón Vaciar
+document.addEventListener('click', (e) => {
+    if (e.target && e.target.textContent && e.target.textContent.trim().toLowerCase() === 'vaciar') {
+        window.vaciarCarrito();
+    }
+});
 // ----------------------------------------------------------
 // 6. TECLADO NUMÉRICO ANTI-DUPLICACIÓN (MANDATORIO)
 // ----------------------------------------------------------

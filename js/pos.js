@@ -484,25 +484,27 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         }
 
         // INSERCIÓN DIRECTA EN LA TABLA RELACIONAL 'jugadas'
-        const registrosJugadas = listaJugadas.map(j => ({
-            ticket_id: ticketRegistrado.id,
-            numero: j.numero,
-            monto: j.monto,
-            tipo: j.tipo,
-            sorteo_id: j.sorteo_id,
-            estatus: 'pendiente'
-        }));
+        if (ticketIdGenerado) {
+            const registrosJugadas = listaJugadas.map(j => ({
+                ticket_id: parseInt(ticketIdGenerado, 10),
+                numero: String(j.numero).trim(),
+                monto: parseFloat(j.monto),
+                tipo: String(j.tipo || 'directo').toLowerCase(),
+                sorteo_id: j.sorteo_id ? parseInt(j.sorteo_id, 10) : null,
+                estatus: 'pendiente'
+            }));
 
-        const { data: jugadasData, error: jugadasError } = await supabase
-            .from('jugadas')
-            .insert(registrosJugadas)
-            .select();
+            const { data: jugadasData, error: jugadasError } = await supabase
+                .from('jugadas')
+                .insert(registrosJugadas)
+                .select();
 
-        if (jugadasError) {
-            console.error("❌ Error sincronizando tabla 'jugadas':", jugadasError);
-            alert(`⚠️ Ticket emitido (#${codigoTicket}), pero hubo un problema guardando el desglose en 'jugadas': ${jugadasError.message}`);
-        } else {
-            console.log("✅ Desglose de jugadas insertado con éxito en Supabase:", jugadasData);
+            if (jugadasError) {
+                console.error("❌ Error insertando en 'jugadas':", jugadasError);
+                alert(`⚠️ Atención: El ticket se emitió, pero hubo un detalle en 'jugadas': ${jugadasError.message}`);
+            } else {
+                console.log("✅ Jugadas sincronizadas con éxito:", jugadasData);
+            }
         }
 
         const ticketParaImprimir = {

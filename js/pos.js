@@ -291,18 +291,17 @@ export function renderizarCarrito() {
     let totalMonto = 0;
     const cantidadJugadas = window.jugadasActuales ? window.jugadasActuales.length : 0;
 
-    // 1. Buscar la lista donde se renderizan las filas
+    // Buscar el contenedor de la lista en la interfaz
     let areaLista = document.getElementById('ticket-actual-list') || 
                     document.querySelector('.ticket-actual-list') ||
                     document.querySelector('[data-ticket-list]');
 
-    // Búsqueda de respaldo si no encuentra por ID directo
     if (!areaLista) {
-        const posiblesContenedores = document.querySelectorAll('div, section, aside');
-        for (let el of posiblesContenedores) {
-            if (el.textContent && (el.textContent.includes('Ticket Actual') || el.textContent.includes('Jugadas'))) {
-                areaLista = el.querySelector('.space-y-2') || el.querySelector('.overflow-y-auto') || el;
-                break;
+        const posibles = document.querySelectorAll('div, section, aside');
+        for (let el of posibles) {
+            if (el.textContent && (el.textContent.includes('TOTAL A PAGAR') || el.textContent.includes('Cantidad de jugadas'))) {
+                areaLista = el.querySelector('.space-y-2') || el.querySelector('.overflow-y-auto');
+                if (areaLista) break;
             }
         }
     }
@@ -312,36 +311,35 @@ export function renderizarCarrito() {
 
         if (cantidadJugadas === 0) {
             areaLista.innerHTML = `
-                <div style="text-align: center; color: #94a3b8; padding: 30px 10px; font-size: 13px;">
-                    <div style="font-size: 24px; margin-bottom: 8px; opacity: 0.5;">📋</div>
+                <div style="text-align: center; color: #94a3b8; padding: 25px 10px; font-size: 13px;">
+                    <div style="font-size: 22px; margin-bottom: 6px; opacity: 0.5;">📋</div>
                     No hay jugadas añadidas
                 </div>`;
         } else {
             const wrapper = document.createElement('div');
-            wrapper.style.cssText = 'max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 2px;';
+            wrapper.style.cssText = 'max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px;';
 
             window.jugadasActuales.forEach((j, index) => {
                 const mnt = parseFloat(j.monto || 0);
                 totalMonto += mnt;
 
                 const itemRow = document.createElement('div');
-                itemRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #ffffff;';
+                itemRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #ffffff;';
 
                 itemRow.innerHTML = `
-                    <div style="flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        <div style="font-size: 10px; color: #38bdf8; font-weight: bold; text-transform: uppercase;">[${j.sorteo_nombre}]</div>
-                        <div style="margin-top: 2px; display: flex; align-items: center; gap: 8px;">
-                            <strong style="color: #facc15; font-size: 15px; font-family: monospace;">#${j.numero}</strong> 
-                            <span style="font-size: 10px; text-transform: uppercase; background: #0f172a; color: #cbd5e1; padding: 2px 6px; border-radius: 4px; border: 1px solid #475569;">${j.tipo}</span>
+                    <div style="flex: 1; text-align: left;">
+                        <div style="font-size: 10px; color: #38bdf8; font-weight: bold;">[${j.sorteo_nombre}]</div>
+                        <div style="margin-top: 2px; display: flex; align-items: center; gap: 6px;">
+                            <strong style="color: #facc15; font-size: 14px; font-family: monospace;">#${j.numero}</strong> 
+                            <span style="font-size: 9px; text-transform: uppercase; background: #0f172a; color: #cbd5e1; padding: 1px 5px; border-radius: 3px; border: 1px solid #475569;">${j.tipo}</span>
                         </div>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-weight: bold; color: #10b981; font-size: 15px; font-family: monospace;">$${mnt.toFixed(2)}</span>
-                        <button type="button" data-index="${index}" class="btn-eliminar-jugada" style="background: #ef4444; color: #ffffff; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-size: 12px; font-weight: bold; display: flex; align-items: center; justify-content: center;">✕</button>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-weight: bold; color: #10b981; font-size: 14px; font-family: monospace;">$${mnt.toFixed(2)}</span>
+                        <button type="button" data-index="${index}" class="btn-eliminar-jugada" style="background: #ef4444; color: #ffffff; border: none; border-radius: 4px; width: 22px; height: 22px; cursor: pointer; font-size: 11px; font-weight: bold;">✕</button>
                     </div>
                 `;
 
-                // Evento para eliminar la jugada específica
                 const btnBorrar = itemRow.querySelector('.btn-eliminar-jugada');
                 btnBorrar.onclick = (e) => {
                     e.preventDefault();
@@ -354,22 +352,19 @@ export function renderizarCarrito() {
 
             areaLista.appendChild(wrapper);
         }
-    }
-
-    // Sumar el total si no se calculó dentro del bucle
-    if (cantidadJugadas > 0 && totalMonto === 0) {
+    } else {
         window.jugadasActuales.forEach(j => totalMonto += parseFloat(j.monto || 0));
     }
 
-    // 2. Actualizar las etiquetas de Total y Cantidad en pantalla
-    const elementosTotal = document.querySelectorAll('#lbl-total-pagar, .lbl-total-pagar, [data-total-pagar]');
+    // Actualizar Totales y Cantidades en la UI
+    const elementosTotal = document.querySelectorAll('#lbl-total-pagar, .lbl-total-pagar, [data-total-pagar], .total-pagar-monto');
     elementosTotal.forEach(el => {
-        el.textContent = `$${totalMonto.toFixed(2)}`;
+        if (el.tagName !== 'INPUT') el.textContent = `$${totalMonto.toFixed(2)}`;
     });
 
-    const elementosCantidad = document.querySelectorAll('#lbl-cantidad-jugadas, .lbl-cantidad-jugadas, [data-cantidad-jugadas]');
+    const elementosCantidad = document.querySelectorAll('#lbl-cantidad-jugadas, .lbl-cantidad-jugadas, [data-cantidad-jugadas], .cantidad-jugadas-count');
     elementosCantidad.forEach(el => {
-        el.textContent = cantidadJugadas;
+        if (el.tagName !== 'INPUT') el.textContent = cantidadJugadas;
     });
 }
 window.renderizarCarrito = renderizarCarrito;
@@ -431,11 +426,10 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
         const nombreBanca = obtenerNombreBancaActual();
 
-        // PAYLOAD LIMPIO: Solo enviamos las columnas estándar de la tabla 'tickets'
+        // PAYLOAD COMPATIBLE: Solo columnas válidas en la tabla 'tickets'
         const payloadTicket = {
             codigo: codigoTicket,
             codigo_ticket: codigoTicket,
-            banca_nombre: nombreBanca,
             vendedor: nombreBanca,
             sorteo_nombre: sorteosUnicos,
             monto: parseFloat(montoTotal.toFixed(2)),
@@ -458,25 +452,15 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         const ticketRegistrado = (ticketData && ticketData.length > 0) ? ticketData[0] : payloadTicket;
         const ticketIdGenerado = ticketRegistrado.id || null;
 
-        // INSERCIÓN EN TABLA 'jugadas'
+        // REGISTRO DE FILAS EN LA TABLA 'jugadas'
         const registrosJugadas = listaJugadas.map(j => {
             const fila = {
                 ticket_id: ticketIdGenerado ? parseInt(ticketIdGenerado, 10) : null,
                 numero: j.numero,
                 monto: j.monto,
                 tipo: j.tipo,
-                estatus: 'pendiente',
-                estado: 'pendiente'
+                estatus: 'pendiente'
             };
-
-            if (j.numero.includes('-')) {
-                const partes = j.numero.split('-');
-                fila.num1 = partes[0];
-                fila.num2 = partes[1] || null;
-            } else {
-                fila.num1 = j.numero;
-                fila.num2 = null;
-            }
 
             if (j.sorteo_id && !isNaN(parseInt(j.sorteo_id, 10))) {
                 fila.sorteo_id = parseInt(j.sorteo_id, 10);
@@ -495,6 +479,7 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
 
         const ticketParaImprimir = {
             ...ticketRegistrado,
+            banca_nombre: nombreBanca,
             detalles: listaJugadas,
             jugadas: listaJugadas
         };

@@ -414,7 +414,6 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         return;
     }
 
-    // 1. Validar que existan jugadas en el carrito/estado actual
     const jugadasAProcesar = Array.isArray(window.jugadasActuales) && window.jugadasActuales.length > 0
         ? [...window.jugadasActuales]
         : [];
@@ -472,58 +471,40 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             banca_nombre: nombreBanca
         };
 
-        // PASO A: Insertar el Ticket
-        console.log("➡️ Guardando ticket...", payloadTicket);
+        // 1. Insertar Ticket
         const { data: ticketData, error: ticketError } = await supabase
             .from('tickets')
             .insert([payloadTicket])
             .select('*');
 
-        if (ticketError) {
-            console.error("❌ Error al insertar ticket:", ticketError);
-            alert(`❌ Error guardando ticket: ${ticketError.message}`);
-            return;
-        }
+        if (ticketError) throw ticketError;
 
         const ticketCreado = (ticketData && ticketData.length > 0) ? ticketData[0] : null;
-
         if (!ticketCreado || !ticketCreado.id) {
-            console.error("❌ No se devolvió el ID del ticket generado:", ticketData);
-            alert("❌ El ticket se guardó pero no fue posible obtener su ID.");
-            return;
+            throw new Error("No se obtuvo el ID del ticket generado.");
         }
 
-        console.log(`✅ Ticket #${ticketCreado.id} guardado con éxito. Insertando ${listaJugadas.length} jugadas...`);
+        // 2. Mapear e insertar en la tabla jugadas manteniendo el tipo de dato nativo del ID
+        const registrosJugadas = listaJugadas.map(j => ({
+            ticket_id: ticketCreado.id, // Mantiene la referencia nativa (UUID o INT) sin forzar parseInt
+            numero: String(j.numero).trim(),
+            monto: parseFloat(j.monto) || 0,
+            tipo: String(j.tipo || 'directo').toLowerCase(),
+            sorteo_id: j.sorteo_id || ticketCreado.sorteo_id || null
+        }));
 
-       // Preparar registros limpios para Supabase
-        const registrosJugadas = listaJugadas.map(j => {
-            const numStr = String(j.numero || '').trim();
-            const partes = numStr.includes('-') ? numStr.split('-') : [numStr];
-
-            return {
-                ticket_id: parseInt(ticketCreado.id, 10),
-                tipo: String(j.tipo || 'directo').toLowerCase(),
-                numero: numStr,
-                num1: partes[0] ? String(partes[0]) : null,
-                num2: partes[1] ? String(partes[1]) : null,
-                monto: parseFloat(j.monto) || 0
-            };
-        });
-
-        console.log("➡️ Guardando jugadas en Supabase:", registrosJugadas);
-
-        // Inserción sin enviar campos innecesarios
-        const { data: jugadasData, error: jugadasError } = await supabase
+        const { error: jugadasError } = await supabase
             .from('jugadas')
             .insert(registrosJugadas);
 
         if (jugadasError) {
-            console.error("❌ Error al insertar jugadas:", jugadasError);
+            console.error("❌ Error al insertar en tabla 'jugadas':", jugadasError);
+            alert(`⚠️ El ticket fue guardado, pero ocurrió un error registrando las jugadas individuales: ${jugadasError.message}`);
         } else {
-            console.log("✅ Jugadas guardadas exitosamente.");
+            console.log("✅ Jugadas sincronizadas con éxito en la tabla 'jugadas'.");
         }
 
-        // Limpieza de UI y resúmenes
+        // Limpiar estado
         if (typeof vaciarCarrito === 'function') vaciarCarrito();
         document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = false);
         if (typeof actualizarResumenSorteos === 'function') actualizarResumenSorteos();
@@ -544,8 +525,8 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         }
 
     } catch (err) {
-        console.error("❌ Error inesperado en el proceso:", err);
-        alert("❌ Error interno: " + err.message);
+        console.error("❌ Error inesperado en la emisión:", err);
+        alert("❌ Error al guardar ticket: " + (err.message || JSON.stringify(err)));
     } finally {
         if (btnEmitir) btnEmitir.disabled = false;
     }

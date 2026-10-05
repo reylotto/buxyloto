@@ -248,32 +248,35 @@ if (!window.jugadasActuales) {
 window.ultimoMontoIngresado = null;
 
 // ----------------------------------------------------------
-// 1. AGREGAR JUGADA AL CARRITO (VALIDACIÓN RIGUROSA)
+// 1. AGREGAR JUGADAS AL CARRITO
 // ----------------------------------------------------------
 window.agregarJugadaAlCarrito = function() {
     const inputNum = document.getElementById('pos-input-numbers');
     const inputMnt = document.getElementById('pos-input-amount');
 
-    if (!inputNum || !inputMnt) return;
+    if (!inputNum || !inputMnt) {
+        console.error("❌ No se encontraron los inputs de entrada pos-input-numbers o pos-input-amount");
+        return;
+    }
 
     const numero = inputNum.value.trim();
     const monto = parseFloat(inputMnt.value);
 
-    // REGLA 1: Debe haber sorteos seleccionados
+    // Validar sorteo obligatorio
     const checkboxesCheck = document.querySelectorAll('input[name="pos-sorteos-selected"]:checked');
     if (checkboxesCheck.length === 0) {
         alert("⚠️ Debe seleccionar al menos un sorteo antes de ingresar una jugada.");
         return;
     }
 
-    // REGLA 2: Validación de monto
+    // Validar monto
     if (isNaN(monto) || monto <= 0) {
         alert("⚠️ Ingrese un monto válido mayor a 0.");
         inputMnt.focus();
         return;
     }
 
-    // REGLA 3: Control estricto de dígitos (Solo 2, 4 o 6)
+    // Control estricto de dígitos (2, 4 o 6)
     const numLen = numero.length;
     let tipo = '';
 
@@ -284,15 +287,13 @@ window.agregarJugadaAlCarrito = function() {
     } else if (numLen === 6) {
         tipo = 'tripleta';
     } else {
-        alert("⚠️️ Jugada incorrecta: Solo se permiten jugadas de 2 dígitos (Directo), 4 dígitos (Palé) o 6 dígitos (Tripleta). No se aceptan 3 o 5 dígitos.");
+        alert("⚠️ Jugada incorrecta: Solo se permiten jugadas de 2 dígitos (Directo), 4 dígitos (Palé) o 6 dígitos (Tripleta). No se aceptan 3 o 5 dígitos.");
         inputNum.focus();
         return;
     }
 
-    // Guardar último monto usado
     window.ultimoMontoIngresado = monto;
 
-    // Obtener sorteos marcados
     let sorteosSeleccionados = Array.from(checkboxesCheck).map(cb => {
         const labelText = cb.closest('label')?.textContent?.trim() || cb.nextElementSibling?.textContent?.trim() || '';
         const nombreDetectado = cb.dataset.nombre || cb.dataset.sorteoNombre || labelText || 'SORTEO';
@@ -302,7 +303,6 @@ window.agregarJugadaAlCarrito = function() {
         };
     });
 
-    // Agregar la jugada duplicada por cada sorteo seleccionado
     sorteosSeleccionados.forEach(sorteo => {
         window.jugadasActuales.push({
             id: Date.now() + Math.random(),
@@ -314,36 +314,51 @@ window.agregarJugadaAlCarrito = function() {
         });
     });
 
-    // Mantener el monto y limpiar la entrada del número
     inputNum.value = '';
     inputMnt.value = window.ultimoMontoIngresado.toFixed(2);
     inputNum.focus();
 
-    // Actualizar pantalla
+    // Invocar actualización del carrito
     window.renderizarCarrito();
 };
 
 // ----------------------------------------------------------
-// 2. RENDERIZAR VISTA EN TICKET ACTUAL Y CALCULADORA
+// 2. RENDERIZAR VISTA EN TICKET ACTUAL
 // ----------------------------------------------------------
 window.renderizarCarrito = function() {
-    // Buscar los elementos usando los selectores específicos de tu HTML
-    const contenedorCarrito = document.getElementById('ticket-actual-list') || 
-                              document.getElementById('pos-cart-items') || 
-                              document.querySelector('.ticket-actual-list') ||
-                              document.getElementById('lista-jugadas-carrito');
+    console.log("🔄 Ejecutando renderizarCarrito. Jugadas actuales:", window.jugadasActuales);
 
+    // Múltiples estrategias de búsqueda para el contenedor de la lista de jugadas
+    let contenedorCarrito = document.getElementById('ticket-actual-list') || 
+                             document.getElementById('pos-cart-items') || 
+                             document.querySelector('.ticket-actual-list') ||
+                             document.getElementById('lista-jugadas-carrito');
+
+    // Si no lo encuentra por ID, busca dentro del contenedor del módulo "Ticket Actual"
+    if (!contenedorCarrito) {
+        const paneles = document.querySelectorAll('div, section, card');
+        paneles.forEach(p => {
+            if (p.textContent && p.textContent.includes('Ticket Actual')) {
+                const subDiv = p.querySelector('div[style*="overflow"]') || p.querySelector('.card-body') || p;
+                if (subDiv) contenedorCarrito = subDiv;
+            }
+        });
+    }
+
+    // Múltiples estrategias para el Total a Pagar
     const totalElem = document.getElementById('lbl-total-pagar') || 
                       document.getElementById('pos-cart-total') || 
                       document.getElementById('monto-total-ticket') ||
                       document.querySelector('.total-pagar-monto');
 
+    // Múltiples estrategias para la Cantidad de Jugadas
     const conteoElem = document.getElementById('lbl-cantidad-jugadas') || 
                        document.getElementById('pos-cart-count');
 
     let totalMonto = 0;
 
     if (contenedorCarrito) {
+        // Limpiar contenido previo o mensaje de "No hay jugadas"
         contenedorCarrito.innerHTML = '';
 
         if (window.jugadasActuales.length === 0) {
@@ -356,28 +371,30 @@ window.renderizarCarrito = function() {
                 totalMonto += parseFloat(j.monto || 0);
 
                 const itemDiv = document.createElement('div');
-                itemDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px; margin-bottom: 6px; background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; border-radius: 6px; color: #ffffff;';
+                itemDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; margin-bottom: 6px; background: rgba(30, 41, 59, 0.8); border: 1px solid #334155; border-radius: 6px; color: #ffffff; width: 100%; box-sizing: border-box;';
 
                 itemDiv.innerHTML = `
                     <div style="flex: 1; text-align: left;">
-                        <div style="font-size: 11px; color: #38bdf8; font-weight: bold; text-transform: uppercase;">[${j.sorteo_nombre}]</div>
-                        <div style="margin-top: 3px; display: flex; align-items: center; gap: 8px;">
-                            <strong style="color: #facc15; font-size: 15px; font-family: monospace;">#${j.numero}</strong> 
-                            <span style="font-size: 10px; opacity: 0.9; text-transform: uppercase; background: #0f172a; padding: 2px 6px; border-radius: 4px; border: 1px solid #475569;">${j.tipo}</span>
+                        <div style="font-size: 10px; color: #38bdf8; font-weight: bold; text-transform: uppercase;">[${j.sorteo_nombre}]</div>
+                        <div style="margin-top: 2px; display: flex; align-items: center; gap: 6px;">
+                            <strong style="color: #facc15; font-size: 14px; font-family: monospace;">#${j.numero}</strong> 
+                            <span style="font-size: 9px; opacity: 0.9; text-transform: uppercase; background: #0f172a; padding: 1px 5px; border-radius: 3px; border: 1px solid #475569;">${j.tipo}</span>
                         </div>
                     </div>
-                    <div style="font-weight: bold; color: #10b981; font-size: 15px; margin-right: 12px; font-family: monospace;">
+                    <div style="font-weight: bold; color: #10b981; font-size: 14px; margin-right: 10px; font-family: monospace;">
                         $${parseFloat(j.monto).toFixed(2)}
                     </div>
-                    <button onclick="window.eliminarJugadaCarrito(${index})" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-size: 12px; font-weight: bold; display: flex; align-items: center; justify-content: center;">✕</button>
+                    <button onclick="window.eliminarJugadaCarrito(${index})" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; width: 22px; height: 22px; cursor: pointer; font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: center;">✕</button>
                 `;
 
                 contenedorCarrito.appendChild(itemDiv);
             });
         }
+    } else {
+        console.warn("⚠️ No se encontró el contenedor del carrito en el DOM.");
     }
 
-    // Actualizar Totales e Indicadores visuales en la columna derecha
+    // Actualizar Totales
     if (totalElem) {
         totalElem.textContent = `$${totalMonto.toFixed(2)}`;
     }
@@ -397,7 +414,7 @@ window.eliminarJugadaCarrito = function(index) {
 };
 
 // ----------------------------------------------------------
-// 4. BINDING DE TECLADO Y NAVEGACIÓN RÁPIDA
+// 4. TECLADO Y ENTER
 // ----------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
     const inputNum = document.getElementById('pos-input-numbers');
@@ -427,7 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ----------------------------------------------------------
-// 5. EMISIÓN Y GUARDADO DE TICKET EN SUPABASE
+// 5. EMITIR TICKET EN SUPABASE
 // ----------------------------------------------------------
 window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
     const supabase = window.supabase;

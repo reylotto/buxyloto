@@ -237,7 +237,302 @@ function actualizarResumenSorteos() {
 }
 window.actualizarResumenSorteos = actualizarResumenSorteos;
 
+// ==========================================================
+// MÓDULO POS - BUXYLOTO POS
+// ==========================================================
 
+// Asegurar alcance global
+window.jugadasActuales = window.jugadasActuales || [];
+window.ultimoMontoIngresado = window.ultimoMontoIngresado || null;
+
+// 1. OBTENER BANCA / VENDEDOR ACTUAL
+window.obtenerNombreBancaActual = function() {
+    const selectBanca = document.querySelector('select[name="pos-banca-destino"]') || 
+                        document.getElementById('pos-select-banca') ||
+                        document.querySelector('select');
+
+    if (selectBanca && selectBanca.options && selectBanca.selectedIndex !== -1) {
+        const txt = selectBanca.options[selectBanca.selectedIndex].text.trim();
+        if (txt && !txt.includes('--')) {
+            return txt.split('(')[0].trim();
+        }
+    }
+
+    try {
+        const sesionUser = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+        if (sesionUser.banca || sesionUser.nombre) {
+            return sesionUser.banca || sesionUser.nombre;
+        }
+    } catch (e) {}
+
+    return 'Banca Principal';
+};
+
+// 2. AGREGAR JUGADAS AL CARRITO (BOTÓN +)
+window.agregarJugadaAlCarrito = function() {
+    const inputNum = document.getElementById('pos-input-numbers');
+    const inputMnt = document.getElementById('pos-input-amount');
+
+    if (!inputNum || !inputMnt) return;
+
+    const numero = inputNum.value.trim();
+    const monto = parseFloat(inputMnt.value);
+
+    // Validar sorteos seleccionados
+    const checkboxesCheck = document.querySelectorAll('input[name="pos-sorteos-selected"]:checked');
+    if (checkboxesCheck.length === 0) {
+        alert("⚠️ Debe seleccionar al menos un sorteo antes de ingresar una jugada.");
+        return;
+    }
+
+    // Validar monto
+    if (isNaN(monto) || monto <= 0) {
+        alert("⚠️ Ingrese un monto válido mayor a 0.");
+        inputMnt.focus();
+        return;
+    }
+
+    // Validar formato de dígitos
+    const numLen = numero.length;
+    let tipo = '';
+    if (numLen === 2) tipo = 'directo';
+    else if (numLen === 4) tipo = 'pale';
+    else if (numLen === 6) tipo = 'tripleta';
+    else {
+        alert("⚠️ Jugada incorrecta: Ingrese 2 dígitos (Directo), 4 dígitos (Palé) o 6 dígitos (Tripleta).");
+        inputNum.focus();
+        return;
+    }
+
+    window.ultimoMontoIngresado = monto;
+
+    checkboxesCheck.forEach(cb => {
+        const labelText = cb.closest('label')?.textContent?.trim() || cb.nextElementSibling?.textContent?.trim() || 'SORTEO';
+        const nombreSorteo = (cb.dataset.nombre || labelText).replace(/[\n\r]+/g, ' ').trim().toUpperCase();
+
+        window.jugadasActuales.push({
+            id: Date.now() + Math.random(),
+            numero: numero,
+            monto: monto,
+            tipo: tipo,
+            sorteo_id: cb.value || null,
+            sorteo_nombre: nombreSorteo
+        });
+    });
+
+    inputNum.value = '';
+    inputMnt.value = window.ultimoMontoIngresado.toFixed(2);
+    inputNum.focus();
+
+    window.renderizarCarrito();
+};
+
+// 3. RENDERIZAR TABLA DE JUGADAS Y TOTALES
+window.renderizarCarrito = function() {
+    let totalMonto = 0;
+
+    const areaLista = document.getElementById('ticket-actual-list') || 
+                      document.querySelector('.ticket-actual-list');
+
+    if (areaLista) {
+        areaLista.innerHTML = '';
+
+        if (!window.jugadasActuales || window.jugadasActuales.length === 0) {
+            areaLista.innerHTML = `
+                <div style="text-align: center; color: #94a3b8; padding: 25px 10px; font-size: 13px;">
+                    <div style="font-size: 22px; margin-bottom: 6px; opacity: 0.5;">📋</div>
+                    No hay jugadas añadidas en este ticket
+                </div>`;
+        } else {
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = 'max-height: 240px; overflow-y: auto; padding-right: 2px; display: flex; flex-direction: column; gap: 6px;';
+
+            window.jugadasActuales.forEach((j, index) => {
+                totalMonto += parseFloat(j.monto || 0);
+
+                const itemRow = document.createElement('div');
+                itemRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #ffffff;';
+
+                itemRow.innerHTML = `
+                    <div style="flex: 1; text-align: left;">
+                        <div style="font-size: 10px; color: #38bdf8; font-weight: bold;">[${j.sorteo_nombre}]</div>
+                        <div style="margin-top: 2px; display: flex; align-items: center; gap: 6px;">
+                            <strong style="color: #facc15; font-size: 13px; font-family: monospace;">#${j.numero}</strong> 
+                            <span style="font-size: 8px; text-transform: uppercase; background: #0f172a; padding: 1px 4px; border-radius: 3px; border: 1px solid #475569;">${j.tipo}</span>
+                        </div>
+                    </div>
+                    <div style="font-weight: bold; color: #10b981; font-size: 13px; margin-right: 8px; font-family: monospace;">
+                        $${parseFloat(j.monto).toFixed(2)}
+                    </div>
+                    <button type="button" onclick="window.eliminarJugadaCarrito(${index})" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; width: 20px; height: 20px; cursor: pointer; font-size: 10px; font-weight: bold;">✕</button>
+                `;
+                wrapper.appendChild(itemRow);
+            });
+
+            areaLista.appendChild(wrapper);
+        }
+    } else {
+        window.jugadasActuales.forEach(j => totalMonto += parseFloat(j.monto || 0));
+    }
+
+    // Actualizar Totales e Indicadores
+    const totalElem = document.getElementById('lbl-total-pagar') || document.querySelector('.total-pagar-monto');
+    if (totalElem) totalElem.textContent = `$${totalMonto.toFixed(2)}`;
+
+    const cantidadElem = document.getElementById('lbl-cantidad-jugadas') || document.querySelector('.lbl-cantidad-jugadas');
+    if (cantidadElem) cantidadElem.textContent = window.jugadasActuales ? window.jugadasActuales.length : 0;
+};
+
+// 4. ELIMINAR JUGADA INDIVIDUAL
+window.eliminarJugadaCarrito = function(index) {
+    if (window.jugadasActuales && window.jugadasActuales[index] !== undefined) {
+        window.jugadasActuales.splice(index, 1);
+        window.renderizarCarrito();
+    }
+};
+
+// 5. VACIAR TICKET COMPLETO
+window.vaciarCarrito = function() {
+    window.jugadasActuales = [];
+    window.ultimoMontoIngresado = null;
+    
+    const inputNum = document.getElementById('pos-input-numbers');
+    const inputMnt = document.getElementById('pos-input-amount');
+    if (inputNum) inputNum.value = '';
+    if (inputMnt) inputMnt.value = '';
+
+    window.renderizarCarrito();
+};
+
+// 6. EMITIR TICKET E INSERTAR EN 'TICKETS' Y 'JUGADAS' EN SUPABASE
+window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
+    const supabase = window.supabase;
+    if (!supabase) {
+        alert("❌ Error: Supabase no está configurado.");
+        return;
+    }
+
+    if (!window.jugadasActuales || window.jugadasActuales.length === 0) {
+        alert("⚠️ Añada al menos una jugada antes de emitir el ticket.");
+        return;
+    }
+
+    const btnEmitir = document.getElementById('btn-pos-process-ticket') || document.querySelector('.btn-procesar-ticket');
+    if (btnEmitir) btnEmitir.disabled = true;
+
+    try {
+        let montoTotal = 0;
+        const listaJugadas = window.jugadasActuales.map(j => {
+            const mnt = parseFloat(j.monto || 0);
+            montoTotal += mnt;
+            return {
+                numero: String(j.numero).trim(),
+                monto: mnt,
+                tipo: String(j.tipo || 'directo').toLowerCase(),
+                sorteo_id: j.sorteo_id || null,
+                sorteo_nombre: j.sorteo_nombre || 'SORTEO'
+            };
+        });
+
+        const sorteosUnicos = [...new Set(listaJugadas.map(j => j.sorteo_nombre))].join(' / ');
+        const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
+        const nombreBanca = window.obtenerNombreBancaActual();
+
+        // Guardar encabezado en 'tickets'
+        const payloadTicket = {
+            codigo: codigoTicket,
+            codigo_ticket: codigoTicket,
+            banca: nombreBanca,
+            banca_nombre: nombreBanca,
+            vendedor: nombreBanca,
+            sorteo_nombre: sorteosUnicos,
+            monto: parseFloat(montoTotal.toFixed(2)),
+            monto_total: parseFloat(montoTotal.toFixed(2)),
+            detalles: listaJugadas,
+            jugadas: listaJugadas,
+            estatus: 'pendiente'
+        };
+
+        const { data: ticketData, error: ticketError } = await supabase
+            .from('tickets')
+            .insert([payloadTicket])
+            .select();
+
+        if (ticketError) {
+            console.error("❌ Error al guardar ticket:", ticketError);
+            alert(`❌ Error al registrar ticket: ${ticketError.message}`);
+            return;
+        }
+
+        const ticketRegistrado = ticketData ? ticketData[0] : payloadTicket;
+
+        // Guardar detalle individual en 'jugadas'
+        const registrosJugadas = listaJugadas.map(j => ({
+            codigo_ticket: codigoTicket,
+            numero: j.numero,
+            monto: j.monto,
+            tipo: j.tipo,
+            sorteo_id: j.sorteo_id,
+            sorteo_nombre: j.sorteo_nombre,
+            banca: nombreBanca,
+            estatus: 'pendiente'
+        }));
+
+        const { error: jugadasError } = await supabase
+            .from('jugadas')
+            .insert(registrosJugadas);
+
+        if (jugadasError) {
+            console.warn("⚠️ Advertencia al guardar en 'jugadas':", jugadasError.message);
+        }
+
+        // Limpiar formulario y carrito
+        window.vaciarCarrito();
+        document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = false);
+
+        if (enviarPorWhatsApp && typeof window.compartirTicketWhatsApp === 'function') {
+            window.compartirTicketWhatsApp(ticketRegistrado);
+        } else if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
+            window.mostrarOpcionesExportacionTicket(ticketRegistrado);
+        } else {
+            alert(`✅ Ticket #${codigoTicket} emitido correctamente.`);
+        }
+
+    } catch (err) {
+        console.error("❌ Error al procesar ticket:", err);
+        alert("❌ Error: " + err.message);
+    } finally {
+        if (btnEmitir) btnEmitir.disabled = false;
+    }
+};
+
+// 7. INICIALIZADOR DE EVENTOS POS
+window.activarEventosPOS = function() {
+    const btnAgregar = document.getElementById('pos-btn-add') || document.querySelector('.btn-add-jugada');
+    if (btnAgregar) {
+        btnAgregar.onclick = function(e) {
+            e.preventDefault();
+            window.agregarJugadaAlCarrito();
+        };
+    }
+
+    const btnEmitir = document.getElementById('btn-pos-process-ticket') || document.querySelector('.btn-procesar-ticket');
+    if (btnEmitir) {
+        btnEmitir.onclick = function(e) {
+            e.preventDefault();
+            window.guardarTicketEnSupabase(false);
+        };
+    }
+
+    window.renderizarCarrito();
+};
+
+// Vinculación segura en carga de documento
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', window.activarEventosPOS);
+} else {
+    window.activarEventosPOS();
+}
 // ----------------------------------------------------------
 // 6. TECLADO NUMÉRICO ANTI-DUPLICACIÓN (MANDATORIO)
 // ----------------------------------------------------------

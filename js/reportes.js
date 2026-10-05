@@ -609,7 +609,7 @@ function buscarTicketEnCache(targetId) {
 }
 
 // ==========================================================
-// OBTENER DETALLE COMPLETO Y MOSTRAR SORTEO EN MODAL
+// VISUALIZACIÓN DEL TICKET USANDO EL MISMO MODAL DEL POS
 // ==========================================================
 window.verTicketHistorial = async function(uniqueId) {
     const ticket = buscarTicketEnCache(uniqueId);
@@ -619,26 +619,8 @@ window.verTicketHistorial = async function(uniqueId) {
     }
 
     const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
-    let nombreSorteo = ticket.sorteo_nombre || ticket.sorteo || ticket.nombre_sorteo || ticket.loteria;
 
-    // Si el nombre del sorteo está vacío en el ticket, lo obtenemos mediante sorteo_id
-    if ((!nombreSorteo || nombreSorteo === 'N/A') && ticket.sorteo_id && supabase) {
-        try {
-            const { data: sorteoData } = await supabase
-                .from('sorteos')
-                .select('nombre, descripcion')
-                .eq('id', ticket.sorteo_id)
-                .maybeSingle();
-
-            if (sorteoData) {
-                nombreSorteo = sorteoData.nombre || sorteoData.descripcion;
-            }
-        } catch (e) {
-            console.warn("No se pudo consultar el sorteo:", e);
-        }
-    }
-
-    // Obtener las jugadas vinculadas
+    // Obtener las jugadas reales desde Supabase si no existen en memoria
     let items = normalizarItemsTicket(ticket);
     if ((!items || items.length === 0) && supabase) {
         try {
@@ -646,88 +628,117 @@ window.verTicketHistorial = async function(uniqueId) {
                 .from('jugadas')
                 .select('*')
                 .eq('ticket_id', ticket.id);
-            if (jugadasBD && jugadasBD.length > 0) items = jugadasBD;
+            if (jugadasBD && jugadasBD.length > 0) {
+                items = jugadasBD.map(j => ({
+                    type: (j.tipo || 'DIRECTO').toUpperCase(),
+                    number: j.numero || j.num1 || '',
+                    amount: parseFloat(j.monto || 0)
+                }));
+            }
         } catch (e) {
             console.warn("Error al cargar jugadas:", e);
         }
     }
 
-    const estatusActual = String(ticket.estatus || ticket.status || ticket.estado || 'pendiente').toLowerCase();
-    const esCancelado = estatusActual === 'cancelado' || estatusActual === 'anulado';
-
-    const ticketNormalizado = {
-        ...ticket,
-        folio: ticket.codigo_ticket || ticket.folio || ticket.ticket_numero || ticket.id,
-        sorteo_nombre: nombreSorteo || 'Sorteo General',
-        sorteo: nombreSorteo || 'Sorteo General',
-        items: items,
-        jugadas: items,
-        apuestas: items,
-        banca_nombre: obtenerNombreBanca(ticket.banca_id, ticket),
-        estatus: esCancelado ? 'CANCELADO' : estatusActual.toUpperCase(),
-        esCancelado: esCancelado,
-        esCopia: true // Marca que es una reimpresión / vista secundaria
-    };
-
-    if (typeof window.showTicketModal === 'function') {
+    // Obtener el nombre del sorteo/lotería
+    let loteriaNombre = ticket.sorteo_nombre || ticket.sorteo || 'Sorteo General';
+    if ((!loteriaNombre || loteriaNombre === 'N/A') && ticket.sorteo_id && supabase) {
         try {
-            window.showTicketModal(ticketNormalizado);
-            return;
-        } catch (e) {
-            console.warn("Error en showTicketModal:", e);
-        }
+            const { data: s } = await supabase.from('sorteos').select('nombre').eq('id', ticket.sorteo_id).maybeSingle();
+            if (s && s.nombre) loteriaNombre = s.nombre;
+        } catch (e) {}
     }
 
-    if (typeof mostrarModalTermicoRespaldo === 'function') {
-        mostrarModalTermicoRespaldo(ticketNormalizado);
+    // Estructura adaptada idéntica a la que consume showTicketModal en el POS
+    const ticketParaPOSModal = {
+        id: ticket.id,
+        folio: ticket.codigo_ticket || ticket.folio || ticket.id,
+        createdAt: ticket.created_at || ticket.createdAt || new Date().toISOString(),
+        bancaId: ticket.banca_id || ticket.bancaId,
+        bancaNombre: obtenerNombreBanca(ticket.banca_id, ticket),
+        loteriaIds: [ticket.sorteo_id],
+        loteriaNombre: loteriaNombre,
+        sorteo_nombre: loteriaNombre,
+        items: items,
+        total: parseFloat(ticket.monto_total || ticket.monto || ticket.total || 0),
+        status: String(ticket.estatus || ticket.estado || 'pendiente').toLowerCase(),
+        esCopia: true
+    };
+
+    // Llamar directamente al modal modalizado del POS
+    const fnModal = typeof showTicketModal === 'function' ? showTicketModal : window.showTicketModal;
+    if (typeof fnModal === 'function') {
+        fnModal(ticketParaPOSModal);
+
+        // Inyectar marca visual de COPIA dentro del modal del POS
+        setTimeout(() => {
+            const container = document.querySelector('#ticketModal .modal-body') || 
+                              document.querySelector('#ticketModal') || 
+                              document.querySelector('.ticket-container');
+            if (container && !document.getElementById('etiqueta-copia-historial')) {
+                const copiaDiv = document.createElement('div');
+                copiaDiv.id = 'etiqueta-copia-historial';
+                copiaDiv.style.cssText = 'text-align: center; font-weight: bold; font-size: 16px; color: #ef4444; margin: 8px 0; border: 1px dashed #ef4444; padding: 4px; border-radius: 4px; background: rgba(239, 68, 68, 0.1);';
+                copiaDiv.innerHTML = '*** REIMPRESIÓN / COPIA ***';
+                container.insertBefore(copiaDiv, container.firstChild);
+            }
+        }, 150);
+    } else {
+        alert("La función showTicketModal no está disponible globalmente.");
     }
 };
 
+// ==========================================================
+// CANCELACIÓN DE TICKET (SOLUCIÓN DEFINTIVA AL ERROR 400)
+// ==========================================================
 window.cancelarTicketHistorial = async function(uniqueId) {
     if (!confirm(`¿Está seguro de que desea anular el ticket #${uniqueId}?`)) return;
 
     try {
         const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
-        
-        // 1. Obtener el ticket para conocer su ID numérico real
-        const { data: ticket, error: errBusqueda } = await supabase
-            .from('tickets')
-            .select('id, codigo_ticket, folio')
-            .or(`codigo_ticket.eq.${uniqueId},folio.eq.${uniqueId}${/^\d+$/.test(uniqueId) ? `,id.eq.${uniqueId}` : ''}`)
-            .maybeSingle();
+        if (!supabase) throw new Error("Sin conexión con Supabase.");
 
-        if (errBusqueda || !ticket) {
-            throw new Error("No se encontró el ticket en la base de datos.");
+        const refStr = String(uniqueId).trim();
+
+        // 1. Consultar únicamente por id numérico o por código exacto
+        let query = supabase.from('tickets').select('id');
+        if (/^\d+$/.test(refStr)) {
+            query = query.eq('id', parseInt(refStr, 10));
+        } else {
+            query = query.eq('codigo_ticket', refStr);
         }
 
-        const idReal = ticket.id;
+        const { data: ticket, error: errSearch } = await query.maybeSingle();
 
-        // 2. Anular Ticket en Supabase
-        const { error: errTicket } = await supabase
+        if (errSearch || !ticket) throw new Error("No se pudo localizar el ticket en la base de datos.");
+
+        const ticketId = ticket.id;
+
+        // 2. Ejecutar UPDATE sobre la clave primaria id para evitar error 400
+        const { error: errUpdateTicket } = await supabase
             .from('tickets')
-            .update({ estatus: 'cancelado', estado: 'cancelado', status: 'cancelado' })
-            .eq('id', idReal);
+            .update({ estatus: 'cancelado', estado: 'cancelado' })
+            .eq('id', ticketId);
 
-        if (errTicket) throw errTicket;
+        if (errUpdateTicket) throw errUpdateTicket;
 
-        // 3. Anular Jugadas asociadas en Supabase
+        // 3. Cancelar las jugadas vinculadas
         await supabase
             .from('jugadas')
             .update({ estatus: 'cancelado', estado: 'cancelado' })
-            .eq('ticket_id', idReal);
+            .eq('ticket_id', ticketId);
 
-        alert(`✅ Ticket #${uniqueId} anulado correctamente.`);
+        alert(`✅ Ticket #${uniqueId} anulado con éxito.`);
 
-        // 4. Actualizar memoria local (ticketsCache) para refrescar la tabla sin recargar
-        if (Array.isArray(window.ticketsCache)) {
-            const tCache = window.ticketsCache.find(t => String(t.id) === String(idReal) || t.codigo_ticket === uniqueId || t.folio === uniqueId);
+        // 4. Actualizar estado local y refrescar la tabla
+        if (Array.isArray(ticketsCache)) {
+            const tCache = ticketsCache.find(t => String(t.id) === String(ticketId) || String(t.codigo_ticket) === refStr);
             if (tCache) {
                 tCache.estatus = 'cancelado';
                 tCache.estado = 'cancelado';
             }
         }
 
-        // 5. Renderizar de nuevo la tabla local
         if (typeof filtrarYRenderizarTicketsLocal === 'function') {
             filtrarYRenderizarTicketsLocal();
         } else if (typeof cargarHistorialTickets === 'function') {
@@ -735,7 +746,7 @@ window.cancelarTicketHistorial = async function(uniqueId) {
         }
 
     } catch (err) {
-        alert('❌ Error al anular el ticket: ' + err.message);
+        alert("❌ Error al anular el ticket: " + err.message);
     }
 };
 

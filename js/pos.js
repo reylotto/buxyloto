@@ -414,8 +414,13 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         return;
     }
 
-    if (!window.jugadasActuales || window.jugadasActuales.length === 0) {
-        alert("⚠️ Agregue al menos una jugada al ticket antes de emitir.");
+    // 1. Validar que existan jugadas en el carrito/estado actual
+    const jugadasAProcesar = Array.isArray(window.jugadasActuales) && window.jugadasActuales.length > 0
+        ? [...window.jugadasActuales]
+        : [];
+
+    if (jugadasAProcesar.length === 0) {
+        alert("⚠️ No hay jugadas en la lista para registrar.");
         return;
     }
 
@@ -424,7 +429,7 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
 
     try {
         let montoTotal = 0;
-        const listaJugadas = window.jugadasActuales.map(j => {
+        const listaJugadas = jugadasAProcesar.map(j => {
             const mnt = parseFloat(j.monto || 0);
             montoTotal += mnt;
             return {
@@ -441,14 +446,15 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
         const nombreBanca = typeof obtenerNombreBancaActual === 'function' ? obtenerNombreBancaActual() : 'Banca Principal';
 
-        // Extraer usuario/vendedor de la sesión activa
         let usuarioId = null;
+        let bancaId = null;
         try {
-            const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+            const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || localStorage.getItem('usuario') || '{}');
             usuarioId = sesion.id || sesion.user_id || sesion.uuid || null;
+            bancaId = sesion.banca_id || null;
         } catch (e) {}
 
-        // Payload para la tabla 'tickets'
+        // Payload de Ticket
         const payloadTicket = {
             codigo_ticket: codigoTicket,
             sorteo_id: sorteosIdsUnicos.length === 1 ? sorteosIdsUnicos[0] : null,
@@ -461,78 +467,80 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             estado: 'pendiente',
             usuario_id: usuarioId,
             vendedor_id: usuarioId,
+            banca_id: bancaId,
             vendedor: nombreBanca,
             banca_nombre: nombreBanca
         };
 
-        // 1. Insertar en tabla 'tickets'
+        // PASO A: Insertar el Ticket
+        console.log("➡️ Guardando ticket...", payloadTicket);
         const { data: ticketData, error: ticketError } = await supabase
             .from('tickets')
             .insert([payloadTicket])
-            .select();
+            .select('*');
 
         if (ticketError) {
-            console.error("❌ Error en tabla 'tickets':", ticketError);
-            alert(`❌ Error al guardar ticket: ${ticketError.message}`);
+            console.error("❌ Error al insertar ticket:", ticketError);
+            alert(`❌ Error guardando ticket: ${ticketError.message}`);
             return;
         }
 
-        const ticketRegistrado = (ticketData && ticketData.length > 0) ? ticketData[0] : null;
+        const ticketCreado = (ticketData && ticketData.length > 0) ? ticketData[0] : null;
 
-        if (!ticketRegistrado || !ticketRegistrado.id) {
-            alert("❌ El ticket se guardó pero no devolvió un ID válido.");
+        if (!ticketCreado || !ticketCreado.id) {
+            console.error("❌ No se devolvió el ID del ticket generado:", ticketData);
+            alert("❌ El ticket se guardó pero no fue posible obtener su ID.");
             return;
         }
 
-        // 2. Insertar desglosado en tabla 'jugadas' usando ticketRegistrado.id
+        console.log(`✅ Ticket #${ticketCreado.id} guardado con éxito. Insertando ${listaJugadas.length} jugadas...`);
+
+        // PASO B: Mapear e Insertar en la tabla 'jugadas'
         const registrosJugadas = listaJugadas.map(j => ({
-            ticket_id: ticketRegistrado.id,
+            ticket_id: ticketCreado.id,
             numero: j.numero,
             monto: j.monto,
             tipo: j.tipo,
             sorteo_id: j.sorteo_id,
-            estatus: 'pendiente'
+            estatus: 'pendiente',
+            estado: 'activo'
         }));
 
         const { data: jugadasData, error: jugadasError } = await supabase
             .from('jugadas')
             .insert(registrosJugadas)
-            .select();
+            .select('*');
 
         if (jugadasError) {
-            console.error("❌ Error sincronizando tabla 'jugadas':", jugadasError);
-            alert(`⚠️ Ticket emitido (#${codigoTicket}), pero hubo un problema guardando el desglose en 'jugadas': ${jugadasError.message}`);
+            console.error("❌ ERROR AL INSERTAR EN TABLA JUGADAS:", jugadasError);
+            alert(`⚠️ Ticket emitido (#${codigoTicket}), pero falló la tabla jugadas: ${jugadasError.message}`);
         } else {
-            console.log("✅ Desglose de jugadas insertado con éxito en Supabase:", jugadasData);
+            console.log("🎉 JUGADAS REGISTRADAS CORRECTAMENTE EN SUPABASE:", jugadasData);
         }
 
-        // Verificar éxito visual en UI
-        console.log(`Proceso finalizado. Ticket ID: ${ticketRegistrado.id}`);
+        // Limpieza de UI y resúmenes
+        if (typeof vaciarCarrito === 'function') vaciarCarrito();
+        document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = false);
+        if (typeof actualizarResumenSorteos === 'function') actualizarResumenSorteos();
 
         const ticketParaImprimir = {
-            ...ticketRegistrado,
+            ...ticketCreado,
             banca_nombre: nombreBanca,
             detalles: listaJugadas,
             jugadas: listaJugadas
         };
 
-        if (typeof vaciarCarrito === 'function') vaciarCarrito();
-        document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = false);
-        if (typeof actualizarResumenSorteos === 'function') actualizarResumenSorteos();
-
         if (enviarPorWhatsApp) {
-            if (typeof compartirWhatsAppManager === 'function') {
-                compartirWhatsAppManager(ticketParaImprimir);
-            }
+            if (typeof compartirWhatsAppManager === 'function') compartirWhatsAppManager(ticketParaImprimir);
         } else if (typeof mostrarOpcionesManager === 'function') {
             mostrarOpcionesManager(ticketParaImprimir);
         } else {
-            alert(`✅ Ticket #${codigoTicket} registrado e insertado correctamente.`);
+            alert(`✅ Ticket #${codigoTicket} procesado con éxito.`);
         }
 
     } catch (err) {
-        console.error("❌ Error general:", err);
-        alert("❌ Error procesando ticket: " + err.message);
+        console.error("❌ Error inesperado en el proceso:", err);
+        alert("❌ Error interno: " + err.message);
     } finally {
         if (btnEmitir) btnEmitir.disabled = false;
     }

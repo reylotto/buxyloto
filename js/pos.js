@@ -273,7 +273,7 @@ window.agregarJugadaAlCarrito = function() {
         return;
     }
 
-    // Control de dígitos: Solo 2 (Directo), 4 (Palé) o 6 (Tripleta)
+    // Control estricto de dígitos (2, 4 o 6)
     const numLen = numero.length;
     let tipo = '';
 
@@ -315,59 +315,81 @@ window.agregarJugadaAlCarrito = function() {
     inputMnt.value = window.ultimoMontoIngresado.toFixed(2);
     inputNum.focus();
 
+    // Invocación explícita de renderizado
     window.renderizarCarrito();
 };
 
 // ----------------------------------------------------------
-// 2. RENDERIZAR VISTA EN TICKET ACTUAL
+// 2. RENDERIZADO FORZADO Y DIRECTO DE LA LISTA Y TOTAL
 // ----------------------------------------------------------
 window.renderizarCarrito = function() {
-    // 1. Localizar de forma precisa la sección de Ticket Actual
-    let contenedorCarrito = document.getElementById('ticket-actual-list') || 
-                             document.getElementById('pos-cart-items') || 
-                             document.querySelector('.ticket-actual-list');
-
-    // Si no existe, buscar el contenedor central de la columna derecha de Ticket Actual
-    if (!contenedorCarrito) {
-        const paneles = document.querySelectorAll('div, section');
-        paneles.forEach(p => {
-            if (p.textContent && p.textContent.includes('Ticket Actual') && p.textContent.includes('TOTAL A PAGAR')) {
-                // Buscar el área de scroll o la zona donde está el mensaje "No hay jugadas..."
-                const targetArea = p.querySelector('div[style*="height"]') || p.querySelector('div[style*="overflow"]') || p.querySelector('.card-body');
-                if (targetArea) {
-                    contenedorCarrito = targetArea;
-                }
-            }
-        });
-    }
-
-    // Buscar elementos de Totales
-    const totalElem = document.getElementById('lbl-total-pagar') || 
-                      document.getElementById('pos-cart-total') || 
-                      document.querySelector('.total-pagar-monto');
-
-    const conteoElem = document.getElementById('lbl-cantidad-jugadas') || 
-                       document.getElementById('pos-cart-count');
-
     let totalMonto = 0;
 
-    if (contenedorCarrito) {
-        // Asegurar id para futuras referencias
-        contenedorCarrito.id = 'ticket-actual-list';
-        contenedorCarrito.innerHTML = '';
+    // Buscar el contenedor donde está la tarjeta de Ticket Actual
+    const paneles = document.querySelectorAll('div, section');
+    let listaContenedor = null;
+    let totalElemento = null;
+    let conteoElemento = null;
 
-        if (window.jugadasActuales.length === 0) {
-            contenedorCarrito.innerHTML = `
+    paneles.forEach(p => {
+        const texto = p.textContent || '';
+        if (texto.includes('Ticket Actual') && texto.includes('TOTAL A PAGAR')) {
+            // Localizar el área central de jugadas (donde aparece "No hay jugadas añadidas en este ticket")
+            const divs = p.querySelectorAll('div');
+            divs.forEach(d => {
+                if (d.textContent.includes('No hay jugadas añadidas') || d.id === 'ticket-actual-list' || d.classList.contains('ticket-actual-list')) {
+                    listaContenedor = d.parentElement || d;
+                }
+            });
+
+            // Localizar la etiqueta del total a pagar
+            const elementosMonto = p.querySelectorAll('span, div, h2, h3');
+            elementosMonto.forEach(el => {
+                if (el.textContent.includes('$') && (el.textContent.includes('0.00') || el.classList.contains('total-pagar-monto') || el.id === 'lbl-total-pagar')) {
+                    totalElemento = el;
+                }
+            });
+
+            // Localizar indicador de cantidad de jugadas
+            const elementosConteo = p.querySelectorAll('span, div');
+            elementosConteo.forEach(el => {
+                if (el.id === 'lbl-cantidad-jugadas' || el.classList.contains('lbl-cantidad-jugadas')) {
+                    conteoElemento = el;
+                }
+            });
+        }
+    });
+
+    // Fallbacks directos por ID si existen
+    if (!listaContenedor) {
+        listaContenedor = document.getElementById('ticket-actual-list') || document.getElementById('pos-cart-items');
+    }
+    if (!totalElemento) {
+        totalElemento = document.getElementById('lbl-total-pagar') || document.getElementById('pos-cart-total');
+    }
+    if (!conteoElemento) {
+        conteoElemento = document.getElementById('lbl-cantidad-jugadas') || document.getElementById('pos-cart-count');
+    }
+
+    // DIBUJAR LA LISTA
+    if (listaContenedor) {
+        listaContenedor.innerHTML = '';
+
+        if (!window.jugadasActuales || window.jugadasActuales.length === 0) {
+            listaContenedor.innerHTML = `
                 <div style="text-align: center; color: #94a3b8; padding: 40px 10px; font-size: 13px;">
                     <div style="font-size: 24px; margin-bottom: 8px; opacity: 0.5;">📋</div>
                     No hay jugadas añadidas en este ticket
                 </div>`;
         } else {
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = 'max-height: 280px; overflow-y: auto; padding-right: 4px;';
+
             window.jugadasActuales.forEach((j, index) => {
                 totalMonto += parseFloat(j.monto || 0);
 
                 const itemDiv = document.createElement('div');
-                itemDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; margin-bottom: 6px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #ffffff; width: 100%; box-sizing: border-box;';
+                itemDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; margin-bottom: 6px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #ffffff; box-sizing: border-box;';
 
                 itemDiv.innerHTML = `
                     <div style="flex: 1; text-align: left;">
@@ -383,31 +405,26 @@ window.renderizarCarrito = function() {
                     <button type="button" onclick="window.eliminarJugadaCarrito(${index})" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; width: 22px; height: 22px; cursor: pointer; font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: center;">✕</button>
                 `;
 
-                contenedorCarrito.appendChild(itemDiv);
+                wrapper.appendChild(itemDiv);
             });
+
+            listaContenedor.appendChild(wrapper);
         }
     }
 
-    // Actualizar Texto de Total A Pagar y Cantidad de Jugadas
-    if (totalElem) {
-        totalElem.textContent = `$${totalMonto.toFixed(2)}`;
-    } else {
-        // Búsqueda por contenido en el DOM si no tiene ID específico
-        const spans = document.querySelectorAll('div, span, p');
-        spans.forEach(s => {
-            if (s.textContent && s.textContent.trim().startsWith('$') && s.parentElement && s.parentElement.textContent.includes('TOTAL A PAGAR')) {
-                s.textContent = `$${totalMonto.toFixed(2)}`;
-            }
-        });
+    // ACTUALIZAR MONTO TOTAL
+    if (totalElemento) {
+        totalElemento.textContent = `$${totalMonto.toFixed(2)}`;
     }
 
-    if (conteoElem) {
-        conteoElem.textContent = window.jugadasActuales.length;
+    // ACTUALIZAR CONTADOR
+    if (conteoElemento) {
+        conteoElemento.textContent = window.jugadasActuales ? window.jugadasActuales.length : 0;
     }
 };
 
 // ----------------------------------------------------------
-// 3. ELIMINAR JUGADA
+// 3. ELIMINAR ITEM
 // ----------------------------------------------------------
 window.eliminarJugadaCarrito = function(index) {
     if (window.jugadasActuales && window.jugadasActuales[index] !== undefined) {
@@ -417,7 +434,7 @@ window.eliminarJugadaCarrito = function(index) {
 };
 
 // ----------------------------------------------------------
-// 4. BINDING TECLADO (ENTER)
+// 4. BINDING DE TECLADO (ENTER)
 // ----------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
     const inputNum = document.getElementById('pos-input-numbers');
@@ -447,7 +464,40 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ----------------------------------------------------------
-// 5. EMISIÓN Y GUARDADO EN SUPABASE
+// 5. OBTENER NOMBRE DINÁMICO DE LA BANCA / VENDEDOR
+// ----------------------------------------------------------
+window.obtenerNombreBancaActual = function() {
+    // 1. Intentar capturar del selector VENDEDOR / BANCA DESTINO en pantalla
+    const selectBanca = document.querySelector('select[name="pos-banca-destino"]') || 
+                        document.getElementById('pos-select-banca') || 
+                        document.querySelector('.banca-select');
+
+    if (selectBanca && selectBanca.options && selectBanca.selectedIndex !== -1) {
+        const textoSeleccionado = selectBanca.options[selectBanca.selectedIndex].text.trim();
+        if (textoSeleccionado && !textoSeleccionado.includes('--')) {
+            return textoSeleccionado.replace(/^[\s\-]+/, '').trim();
+        }
+    }
+
+    // 2. Intentar capturar de la sesión / usuario activo en localStorage
+    try {
+        const sesionUser = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+        if (sesionUser.banca || sesionUser.nombre || sesionUser.username) {
+            return sesionUser.banca || sesionUser.nombre || sesionUser.username;
+        }
+    } catch (e) {}
+
+    // 3. Fallback al nombre visible en el header superior
+    const headerUser = document.querySelector('.user-profile-name') || document.querySelector('.header-banca-name');
+    if (headerUser && headerUser.textContent.trim()) {
+        return headerUser.textContent.trim();
+    }
+
+    return 'Banca Principal';
+};
+
+// ----------------------------------------------------------
+// 6. GUARDAR TICKET Y OBTENER LA BANCA DINÁMICA
 // ----------------------------------------------------------
 window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
     const supabase = window.supabase;
@@ -481,10 +531,16 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         const listaNombresSorteos = [...new Set(detallesJugadas.map(j => j.sorteo_nombre))];
         const nombresSorteosUnificados = listaNombresSorteos.join(' / ');
         const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
+        
+        // Obtención dinámicamente de la banca activa
+        const nombreBancaDinamico = window.obtenerNombreBancaActual();
 
         const payloadTicket = {
             codigo: codigoTicket,
             codigo_ticket: codigoTicket,
+            banca: nombreBancaDinamico,
+            banca_nombre: nombreBancaDinamico,
+            vendedor: nombreBancaDinamico,
             sorteo_nombre: nombresSorteosUnificados,
             monto: parseFloat(montoTotal.toFixed(2)),
             monto_total: parseFloat(montoTotal.toFixed(2)),
@@ -503,7 +559,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
 
         const ticketGuardado = data ? data[0] : payloadTicket;
 
-        // Limpiar para el siguiente ticket
+        // Limpiar para la siguiente venta
         window.jugadasActuales = [];
         window.ultimoMontoIngresado = null;
 
@@ -520,7 +576,7 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         } else if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
             window.mostrarOpcionesExportacionTicket(ticketGuardado);
         } else {
-            alert(`✅ Ticket #${codigoTicket} emitido correctamente.`);
+            alert(`✅ Ticket #${codigoTicket} emitido correctamente para [${nombreBancaDinamico}].`);
         }
 
     } catch (err) {

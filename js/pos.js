@@ -495,18 +495,17 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
 
         console.log(`✅ Ticket #${ticketCreado.id} guardado con éxito. Insertando ${listaJugadas.length} jugadas...`);
 
-       // 2. Mapeo explícito a las columnas confirmadas en Supabase
+       // Mapeo adaptado a la tabla jugadas
         const registrosJugadas = listaJugadas.map(j => {
             const numStr = String(j.numero || '').trim();
-            // Desglosar números si vienen combinados para num1 y num2
             const partes = numStr.includes('-') ? numStr.split('-') : [numStr];
 
             return {
                 ticket_id: parseInt(ticketCreado.id, 10),
                 tipo: String(j.tipo || 'directo').toLowerCase(),
                 numero: numStr,
-                num1: partes[0] || numStr,
-                num2: partes[1] || null,
+                num1: String(partes[0] || numStr).substring(0, 10),
+                num2: partes[1] ? String(partes[1]).substring(0, 10) : null,
                 monto: parseFloat(j.monto) || 0,
                 sorteo_id: j.sorteo_id ? parseInt(j.sorteo_id, 10) : null,
                 sorteo_nombre: j.sorteo_nombre || null,

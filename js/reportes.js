@@ -609,25 +609,44 @@ function buscarTicketEnCache(targetId) {
 }
 
 // ==========================================================
-// VISUALIZACIÓN Y CANCELACIÓN DE TICKETS DESDE EL HISTORIAL
+// OBTENER DETALLE COMPLETO Y MOSTRAR SORTEO EN MODAL
 // ==========================================================
-
-window.verTicketHistorial = function(uniqueId) {
+window.verTicketHistorial = async function(uniqueId) {
     const ticket = buscarTicketEnCache(uniqueId);
     if (!ticket) {
         alert("No se encontró el detalle del ticket seleccionado.");
         return;
     }
 
+    const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
+    let nombreSorteo = ticket.sorteo_nombre || ticket.sorteo || ticket.nombre_sorteo || ticket.loteria;
+
+    // Si el nombre del sorteo viene nulo en la tabla tickets, lo obtenemos de public.sorteos
+    if (!nombreSorteo && ticket.sorteo_id && supabase) {
+        try {
+            const { data: sorteoData } = await supabase
+                .from('sorteos')
+                .select('nombre')
+                .eq('id', ticket.sorteo_id)
+                .maybeSingle();
+            
+            if (sorteoData && sorteoData.nombre) {
+                nombreSorteo = sorteoData.nombre;
+            }
+        } catch (e) {
+            console.warn("No se pudo consultar el nombre del sorteo:", e);
+        }
+    }
+
     const items = normalizarItemsTicket(ticket);
     const estatusActual = String(ticket.estatus || ticket.status || ticket.estado || 'pendiente').toLowerCase();
     const esCancelado = estatusActual === 'cancelado' || estatusActual === 'anulado';
 
-    // Normalización de datos con Sorteo/Lotería para el Ticket Térmico
     const ticketNormalizado = {
         ...ticket,
         folio: ticket.codigo_ticket || ticket.folio || ticket.ticket_numero || ticket.id,
-        sorteo: ticket.sorteo || ticket.nombre_sorteo || ticket.loteria || ticket.sorteo_nombre || 'Sorteo General',
+        sorteo: nombreSorteo || 'Sorteo General',
+        sorteo_nombre: nombreSorteo || 'Sorteo General',
         items: items,
         jugadas: items,
         apuestas: items,
@@ -636,17 +655,15 @@ window.verTicketHistorial = function(uniqueId) {
         esCancelado: esCancelado
     };
 
-    // Intentar mostrar modal unificado si está definido
     if (typeof window.showTicketModal === 'function') {
         try {
             window.showTicketModal(ticketNormalizado);
             return;
         } catch (e) {
-            console.warn("Fallo showTicketModal por defecto, utilizando modal de respaldo:", e);
+            console.warn("Fallo showTicketModal:", e);
         }
     }
 
-    // Modal térmico de respaldo
     if (typeof mostrarModalTermicoRespaldo === 'function') {
         mostrarModalTermicoRespaldo(ticketNormalizado);
     }

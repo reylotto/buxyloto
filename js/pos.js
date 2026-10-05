@@ -238,14 +238,17 @@ function actualizarResumenSorteos() {
 window.actualizarResumenSorteos = actualizarResumenSorteos;
 
 // ==========================================================
-// MÓDULO POS - GESTIÓN DE JUGADAS Y TICKET ACTUAL
+// MÓDULO POS - GESTIÓN COMPLETA DE TICKET Y JUGADAS
 // ==========================================================
 
-window.jugadasActuales = [];
+if (!window.jugadasActuales) {
+    window.jugadasActuales = [];
+}
+
 window.ultimoMontoIngresado = null;
 
 // ----------------------------------------------------------
-// 1. OBTENER NOMBRE DINÁMICO DE LA BANCA
+// 1. OBTENER NOMBRE DINÁMICO DE LA BANCA O VENDEDOR
 // ----------------------------------------------------------
 window.obtenerNombreBancaActual = function() {
     const selectBanca = document.querySelector('select[name="pos-banca-destino"]') || 
@@ -255,7 +258,6 @@ window.obtenerNombreBancaActual = function() {
     if (selectBanca && selectBanca.options && selectBanca.selectedIndex !== -1) {
         const txt = selectBanca.options[selectBanca.selectedIndex].text.trim();
         if (txt && !txt.includes('--')) {
-            // Extraer solo el nombre limpio antes del (ID ...)
             return txt.split('(')[0].trim();
         }
     }
@@ -282,7 +284,7 @@ window.agregarJugadaAlCarrito = function() {
     const numero = inputNum.value.trim();
     const monto = parseFloat(inputMnt.value);
 
-    // Validar sorteos marcados
+    // Validar sorteos seleccionados
     const checkboxesCheck = document.querySelectorAll('input[name="pos-sorteos-selected"]:checked');
     if (checkboxesCheck.length === 0) {
         alert("⚠️ Debe seleccionar al menos un sorteo antes de ingresar una jugada.");
@@ -296,7 +298,7 @@ window.agregarJugadaAlCarrito = function() {
         return;
     }
 
-    // Validar dígitos: Directo (2), Palé (4), Tripleta (6)
+    // Validar formato de dígitos
     const numLen = numero.length;
     let tipo = '';
 
@@ -314,7 +316,7 @@ window.agregarJugadaAlCarrito = function() {
 
     window.ultimoMontoIngresado = monto;
 
-    // Agregar jugada por cada sorteo seleccionado
+    // Duplicar la jugada para cada sorteo marcado
     checkboxesCheck.forEach(cb => {
         const labelText = cb.closest('label')?.textContent?.trim() || cb.nextElementSibling?.textContent?.trim() || 'SORTEO';
         const nombreSorteo = (cb.dataset.nombre || labelText).replace(/[\n\r]+/g, ' ').trim().toUpperCase();
@@ -337,57 +339,60 @@ window.agregarJugadaAlCarrito = function() {
 };
 
 // ----------------------------------------------------------
-// 3. RENDERIZAR VISTA DEL CARRITO Y TOTALES
+// 3. RENDERIZAR TABLA Y RECONSTRUIR BOTÓN DE EMISIÓN SI FALTA
 // ----------------------------------------------------------
 window.renderizarCarrito = function() {
-    // Buscar la sección derecha "Ticket Actual"
-    const paneles = document.querySelectorAll('div, section');
-    let panelTicket = null;
+    let totalMonto = 0;
 
-    paneles.forEach(p => {
-        if (p.textContent && p.textContent.includes('Ticket Actual') && p.textContent.includes('TOTAL A PAGAR')) {
-            panelTicket = p;
-        }
-    });
+    // Localizar la columna del Ticket Actual
+    let contenedorTicket = document.querySelector('#ticket-actual-container') || 
+                           document.querySelector('.ticket-actual-card');
 
-    if (!panelTicket) return;
+    if (!contenedorTicket) {
+        const paneles = document.querySelectorAll('div, section');
+        paneles.forEach(p => {
+            if (p.textContent && p.textContent.includes('Ticket Actual') && p.textContent.includes('TOTAL A PAGAR')) {
+                contenedorTicket = p;
+            }
+        });
+    }
 
-    // 1. Actualizar/Reemplazar área central de la lista
-    let areaLista = panelTicket.querySelector('.ticket-actual-list') || document.getElementById('ticket-actual-list');
-    
+    if (!contenedorTicket) return;
+
+    // Buscar contenedor interno de lista
+    let areaLista = contenedorTicket.querySelector('#ticket-actual-list') || 
+                      contenedorTicket.querySelector('.ticket-actual-list');
+
     if (!areaLista) {
-        // Si no existe contenedor con ID/clase, buscar el contenedor que contiene el mensaje "No hay jugadas..."
-        const divs = panelTicket.querySelectorAll('div');
+        const divs = contenedorTicket.querySelectorAll('div');
         divs.forEach(d => {
-            if (d.textContent.includes('No hay jugadas añadidas')) {
+            if (d.textContent.includes('No hay jugadas añadidas') || d.children.length > 0) {
                 areaLista = d;
             }
         });
     }
 
-    let totalCalculado = 0;
-
     if (areaLista) {
         areaLista.id = 'ticket-actual-list';
         areaLista.innerHTML = '';
 
-        if (window.jugadasActuales.length === 0) {
+        if (!window.jugadasActuales || window.jugadasActuales.length === 0) {
             areaLista.innerHTML = `
-                <div style="text-align: center; color: #94a3b8; padding: 40px 10px; font-size: 13px;">
+                <div style="text-align: center; color: #94a3b8; padding: 30px 10px; font-size: 13px;">
                     <div style="font-size: 24px; margin-bottom: 8px; opacity: 0.5;">📋</div>
                     No hay jugadas añadidas en este ticket
                 </div>`;
         } else {
             const wrapper = document.createElement('div');
-            wrapper.style.cssText = 'max-height: 320px; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 6px;';
+            wrapper.style.cssText = 'max-height: 260px; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 6px;';
 
-            window.jugadasActuales.forEach((j, idx) => {
-                totalCalculado += parseFloat(j.monto || 0);
+            window.jugadasActuales.forEach((j, index) => {
+                totalMonto += parseFloat(j.monto || 0);
 
-                const row = document.createElement('div');
-                row.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #ffffff;';
+                const itemRow = document.createElement('div');
+                itemRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #ffffff;';
 
-                row.innerHTML = `
+                itemRow.innerHTML = `
                     <div style="flex: 1; text-align: left;">
                         <div style="font-size: 10px; color: #38bdf8; font-weight: bold;">[${j.sorteo_nombre}]</div>
                         <div style="margin-top: 2px; display: flex; align-items: center; gap: 6px;">
@@ -398,44 +403,54 @@ window.renderizarCarrito = function() {
                     <div style="font-weight: bold; color: #10b981; font-size: 14px; margin-right: 10px; font-family: monospace;">
                         $${parseFloat(j.monto).toFixed(2)}
                     </div>
-                    <button type="button" onclick="window.eliminarJugadaCarrito(${idx})" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; width: 22px; height: 22px; cursor: pointer; font-size: 11px; font-weight: bold;">✕</button>
+                    <button type="button" onclick="window.eliminarJugadaCarrito(${index})" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; width: 22px; height: 22px; cursor: pointer; font-size: 11px; font-weight: bold;">✕</button>
                 `;
-                wrapper.appendChild(row);
+                wrapper.appendChild(itemRow);
             });
 
             areaLista.appendChild(wrapper);
         }
     }
 
-    // 2. Actualizar Indicadores de Cantidad y Total a Pagar
-    const conteoElem = panelTicket.querySelector('.lbl-cantidad-jugadas') || document.getElementById('lbl-cantidad-jugadas');
-    if (conteoElem) {
-        conteoElem.textContent = window.jugadasActuales.length;
+    // Actualizar Total
+    const totalElem = contenedorTicket.querySelector('#lbl-total-pagar') || 
+                      contenedorTicket.querySelector('.total-pagar-monto');
+    if (totalElem) {
+        totalElem.textContent = `$${totalMonto.toFixed(2)}`;
     } else {
-        // Búsqueda por texto si no tiene ID directo
-        const spans = panelTicket.querySelectorAll('span, div');
-        spans.forEach(s => {
-            if (s.previousElementSibling && s.previousElementSibling.textContent.includes('Cantidad de jugadas')) {
-                s.textContent = window.jugadasActuales.length;
+        const elementosTexto = contenedorTicket.querySelectorAll('span, div, h2, h3');
+        elementosTexto.forEach(el => {
+            if (el.textContent.includes('$')) {
+                el.textContent = `$${totalMonto.toFixed(2)}`;
             }
         });
     }
 
-    const totalElem = panelTicket.querySelector('.total-pagar-monto') || document.getElementById('lbl-total-pagar');
-    if (totalElem) {
-        totalElem.textContent = `$${totalCalculado.toFixed(2)}`;
+    // Actualizar Cantidad
+    const cantidadElem = contenedorTicket.querySelector('#lbl-cantidad-jugadas') || 
+                         contenedorTicket.querySelector('.lbl-cantidad-jugadas');
+    if (cantidadElem) {
+        cantidadElem.textContent = window.jugadasActuales ? window.jugadasActuales.length : 0;
+    }
+
+    // RESTAURAR BOTÓN SI FUE ELIMINADO DE LA VISTA
+    let btnEmitir = document.getElementById('btn-pos-process-ticket') || contenedorTicket.querySelector('.btn-procesar-ticket');
+    if (!btnEmitir) {
+        btnEmitir = document.createElement('button');
+        btnEmitir.id = 'btn-pos-process-ticket';
+        btnEmitir.className = 'btn-procesar-ticket';
+        btnEmitir.type = 'button';
+        btnEmitir.style.cssText = 'width: 100%; margin-top: 15px; padding: 12px; background: #10b981; color: white; font-weight: bold; font-size: 14px; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;';
+        btnEmitir.innerHTML = '🔒 PROCESAR & EMITIR TICKET';
+        btnEmitir.onclick = function() { window.guardarTicketEnSupabase(false); };
+        contenedorTicket.appendChild(btnEmitir);
     } else {
-        const spans = panelTicket.querySelectorAll('span, div, h2, h3');
-        spans.forEach(s => {
-            if (s.textContent.includes('$') && (s.parentElement?.textContent.includes('TOTAL A PAGAR') || s.className.includes('total'))) {
-                s.textContent = `$${totalCalculado.toFixed(2)}`;
-            }
-        });
+        btnEmitir.onclick = function() { window.guardarTicketEnSupabase(false); };
     }
 };
 
 // ----------------------------------------------------------
-// 4. ELIMINAR UNA JUGADA INDIVIDUAL
+// 4. ELIMINAR ITEM INDIVIDUAL
 // ----------------------------------------------------------
 window.eliminarJugadaCarrito = function(index) {
     if (window.jugadasActuales && window.jugadasActuales[index] !== undefined) {
@@ -445,7 +460,7 @@ window.eliminarJugadaCarrito = function(index) {
 };
 
 // ----------------------------------------------------------
-// 5. BOTÓN VACIAR TICKET COMPLETO
+// 5. VACIAR TODO EL TICKET
 // ----------------------------------------------------------
 window.vaciarCarrito = function() {
     window.jugadasActuales = [];
@@ -459,20 +474,13 @@ window.vaciarCarrito = function() {
     window.renderizarCarrito();
 };
 
-// Asignar evento al botón "Vaciar" en pantalla
-document.addEventListener('click', (e) => {
-    if (e.target && (e.target.textContent.trim().toLowerCase() === 'vaciar' || e.target.id === 'btn-vaciar-ticket')) {
-        window.vaciarCarrito();
-    }
-});
-
 // ----------------------------------------------------------
-// 6. EMISIÓN DEL TICKET Y GUARDADO EN SUPABASE
+// 6. PROCESAR, GUARDAR EN 'TICKETS' Y GUARDAR EN 'JUGADAS'
 // ----------------------------------------------------------
 window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
     const supabase = window.supabase;
     if (!supabase) {
-        alert("❌ Error: Supabase no está disponible.");
+        alert("❌ Error: Supabase no está configurado.");
         return;
     }
 
@@ -481,12 +489,12 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         return;
     }
 
-    const btnEmitir = document.getElementById('btn-pos-process-ticket') || document.querySelector('.btn-procesar-ticket');
+    const btnEmitir = document.getElementById('btn-pos-process-ticket');
     if (btnEmitir) btnEmitir.disabled = true;
 
     try {
         let montoTotal = 0;
-        const detallesJugadas = window.jugadasActuales.map(j => {
+        const listaJugadas = window.jugadasActuales.map(j => {
             const mnt = parseFloat(j.monto || 0);
             montoTotal += mnt;
             return {
@@ -498,84 +506,84 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
             };
         });
 
-        const listaNombresSorteos = [...new Set(detallesJugadas.map(j => j.sorteo_nombre))];
-        const nombresSorteosUnificados = listaNombresSorteos.join(' / ');
+        const sorteosUnicos = [...new Set(listaJugadas.map(j => j.sorteo_nombre))].join(' / ');
         const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
-        
-        // Obtener banca dinámica actual
         const nombreBanca = window.obtenerNombreBancaActual();
 
+        // A) Insertar encabezado en tabla 'tickets'
         const payloadTicket = {
             codigo: codigoTicket,
             codigo_ticket: codigoTicket,
             banca: nombreBanca,
             banca_nombre: nombreBanca,
             vendedor: nombreBanca,
-            sorteo_nombre: nombresSorteosUnificados,
+            sorteo_nombre: sorteosUnicos,
             monto: parseFloat(montoTotal.toFixed(2)),
             monto_total: parseFloat(montoTotal.toFixed(2)),
-            detalles: detallesJugadas,
-            jugadas: detallesJugadas,
+            detalles: listaJugadas,
+            jugadas: listaJugadas,
             estatus: 'pendiente'
         };
 
-        const { data, error } = await supabase.from('tickets').insert([payloadTicket]).select();
+        const { data: ticketData, error: ticketError } = await supabase
+            .from('tickets')
+            .insert([payloadTicket])
+            .select();
 
-        if (error) {
-            console.error("❌ Error Supabase:", error);
-            alert(`❌ Error al registrar ticket: ${error.message}`);
+        if (ticketError) {
+            console.error("❌ Error al guardar ticket:", ticketError);
+            alert(`❌ Error al registrar el ticket: ${ticketError.message}`);
             return;
         }
 
-        const ticketGuardado = data ? data[0] : payloadTicket;
+        const ticketRegistrado = ticketData ? ticketData[0] : payloadTicket;
+        const ticketId = ticketRegistrado.id || null;
 
-        // VACIAR Y LIMPIAR COMPLETAMENTE TRAS PROCESAR
+        // B) Insertar el detalle en la tabla 'jugadas'
+        const registrosJugadas = listaJugadas.map(j => ({
+            ticket_id: ticketId,
+            codigo_ticket: codigoTicket,
+            numero: j.numero,
+            monto: j.monto,
+            tipo: j.tipo,
+            sorteo_id: j.sorteo_id,
+            sorteo_nombre: j.sorteo_nombre,
+            banca: nombreBanca,
+            estatus: 'pendiente'
+        }));
+
+        const { error: jugadasError } = await supabase
+            .from('jugadas')
+            .insert(registrosJugadas);
+
+        if (jugadasError) {
+            console.warn("⚠️ Ticket registrado pero hubo un detalle en jugadas:", jugadasError.message);
+        }
+
+        // C) Limpiar interfaz tras la emisión exitosa
         window.vaciarCarrito();
         document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = false);
 
         if (enviarPorWhatsApp && typeof window.compartirTicketWhatsApp === 'function') {
-            window.compartirTicketWhatsApp(ticketGuardado);
+            window.compartirTicketWhatsApp(ticketRegistrado);
         } else if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
-            window.mostrarOpcionesExportacionTicket(ticketGuardado);
+            window.mostrarOpcionesExportacionTicket(ticketRegistrado);
         } else {
             alert(`✅ Ticket #${codigoTicket} emitido correctamente para [${nombreBanca}].`);
         }
 
     } catch (err) {
-        console.error("❌ Error al emitir:", err);
-        alert("❌ Error procesando el ticket: " + err.message);
+        console.error("❌ Error en la transacción:", err);
+        alert("❌ Error al procesar el ticket: " + err.message);
     } finally {
         if (btnEmitir) btnEmitir.disabled = false;
     }
 };
 
-// ----------------------------------------------------------
-// 7. BINDING DE TECLAS Y TECLADO VIRTUAL
-// ----------------------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
-    const inputNum = document.getElementById('pos-input-numbers');
-    const inputMnt = document.getElementById('pos-input-amount');
-
-    if (inputNum) {
-        inputNum.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                if (inputMnt && (!inputMnt.value || parseFloat(inputMnt.value) <= 0)) {
-                    inputMnt.focus();
-                } else {
-                    window.agregarJugadaAlCarrito();
-                }
-            }
-        });
-    }
-
-    if (inputMnt) {
-        inputMnt.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                window.agregarJugadaAlCarrito();
-            }
-        });
+// Escuchar clics globales para el botón Vaciar
+document.addEventListener('click', (e) => {
+    if (e.target && e.target.textContent && e.target.textContent.trim().toLowerCase() === 'vaciar') {
+        window.vaciarCarrito();
     }
 });
 // ----------------------------------------------------------

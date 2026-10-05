@@ -238,8 +238,16 @@ function actualizarResumenSorteos() {
 window.actualizarResumenSorteos = actualizarResumenSorteos;
 
 // ==========================================================
-// AGREGAR JUGADAS CON MULTI-SORTEO AUTOMÁTICO EN POS.JS
+// MÓDULO POS - GESTIÓN DE JUGADAS Y CARRITO (pos.js)
 // ==========================================================
+
+if (!window.jugadasActuales) {
+    window.jugadasActuales = [];
+}
+
+// ----------------------------------------------------------
+// 1. AGREGAR JUGADAS MULTI-SORTEO AL CARRITO
+// ----------------------------------------------------------
 window.agregarJugadaAlCarrito = function() {
     const inputNum = document.getElementById('pos-input-numbers');
     const inputMnt = document.getElementById('pos-input-amount');
@@ -255,29 +263,27 @@ window.agregarJugadaAlCarrito = function() {
         return;
     }
 
-    // Capturar todos los sorteos seleccionados en las casillas
+    // Capturar todos los sorteos seleccionados en pantalla
     const checkboxesCheck = document.querySelectorAll('input[name="pos-sorteos-selected"]:checked');
     
     let sorteosSeleccionados = Array.from(checkboxesCheck).map(cb => {
-        const labelText = cb.closest('label')?.textContent?.trim() || cb.nextElementSibling?.textContent?.trim();
+        const labelText = cb.closest('label')?.textContent?.trim() || cb.nextElementSibling?.textContent?.trim() || '';
+        const nombreDetectado = cb.dataset.nombre || cb.dataset.sorteoNombre || labelText || 'SORTEO';
         return {
-            id: cb.value,
-            nombre: (cb.dataset.nombre || cb.dataset.sorteoNombre || labelText || 'SORTEO').replace(/[\n\r]+/g, ' ').trim().toUpperCase()
+            id: cb.value || null,
+            nombre: nombreDetectado.replace(/[\n\r]+/g, ' ').trim().toUpperCase()
         };
     });
 
-    // Si no hay ninguno seleccionado, asignar sorteo general por defecto
+    // Si no hay ningún checkbox seleccionado, asignamos uno por defecto
     if (sorteosSeleccionados.length === 0) {
         sorteosSeleccionados = [{ id: null, nombre: 'SORTEO GENERAL' }];
     }
 
-    if (!window.jugadasActuales) {
-        window.jugadasActuales = [];
-    }
-
-    // MULTIPLICAR LA JUGADA POR CADA SORTEO SELECCIONADO
+    // Multiplicar la jugada por cada sorteo seleccionado
     sorteosSeleccionados.forEach(sorteo => {
         window.jugadasActuales.push({
+            id: Date.now() + Math.random(),
             numero: numero,
             monto: monto,
             tipo: tipo,
@@ -286,14 +292,158 @@ window.agregarJugadaAlCarrito = function() {
         });
     });
 
-    // Limpiar campos de entrada
+    // Limpiar campos
     inputNum.value = '';
     inputMnt.value = '';
     inputNum.focus();
 
-    // Renderizar tabla del carrito actual
-    if (typeof renderizarCarrito === 'function') {
-        renderizarCarrito();
+    // Actualizar la interfaz del carrito
+    window.renderizarCarrito();
+};
+
+// ----------------------------------------------------------
+// 2. RENDERIZAR TABLA DE JUGADAS EN EL CARRITO
+// ----------------------------------------------------------
+window.renderizarCarrito = function() {
+    const contenedorCarrito = document.getElementById('pos-cart-items') || document.getElementById('lista-jugadas-carrito') || document.getElementById('ticket-actual-list');
+    const totalElem = document.getElementById('pos-cart-total') || document.getElementById('monto-total-ticket') || document.getElementById('lbl-total-pagar');
+    const conteoElem = document.getElementById('pos-cart-count') || document.getElementById('lbl-cantidad-jugadas');
+
+    let totalMonto = 0;
+
+    if (contenedorCarrito) {
+        contenedorCarrito.innerHTML = '';
+
+        if (window.jugadasActuales.length === 0) {
+            contenedorCarrito.innerHTML = `<div style="text-align: center; color: #94a3b8; padding: 15px; font-size: 13px;">No hay jugadas agregadas</div>`;
+        } else {
+            window.jugadasActuales.forEach((j, index) => {
+                totalMonto += parseFloat(j.monto || 0);
+
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'cart-item-row';
+                itemDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border-bottom: 1px solid #334155; font-size: 13px; color: #f8fafc;';
+
+                itemDiv.innerHTML = `
+                    <div style="flex: 1;">
+                        <div style="font-size: 10px; color: #38bdf8; font-weight: bold;">[${j.sorteo_nombre}]</div>
+                        <div><strong style="color: #facc15;">#${j.numero}</strong> <span style="font-size: 11px; opacity: 0.8;">(${j.tipo.toUpperCase()})</span></div>
+                    </div>
+                    <div style="font-weight: bold; margin-right: 10px;">$${parseFloat(j.monto).toFixed(2)}</div>
+                    <button onclick="window.eliminarJugadaCarrito(${index})" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 11px;">✕</button>
+                `;
+
+                contenedorCarrito.appendChild(itemDiv);
+            });
+        }
+    }
+
+    // Actualizar Totales
+    if (totalElem) {
+        totalElem.textContent = `$${totalMonto.toFixed(2)}`;
+    }
+    if (conteoElem) {
+        conteoElem.textContent = window.jugadasActuales.length;
+    }
+};
+
+// ----------------------------------------------------------
+// 3. ELIMINAR JUGADA DEL CARRITO
+// ----------------------------------------------------------
+window.eliminarJugadaCarrito = function(index) {
+    if (window.jugadasActuales && window.jugadasActuales[index] !== undefined) {
+        window.jugadasActuales.splice(index, 1);
+        window.renderizarCarrito();
+    }
+};
+
+// ----------------------------------------------------------
+// 4. PROCESAR Y GUARDAR TICKET EN SUPABASE
+// ----------------------------------------------------------
+window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
+    const supabase = window.supabase;
+    if (!supabase) {
+        alert("❌ Error: Supabase no está conectado.");
+        return;
+    }
+
+    if (!window.jugadasActuales || window.jugadasActuales.length === 0) {
+        // Intentar capturar directo si hay campos llenos
+        const inputNum = document.getElementById('pos-input-numbers');
+        const inputMnt = document.getElementById('pos-input-amount');
+        if (inputNum && inputMnt && inputNum.value.trim() && parseFloat(inputMnt.value) > 0) {
+            window.agregarJugadaAlCarrito();
+        }
+    }
+
+    if (!window.jugadasActuales || window.jugadasActuales.length === 0) {
+        alert("⚠️ Añada al menos una jugada antes de emitir el ticket.");
+        return;
+    }
+
+    const btnEmitir = document.getElementById('btn-pos-process-ticket');
+    if (btnEmitir) btnEmitir.disabled = true;
+
+    try {
+        let montoTotal = 0;
+        const detallesJugadas = window.jugadasActuales.map(j => {
+            const mnt = parseFloat(j.monto || 0);
+            montoTotal += mnt;
+            return {
+                numero: String(j.numero).trim(),
+                monto: mnt,
+                tipo: String(j.tipo || 'directo').toLowerCase(),
+                sorteo_id: j.sorteo_id || null,
+                sorteo_nombre: j.sorteo_nombre || 'SORTEO'
+            };
+        });
+
+        const listaNombresSorteos = [...new Set(detallesJugadas.map(j => j.sorteo_nombre))];
+        const nombresSorteosUnificados = listaNombresSorteos.join(' / ');
+        const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
+
+        const payloadTicket = {
+            codigo: codigoTicket,
+            codigo_ticket: codigoTicket,
+            sorteo_nombre: nombresSorteosUnificados,
+            monto: parseFloat(montoTotal.toFixed(2)),
+            monto_total: parseFloat(montoTotal.toFixed(2)),
+            detalles: detallesJugadas,
+            jugadas: detallesJugadas,
+            estatus: 'pendiente'
+        };
+
+        // Guardar ticket en la tabla 'tickets'
+        const { data, error } = await supabase.from('tickets').insert([payloadTicket]).select();
+
+        if (error) {
+            console.error("❌ Error Supabase:", error);
+            alert(`❌ Error al registrar ticket: ${error.message}`);
+            return;
+        }
+
+        const ticketGuardado = data ? data[0] : payloadTicket;
+
+        // Limpiar estado
+        window.jugadasActuales = [];
+        window.renderizarCarrito();
+
+        document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = false);
+
+        // Mostrar Opciones de Exportación
+        if (enviarPorWhatsApp && typeof window.compartirTicketWhatsApp === 'function') {
+            window.compartirTicketWhatsApp(ticketGuardado);
+        } else if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
+            window.mostrarOpcionesExportacionTicket(ticketGuardado);
+        } else {
+            alert(`✅ Ticket #${codigoTicket} emitido correctamente.`);
+        }
+
+    } catch (err) {
+        console.error("❌ Error en la emisión:", err);
+        alert("❌ Ocurrió un error al procesar el ticket: " + err.message);
+    } finally {
+        if (btnEmitir) btnEmitir.disabled = false;
     }
 };
 

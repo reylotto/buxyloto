@@ -238,17 +238,40 @@ function actualizarResumenSorteos() {
 window.actualizarResumenSorteos = actualizarResumenSorteos;
 
 // ==========================================================
-// MÓDULO POS - GESTIÓN DE JUGADAS Y CARRITO (pos.js)
+// MÓDULO POS - GESTIÓN DE JUGADAS Y TICKET ACTUAL
 // ==========================================================
 
-if (!window.jugadasActuales) {
-    window.jugadasActuales = [];
-}
-
+window.jugadasActuales = [];
 window.ultimoMontoIngresado = null;
 
 // ----------------------------------------------------------
-// 1. AGREGAR JUGADAS AL CARRITO
+// 1. OBTENER NOMBRE DINÁMICO DE LA BANCA
+// ----------------------------------------------------------
+window.obtenerNombreBancaActual = function() {
+    const selectBanca = document.querySelector('select[name="pos-banca-destino"]') || 
+                        document.getElementById('pos-select-banca') ||
+                        document.querySelector('select');
+
+    if (selectBanca && selectBanca.options && selectBanca.selectedIndex !== -1) {
+        const txt = selectBanca.options[selectBanca.selectedIndex].text.trim();
+        if (txt && !txt.includes('--')) {
+            // Extraer solo el nombre limpio antes del (ID ...)
+            return txt.split('(')[0].trim();
+        }
+    }
+
+    try {
+        const sesionUser = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+        if (sesionUser.banca || sesionUser.nombre) {
+            return sesionUser.banca || sesionUser.nombre;
+        }
+    } catch (e) {}
+
+    return 'Banca Principal';
+};
+
+// ----------------------------------------------------------
+// 2. AGREGAR JUGADAS AL CARRITO
 // ----------------------------------------------------------
 window.agregarJugadaAlCarrito = function() {
     const inputNum = document.getElementById('pos-input-numbers');
@@ -259,7 +282,7 @@ window.agregarJugadaAlCarrito = function() {
     const numero = inputNum.value.trim();
     const monto = parseFloat(inputMnt.value);
 
-    // Validar sorteos seleccionados
+    // Validar sorteos marcados
     const checkboxesCheck = document.querySelectorAll('input[name="pos-sorteos-selected"]:checked');
     if (checkboxesCheck.length === 0) {
         alert("⚠️ Debe seleccionar al menos un sorteo antes de ingresar una jugada.");
@@ -273,7 +296,7 @@ window.agregarJugadaAlCarrito = function() {
         return;
     }
 
-    // Control estricto de dígitos (2, 4 o 6)
+    // Validar dígitos: Directo (2), Palé (4), Tripleta (6)
     const numLen = numero.length;
     let tipo = '';
 
@@ -284,30 +307,25 @@ window.agregarJugadaAlCarrito = function() {
     } else if (numLen === 6) {
         tipo = 'tripleta';
     } else {
-        alert("⚠️ Jugada incorrecta: Solo se permiten jugadas de 2 dígitos (Directo), 4 dígitos (Palé) o 6 dígitos (Tripleta). No se aceptan 3 o 5 dígitos.");
+        alert("⚠️ Jugada incorrecta: Solo se permiten 2 dígitos (Directo), 4 dígitos (Palé) o 6 dígitos (Tripleta).");
         inputNum.focus();
         return;
     }
 
     window.ultimoMontoIngresado = monto;
 
-    let sorteosSeleccionados = Array.from(checkboxesCheck).map(cb => {
-        const labelText = cb.closest('label')?.textContent?.trim() || cb.nextElementSibling?.textContent?.trim() || '';
-        const nombreDetectado = cb.dataset.nombre || cb.dataset.sorteoNombre || labelText || 'SORTEO';
-        return {
-            id: cb.value || null,
-            nombre: nombreDetectado.replace(/[\n\r]+/g, ' ').trim().toUpperCase()
-        };
-    });
+    // Agregar jugada por cada sorteo seleccionado
+    checkboxesCheck.forEach(cb => {
+        const labelText = cb.closest('label')?.textContent?.trim() || cb.nextElementSibling?.textContent?.trim() || 'SORTEO';
+        const nombreSorteo = (cb.dataset.nombre || labelText).replace(/[\n\r]+/g, ' ').trim().toUpperCase();
 
-    sorteosSeleccionados.forEach(sorteo => {
         window.jugadasActuales.push({
             id: Date.now() + Math.random(),
             numero: numero,
             monto: monto,
             tipo: tipo,
-            sorteo_id: sorteo.id,
-            sorteo_nombre: sorteo.nombre
+            sorteo_id: cb.value || null,
+            sorteo_nombre: nombreSorteo
         });
     });
 
@@ -315,116 +333,109 @@ window.agregarJugadaAlCarrito = function() {
     inputMnt.value = window.ultimoMontoIngresado.toFixed(2);
     inputNum.focus();
 
-    // Invocación explícita de renderizado
     window.renderizarCarrito();
 };
 
 // ----------------------------------------------------------
-// 2. RENDERIZADO FORZADO Y DIRECTO DE LA LISTA Y TOTAL
+// 3. RENDERIZAR VISTA DEL CARRITO Y TOTALES
 // ----------------------------------------------------------
 window.renderizarCarrito = function() {
-    let totalMonto = 0;
-
-    // Buscar el contenedor donde está la tarjeta de Ticket Actual
+    // Buscar la sección derecha "Ticket Actual"
     const paneles = document.querySelectorAll('div, section');
-    let listaContenedor = null;
-    let totalElemento = null;
-    let conteoElemento = null;
+    let panelTicket = null;
 
     paneles.forEach(p => {
-        const texto = p.textContent || '';
-        if (texto.includes('Ticket Actual') && texto.includes('TOTAL A PAGAR')) {
-            // Localizar el área central de jugadas (donde aparece "No hay jugadas añadidas en este ticket")
-            const divs = p.querySelectorAll('div');
-            divs.forEach(d => {
-                if (d.textContent.includes('No hay jugadas añadidas') || d.id === 'ticket-actual-list' || d.classList.contains('ticket-actual-list')) {
-                    listaContenedor = d.parentElement || d;
-                }
-            });
-
-            // Localizar la etiqueta del total a pagar
-            const elementosMonto = p.querySelectorAll('span, div, h2, h3');
-            elementosMonto.forEach(el => {
-                if (el.textContent.includes('$') && (el.textContent.includes('0.00') || el.classList.contains('total-pagar-monto') || el.id === 'lbl-total-pagar')) {
-                    totalElemento = el;
-                }
-            });
-
-            // Localizar indicador de cantidad de jugadas
-            const elementosConteo = p.querySelectorAll('span, div');
-            elementosConteo.forEach(el => {
-                if (el.id === 'lbl-cantidad-jugadas' || el.classList.contains('lbl-cantidad-jugadas')) {
-                    conteoElemento = el;
-                }
-            });
+        if (p.textContent && p.textContent.includes('Ticket Actual') && p.textContent.includes('TOTAL A PAGAR')) {
+            panelTicket = p;
         }
     });
 
-    // Fallbacks directos por ID si existen
-    if (!listaContenedor) {
-        listaContenedor = document.getElementById('ticket-actual-list') || document.getElementById('pos-cart-items');
-    }
-    if (!totalElemento) {
-        totalElemento = document.getElementById('lbl-total-pagar') || document.getElementById('pos-cart-total');
-    }
-    if (!conteoElemento) {
-        conteoElemento = document.getElementById('lbl-cantidad-jugadas') || document.getElementById('pos-cart-count');
+    if (!panelTicket) return;
+
+    // 1. Actualizar/Reemplazar área central de la lista
+    let areaLista = panelTicket.querySelector('.ticket-actual-list') || document.getElementById('ticket-actual-list');
+    
+    if (!areaLista) {
+        // Si no existe contenedor con ID/clase, buscar el contenedor que contiene el mensaje "No hay jugadas..."
+        const divs = panelTicket.querySelectorAll('div');
+        divs.forEach(d => {
+            if (d.textContent.includes('No hay jugadas añadidas')) {
+                areaLista = d;
+            }
+        });
     }
 
-    // DIBUJAR LA LISTA
-    if (listaContenedor) {
-        listaContenedor.innerHTML = '';
+    let totalCalculado = 0;
 
-        if (!window.jugadasActuales || window.jugadasActuales.length === 0) {
-            listaContenedor.innerHTML = `
+    if (areaLista) {
+        areaLista.id = 'ticket-actual-list';
+        areaLista.innerHTML = '';
+
+        if (window.jugadasActuales.length === 0) {
+            areaLista.innerHTML = `
                 <div style="text-align: center; color: #94a3b8; padding: 40px 10px; font-size: 13px;">
                     <div style="font-size: 24px; margin-bottom: 8px; opacity: 0.5;">📋</div>
                     No hay jugadas añadidas en este ticket
                 </div>`;
         } else {
             const wrapper = document.createElement('div');
-            wrapper.style.cssText = 'max-height: 280px; overflow-y: auto; padding-right: 4px;';
+            wrapper.style.cssText = 'max-height: 320px; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 6px;';
 
-            window.jugadasActuales.forEach((j, index) => {
-                totalMonto += parseFloat(j.monto || 0);
+            window.jugadasActuales.forEach((j, idx) => {
+                totalCalculado += parseFloat(j.monto || 0);
 
-                const itemDiv = document.createElement('div');
-                itemDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; margin-bottom: 6px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #ffffff; box-sizing: border-box;';
+                const row = document.createElement('div');
+                row.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #ffffff;';
 
-                itemDiv.innerHTML = `
+                row.innerHTML = `
                     <div style="flex: 1; text-align: left;">
-                        <div style="font-size: 10px; color: #38bdf8; font-weight: bold; text-transform: uppercase;">[${j.sorteo_nombre}]</div>
+                        <div style="font-size: 10px; color: #38bdf8; font-weight: bold;">[${j.sorteo_nombre}]</div>
                         <div style="margin-top: 2px; display: flex; align-items: center; gap: 6px;">
                             <strong style="color: #facc15; font-size: 14px; font-family: monospace;">#${j.numero}</strong> 
-                            <span style="font-size: 9px; opacity: 0.9; text-transform: uppercase; background: #0f172a; padding: 1px 5px; border-radius: 3px; border: 1px solid #475569;">${j.tipo}</span>
+                            <span style="font-size: 9px; text-transform: uppercase; background: #0f172a; padding: 1px 5px; border-radius: 3px; border: 1px solid #475569;">${j.tipo}</span>
                         </div>
                     </div>
                     <div style="font-weight: bold; color: #10b981; font-size: 14px; margin-right: 10px; font-family: monospace;">
                         $${parseFloat(j.monto).toFixed(2)}
                     </div>
-                    <button type="button" onclick="window.eliminarJugadaCarrito(${index})" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; width: 22px; height: 22px; cursor: pointer; font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: center;">✕</button>
+                    <button type="button" onclick="window.eliminarJugadaCarrito(${idx})" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; width: 22px; height: 22px; cursor: pointer; font-size: 11px; font-weight: bold;">✕</button>
                 `;
-
-                wrapper.appendChild(itemDiv);
+                wrapper.appendChild(row);
             });
 
-            listaContenedor.appendChild(wrapper);
+            areaLista.appendChild(wrapper);
         }
     }
 
-    // ACTUALIZAR MONTO TOTAL
-    if (totalElemento) {
-        totalElemento.textContent = `$${totalMonto.toFixed(2)}`;
+    // 2. Actualizar Indicadores de Cantidad y Total a Pagar
+    const conteoElem = panelTicket.querySelector('.lbl-cantidad-jugadas') || document.getElementById('lbl-cantidad-jugadas');
+    if (conteoElem) {
+        conteoElem.textContent = window.jugadasActuales.length;
+    } else {
+        // Búsqueda por texto si no tiene ID directo
+        const spans = panelTicket.querySelectorAll('span, div');
+        spans.forEach(s => {
+            if (s.previousElementSibling && s.previousElementSibling.textContent.includes('Cantidad de jugadas')) {
+                s.textContent = window.jugadasActuales.length;
+            }
+        });
     }
 
-    // ACTUALIZAR CONTADOR
-    if (conteoElemento) {
-        conteoElemento.textContent = window.jugadasActuales ? window.jugadasActuales.length : 0;
+    const totalElem = panelTicket.querySelector('.total-pagar-monto') || document.getElementById('lbl-total-pagar');
+    if (totalElem) {
+        totalElem.textContent = `$${totalCalculado.toFixed(2)}`;
+    } else {
+        const spans = panelTicket.querySelectorAll('span, div, h2, h3');
+        spans.forEach(s => {
+            if (s.textContent.includes('$') && (s.parentElement?.textContent.includes('TOTAL A PAGAR') || s.className.includes('total'))) {
+                s.textContent = `$${totalCalculado.toFixed(2)}`;
+            }
+        });
     }
 };
 
 // ----------------------------------------------------------
-// 3. ELIMINAR ITEM
+// 4. ELIMINAR UNA JUGADA INDIVIDUAL
 // ----------------------------------------------------------
 window.eliminarJugadaCarrito = function(index) {
     if (window.jugadasActuales && window.jugadasActuales[index] !== undefined) {
@@ -434,75 +445,34 @@ window.eliminarJugadaCarrito = function(index) {
 };
 
 // ----------------------------------------------------------
-// 4. BINDING DE TECLADO (ENTER)
+// 5. BOTÓN VACIAR TICKET COMPLETO
 // ----------------------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
+window.vaciarCarrito = function() {
+    window.jugadasActuales = [];
+    window.ultimoMontoIngresado = null;
+    
     const inputNum = document.getElementById('pos-input-numbers');
     const inputMnt = document.getElementById('pos-input-amount');
+    if (inputNum) inputNum.value = '';
+    if (inputMnt) inputMnt.value = '';
 
-    if (inputNum) {
-        inputNum.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                if (inputMnt && (!inputMnt.value || parseFloat(inputMnt.value) <= 0)) {
-                    inputMnt.focus();
-                } else {
-                    window.agregarJugadaAlCarrito();
-                }
-            }
-        });
-    }
+    window.renderizarCarrito();
+};
 
-    if (inputMnt) {
-        inputMnt.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                window.agregarJugadaAlCarrito();
-            }
-        });
+// Asignar evento al botón "Vaciar" en pantalla
+document.addEventListener('click', (e) => {
+    if (e.target && (e.target.textContent.trim().toLowerCase() === 'vaciar' || e.target.id === 'btn-vaciar-ticket')) {
+        window.vaciarCarrito();
     }
 });
 
 // ----------------------------------------------------------
-// 5. OBTENER NOMBRE DINÁMICO DE LA BANCA / VENDEDOR
-// ----------------------------------------------------------
-window.obtenerNombreBancaActual = function() {
-    // 1. Intentar capturar del selector VENDEDOR / BANCA DESTINO en pantalla
-    const selectBanca = document.querySelector('select[name="pos-banca-destino"]') || 
-                        document.getElementById('pos-select-banca') || 
-                        document.querySelector('.banca-select');
-
-    if (selectBanca && selectBanca.options && selectBanca.selectedIndex !== -1) {
-        const textoSeleccionado = selectBanca.options[selectBanca.selectedIndex].text.trim();
-        if (textoSeleccionado && !textoSeleccionado.includes('--')) {
-            return textoSeleccionado.replace(/^[\s\-]+/, '').trim();
-        }
-    }
-
-    // 2. Intentar capturar de la sesión / usuario activo en localStorage
-    try {
-        const sesionUser = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
-        if (sesionUser.banca || sesionUser.nombre || sesionUser.username) {
-            return sesionUser.banca || sesionUser.nombre || sesionUser.username;
-        }
-    } catch (e) {}
-
-    // 3. Fallback al nombre visible en el header superior
-    const headerUser = document.querySelector('.user-profile-name') || document.querySelector('.header-banca-name');
-    if (headerUser && headerUser.textContent.trim()) {
-        return headerUser.textContent.trim();
-    }
-
-    return 'Banca Principal';
-};
-
-// ----------------------------------------------------------
-// 6. GUARDAR TICKET Y OBTENER LA BANCA DINÁMICA
+// 6. EMISIÓN DEL TICKET Y GUARDADO EN SUPABASE
 // ----------------------------------------------------------
 window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
     const supabase = window.supabase;
     if (!supabase) {
-        alert("❌ Error: Supabase no está conectado.");
+        alert("❌ Error: Supabase no está disponible.");
         return;
     }
 
@@ -532,15 +502,15 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         const nombresSorteosUnificados = listaNombresSorteos.join(' / ');
         const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
         
-        // Obtención dinámicamente de la banca activa
-        const nombreBancaDinamico = window.obtenerNombreBancaActual();
+        // Obtener banca dinámica actual
+        const nombreBanca = window.obtenerNombreBancaActual();
 
         const payloadTicket = {
             codigo: codigoTicket,
             codigo_ticket: codigoTicket,
-            banca: nombreBancaDinamico,
-            banca_nombre: nombreBancaDinamico,
-            vendedor: nombreBancaDinamico,
+            banca: nombreBanca,
+            banca_nombre: nombreBanca,
+            vendedor: nombreBanca,
             sorteo_nombre: nombresSorteosUnificados,
             monto: parseFloat(montoTotal.toFixed(2)),
             monto_total: parseFloat(montoTotal.toFixed(2)),
@@ -559,16 +529,8 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
 
         const ticketGuardado = data ? data[0] : payloadTicket;
 
-        // Limpiar para la siguiente venta
-        window.jugadasActuales = [];
-        window.ultimoMontoIngresado = null;
-
-        const inputNum = document.getElementById('pos-input-numbers');
-        const inputMnt = document.getElementById('pos-input-amount');
-        if (inputNum) inputNum.value = '';
-        if (inputMnt) inputMnt.value = '';
-
-        window.renderizarCarrito();
+        // VACIAR Y LIMPIAR COMPLETAMENTE TRAS PROCESAR
+        window.vaciarCarrito();
         document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = false);
 
         if (enviarPorWhatsApp && typeof window.compartirTicketWhatsApp === 'function') {
@@ -576,16 +538,46 @@ window.guardarTicketEnSupabase = async function(enviarPorWhatsApp = false) {
         } else if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
             window.mostrarOpcionesExportacionTicket(ticketGuardado);
         } else {
-            alert(`✅ Ticket #${codigoTicket} emitido correctamente para [${nombreBancaDinamico}].`);
+            alert(`✅ Ticket #${codigoTicket} emitido correctamente para [${nombreBanca}].`);
         }
 
     } catch (err) {
-        console.error("❌ Error en la emisión:", err);
-        alert("❌ Ocurrió un error al procesar el ticket: " + err.message);
+        console.error("❌ Error al emitir:", err);
+        alert("❌ Error procesando el ticket: " + err.message);
     } finally {
         if (btnEmitir) btnEmitir.disabled = false;
     }
 };
+
+// ----------------------------------------------------------
+// 7. BINDING DE TECLAS Y TECLADO VIRTUAL
+// ----------------------------------------------------------
+document.addEventListener('DOMContentLoaded', () => {
+    const inputNum = document.getElementById('pos-input-numbers');
+    const inputMnt = document.getElementById('pos-input-amount');
+
+    if (inputNum) {
+        inputNum.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (inputMnt && (!inputMnt.value || parseFloat(inputMnt.value) <= 0)) {
+                    inputMnt.focus();
+                } else {
+                    window.agregarJugadaAlCarrito();
+                }
+            }
+        });
+    }
+
+    if (inputMnt) {
+        inputMnt.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                window.agregarJugadaAlCarrito();
+            }
+        });
+    }
+});
 // ----------------------------------------------------------
 // 6. TECLADO NUMÉRICO ANTI-DUPLICACIÓN (MANDATORIO)
 // ----------------------------------------------------------

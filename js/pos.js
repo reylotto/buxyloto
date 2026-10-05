@@ -289,79 +289,88 @@ window.agregarJugadaAlCarrito = agregarJugadaAlCarrito;
 
 export function renderizarCarrito() {
     let totalMonto = 0;
+    const cantidadJugadas = window.jugadasActuales ? window.jugadasActuales.length : 0;
 
-    let contenedorTicket = document.getElementById('ticket-actual-container') || 
-                           document.querySelector('.ticket-actual-card');
-
-    if (!contenedorTicket) {
-        const paneles = document.querySelectorAll('div, section');
-        paneles.forEach(p => {
-            if (p.textContent && (p.textContent.includes('Ticket Actual') || p.textContent.includes('TOTAL A PAGAR'))) {
-                contenedorTicket = p;
-            }
-        });
-    }
-
+    // 1. Buscar la lista donde se renderizan las filas
     let areaLista = document.getElementById('ticket-actual-list') || 
-                    document.querySelector('.ticket-actual-list');
+                    document.querySelector('.ticket-actual-list') ||
+                    document.querySelector('[data-ticket-list]');
 
-    if (!areaLista && contenedorTicket) {
-        areaLista = contenedorTicket.querySelector('.space-y-2') || 
-                    contenedorTicket.querySelector('.overflow-y-auto') || 
-                    contenedorTicket.querySelector('div[class*="list"]');
+    // Búsqueda de respaldo si no encuentra por ID directo
+    if (!areaLista) {
+        const posiblesContenedores = document.querySelectorAll('div, section, aside');
+        for (let el of posiblesContenedores) {
+            if (el.textContent && (el.textContent.includes('Ticket Actual') || el.textContent.includes('Jugadas'))) {
+                areaLista = el.querySelector('.space-y-2') || el.querySelector('.overflow-y-auto') || el;
+                break;
+            }
+        }
     }
 
     if (areaLista) {
-        areaLista.id = 'ticket-actual-list';
         areaLista.innerHTML = '';
 
-        if (!window.jugadasActuales || window.jugadasActuales.length === 0) {
+        if (cantidadJugadas === 0) {
             areaLista.innerHTML = `
-                <div style="text-align: center; color: #94a3b8; padding: 25px 10px; font-size: 13px;">
-                    <div style="font-size: 22px; margin-bottom: 6px; opacity: 0.5;">📋</div>
-                    No hay jugadas añadidas en este ticket
+                <div style="text-align: center; color: #94a3b8; padding: 30px 10px; font-size: 13px;">
+                    <div style="font-size: 24px; margin-bottom: 8px; opacity: 0.5;">📋</div>
+                    No hay jugadas añadidas
                 </div>`;
         } else {
             const wrapper = document.createElement('div');
-            wrapper.style.cssText = 'max-height: 260px; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 6px;';
+            wrapper.style.cssText = 'max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 2px;';
 
             window.jugadasActuales.forEach((j, index) => {
-                totalMonto += parseFloat(j.monto || 0);
+                const mnt = parseFloat(j.monto || 0);
+                totalMonto += mnt;
 
                 const itemRow = document.createElement('div');
-                itemRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #ffffff;';
+                itemRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #ffffff;';
 
                 itemRow.innerHTML = `
-                    <div style="flex: 1; text-align: left;">
-                        <div style="font-size: 10px; color: #38bdf8; font-weight: bold;">[${j.sorteo_nombre}]</div>
-                        <div style="margin-top: 2px; display: flex; align-items: center; gap: 6px;">
-                            <strong style="color: #facc15; font-size: 14px; font-family: monospace;">#${j.numero}</strong> 
-                            <span style="font-size: 9px; text-transform: uppercase; background: #0f172a; padding: 1px 5px; border-radius: 3px; border: 1px solid #475569;">${j.tipo}</span>
+                    <div style="flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        <div style="font-size: 10px; color: #38bdf8; font-weight: bold; text-transform: uppercase;">[${j.sorteo_nombre}]</div>
+                        <div style="margin-top: 2px; display: flex; align-items: center; gap: 8px;">
+                            <strong style="color: #facc15; font-size: 15px; font-family: monospace;">#${j.numero}</strong> 
+                            <span style="font-size: 10px; text-transform: uppercase; background: #0f172a; color: #cbd5e1; padding: 2px 6px; border-radius: 4px; border: 1px solid #475569;">${j.tipo}</span>
                         </div>
                     </div>
-                    <div style="font-weight: bold; color: #10b981; font-size: 14px; margin-right: 10px; font-family: monospace;">
-                        $${parseFloat(j.monto).toFixed(2)}
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-weight: bold; color: #10b981; font-size: 15px; font-family: monospace;">$${mnt.toFixed(2)}</span>
+                        <button type="button" data-index="${index}" class="btn-eliminar-jugada" style="background: #ef4444; color: #ffffff; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-size: 12px; font-weight: bold; display: flex; align-items: center; justify-content: center;">✕</button>
                     </div>
-                    <button type="button" onclick="window.eliminarJugadaCarrito(${index})" style="background: #ef4444; color: #fff; border: none; border-radius: 4px; width: 22px; height: 22px; cursor: pointer; font-size: 11px; font-weight: bold;">✕</button>
                 `;
+
+                // Evento para eliminar la jugada específica
+                const btnBorrar = itemRow.querySelector('.btn-eliminar-jugada');
+                btnBorrar.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.eliminarJugadaCarrito(index);
+                };
+
                 wrapper.appendChild(itemRow);
             });
 
             areaLista.appendChild(wrapper);
         }
-    } else {
+    }
+
+    // Sumar el total si no se calculó dentro del bucle
+    if (cantidadJugadas > 0 && totalMonto === 0) {
         window.jugadasActuales.forEach(j => totalMonto += parseFloat(j.monto || 0));
     }
 
-    const totalElem = document.getElementById('lbl-total-pagar') || document.querySelector('.total-pagar-monto');
-    if (totalElem) {
-        totalElem.textContent = `$${totalMonto.toFixed(2)}`;
-    }
+    // 2. Actualizar las etiquetas de Total y Cantidad en pantalla
+    const elementosTotal = document.querySelectorAll('#lbl-total-pagar, .lbl-total-pagar, [data-total-pagar]');
+    elementosTotal.forEach(el => {
+        el.textContent = `$${totalMonto.toFixed(2)}`;
+    });
 
-    const cantidadElem = document.getElementById('lbl-cantidad-jugadas') || document.querySelector('.lbl-cantidad-jugadas');
-    if (cantidadElem) {
-        cantidadElem.textContent = window.jugadasActuales ? window.jugadasActuales.length : 0;
-    }
+    const elementosCantidad = document.querySelectorAll('#lbl-cantidad-jugadas, .lbl-cantidad-jugadas, [data-cantidad-jugadas]');
+    elementosCantidad.forEach(el => {
+        el.textContent = cantidadJugadas;
+    });
 }
 window.renderizarCarrito = renderizarCarrito;
 

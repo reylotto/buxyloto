@@ -1039,6 +1039,7 @@ function renderizarGraficoVendedores(tickets) {
 window.renderizarGraficoVendedores = renderizarGraficoVendedores;
 
 // 2. Gráfico de Distribución y Ganancia/Pérdida por Sorteo
+// MANTENER SOLO UNA DEFINICIÓN DE ESTA FUNCIÓN EN DASHBOARD.JS:
 function renderizarGraficoSorteos(tickets) {
     const canvas = document.getElementById('chart-distribucion-sorteo') || document.getElementById('chartDistribucionSorteo');
     if (!canvas) return;

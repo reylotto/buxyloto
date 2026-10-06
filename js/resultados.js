@@ -1,6 +1,6 @@
 // ==========================================================
 // ARCHIVO: js/resultados.js
-// Gestión de Resultados, Escrutinio e Historial con Eliminación
+// Registro, Escrutinio e Historial de Resultados
 // ==========================================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
- * Inicializa la fecha por defecto si los campos están vacíos.
+ * Permite seleccionar cualquier fecha (pasada o presente) sin bloquear el input.
  */
 function inicializarFechas() {
     const hoy = new Date().toISOString().split('T')[0];
@@ -22,20 +22,16 @@ function inicializarFechas() {
 }
 
 /**
- * Carga el historial de resultados según la fecha seleccionada en el filtro.
+ * Consulta y muestra los resultados registrados filtrados por la fecha seleccionada.
  */
 async function cargarHistorialResultados() {
-    inicializarFechas();
     const filtroFecha = document.getElementById('filtro-fecha-historial')?.value;
     const tbody = document.getElementById('tabla-historial-resultados');
 
     if (!tbody) return;
 
     const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
-    if (!supabase) {
-        console.error("Cliente Supabase no disponible.");
-        return;
-    }
+    if (!supabase) return;
 
     try {
         let query = supabase
@@ -54,7 +50,7 @@ async function cargarHistorialResultados() {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="6" class="text-center p-4 text-slate-500 font-medium">
-                        No hay sorteos registrados ni escrutados para la fecha ${filtroFecha || 'seleccionada'}.
+                        No hay sorteos escrutados para la fecha ${filtroFecha || 'seleccionada'}.
                     </td>
                 </tr>`;
             return;
@@ -62,9 +58,9 @@ async function cargarHistorialResultados() {
 
         tbody.innerHTML = data.map(res => {
             const nombreSorteo = res.sorteos?.nombre || res.sorteo_nombre || `Sorteo #${res.sorteo_id}`;
-            const num1 = res.primero ?? res.p1 ?? res.num1 ?? '--';
-            const num2 = res.segundo ?? res.p2 ?? res.num2 ?? '--';
-            const num3 = res.tercero ?? res.p3 ?? res.num3 ?? '--';
+            const num1 = res.primero ?? res.p1 ?? '--';
+            const num2 = res.segundo ?? res.p2 ?? '--';
+            const num3 = res.tercero ?? res.p3 ?? '--';
 
             const jsonStr = JSON.stringify(res).replace(/"/g, '&quot;');
 
@@ -91,13 +87,13 @@ async function cargarHistorialResultados() {
 
     } catch (err) {
         console.error("Error al cargar historial:", err);
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-rose-400">Error al consultar datos: ${err.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-rose-400">Error: ${err.message}</td></tr>`;
     }
 }
 window.cargarHistorialResultados = cargarHistorialResultados;
 
 /**
- * Carga los datos de un sorteo registrado de vuelta al formulario.
+ * Sube los datos del historial al formulario para modificar sorteos anteriores.
  */
 function cargarResultadoEnFormulario(res) {
     if (!res) return;
@@ -110,24 +106,22 @@ function cargarResultadoEnFormulario(res) {
 
     if (fechaInput) fechaInput.value = res.fecha;
     if (selectSorteo) selectSorteo.value = res.sorteo_id;
-    if (p1) p1.value = res.primero ?? res.p1 ?? res.num1 ?? '';
-    if (p2) p2.value = res.segundo ?? res.p2 ?? res.num2 ?? '';
-    if (p3) p3.value = res.tercero ?? res.p3 ?? res.num3 ?? '';
+    if (p1) p1.value = res.primero ?? res.p1 ?? '';
+    if (p2) p2.value = res.segundo ?? res.p2 ?? '';
+    if (p3) p3.value = res.tercero ?? res.p3 ?? '';
 }
 window.cargarResultadoEnFormulario = cargarResultadoEnFormulario;
 
 /**
- * Elimina un registro de resultado de Supabase.
+ * Elimina un sorteo escrutado de Supabase.
  */
 async function eliminarResultado(id) {
     if (!id || id === 'undefined') {
-        alert("El ID del registro no es válido.");
+        alert("ID de registro no válido.");
         return;
     }
 
-    if (!confirm("¿Está seguro de que desea eliminar este resultado de sorteo? Esto alterará el historial.")) {
-        return;
-    }
+    if (!confirm("¿Desea eliminar este resultado escrutado?")) return;
 
     const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
     if (!supabase) return;
@@ -144,14 +138,14 @@ async function eliminarResultado(id) {
         cargarHistorialResultados();
 
     } catch (err) {
-        console.error("Error al eliminar resultado:", err);
+        console.error("Error al eliminar:", err);
         alert("Error al eliminar de Supabase: " + err.message);
     }
 }
 window.eliminarResultado = eliminarResultado;
 
 /**
- * Procesa el registro y actualización de sorteos ganadores.
+ * Registra o edita los premios de un sorteo para cualquier fecha seleccionada.
  */
 function inicializarFormularioResultados() {
     const form = document.getElementById('form-register-results');
@@ -167,7 +161,7 @@ function inicializarFormularioResultados() {
         const tercero = document.getElementById('result-p3')?.value.trim();
 
         if (!fecha || !sorteo_id || !primero) {
-            alert("Completa la fecha, el sorteo y al menos el 1er premio.");
+            alert("Seleccione la fecha, el sorteo y complete al menos el 1er premio.");
             return;
         }
 
@@ -175,9 +169,14 @@ function inicializarFormularioResultados() {
         if (!supabase) return;
 
         try {
+            // Se envían ambos formatos de columnas (p1/p2/p3 y primero/segundo/tercero)
+            // para compatibilidad total con la tabla de Supabase.
             const payload = {
                 sorteo_id: parseInt(sorteo_id),
                 fecha: fecha,
+                p1: primero,
+                p2: segundo || '',
+                p3: tercero || '',
                 primero: primero,
                 segundo: segundo || '',
                 tercero: tercero || '',
@@ -190,9 +189,9 @@ function inicializarFormularioResultados() {
 
             if (error) throw error;
 
-            alert(`✅ Resultado guardado e impreso para la fecha ${fecha}`);
+            alert(`✅ Resultado guardado y escrutado correctamente para la fecha ${fecha}`);
 
-            // Cambiar filtro a la fecha guardada para verificarla de inmediato
+            // Sincronizar la fecha en el filtro del historial para mostrar el registro guardado/editado
             const filtroFecha = document.getElementById('filtro-fecha-historial');
             if (filtroFecha) filtroFecha.value = fecha;
 

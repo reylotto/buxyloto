@@ -1,6 +1,6 @@
 // ==========================================================
 // ARCHIVO: js/resultados.js
-// Módulo de Escrutinio e Historial de Resultados
+// Módulo de Escrutinio e Historial de Resultados por Fecha
 // ==========================================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
- * Asigna la fecha actual por defecto a los inputs de fecha si están vacíos.
+ * Establece la fecha de hoy por defecto en los selectores.
  */
 function inicializarFechas() {
     const hoy = new Date().toISOString().split('T')[0];
@@ -22,7 +22,7 @@ function inicializarFechas() {
 }
 
 /**
- * Carga el historial de resultados filtrado por la fecha seleccionada.
+ * Consulta y renderiza los resultados guardados según la fecha activa.
  */
 async function cargarHistorialResultados() {
     inicializarFechas();
@@ -38,7 +38,6 @@ async function cargarHistorialResultados() {
     }
 
     try {
-        // Se cambió 'resultados_sorteos' por 'resultados'
         let query = supabase
             .from('resultados')
             .select('*, sorteos(nombre)')
@@ -49,13 +48,14 @@ async function cargarHistorialResultados() {
         }
 
         const { data, error } = await query;
+
         if (error) throw error;
 
         if (!data || data.length === 0) {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="6" class="text-center p-4 text-slate-500">
-                        No hay resultados registrados para la fecha ${filtroFecha || 'seleccionada'}.
+                        No hay números registrados para la fecha ${filtroFecha || 'seleccionada'}.
                     </td>
                 </tr>`;
             return;
@@ -72,7 +72,7 @@ async function cargarHistorialResultados() {
             return `
                 <tr class="hover:bg-slate-700/30 transition border-b border-slate-700/50">
                     <td class="p-3 font-semibold text-white">${nombreSorteo}</td>
-                    <td class="p-3 text-slate-400">${res.fecha}</td>
+                    <td class="p-3 text-slate-400">${res.fecha || 'Sin fecha'}</td>
                     <td class="p-3 text-amber-400 font-bold font-mono text-sm">${num1}</td>
                     <td class="p-3 text-amber-400 font-bold font-mono text-sm">${num2}</td>
                     <td class="p-3 text-amber-400 font-bold font-mono text-sm">${num3}</td>
@@ -88,13 +88,13 @@ async function cargarHistorialResultados() {
 
     } catch (err) {
         console.error("Error al cargar historial:", err);
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-rose-400">Error al cargar datos (${err.message})</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-rose-400">Error: ${err.message}</td></tr>`;
     }
 }
 window.cargarHistorialResultados = cargarHistorialResultados;
 
 /**
- * Monta en el formulario un registro previo seleccionado para edición.
+ * Carga un registro previo en el formulario para modificarlo.
  */
 function cargarResultadoEnFormulario(res) {
     if (!res) return;
@@ -114,7 +114,7 @@ function cargarResultadoEnFormulario(res) {
 window.cargarResultadoEnFormulario = cargarResultadoEnFormulario;
 
 /**
- * Escucha el envio del formulario de resultados y guarda en Supabase.
+ * Procesa el guardado del formulario y actualiza la tabla.
  */
 function inicializarFormularioResultados() {
     const form = document.getElementById('form-register-results');
@@ -138,7 +138,6 @@ function inicializarFormularioResultados() {
         if (!supabase) return;
 
         try {
-            // Se guardan los datos apuntando a la tabla 'resultados'
             const payload = {
                 sorteo_id: parseInt(sorteo_id),
                 fecha: fecha,
@@ -156,7 +155,6 @@ function inicializarFormularioResultados() {
 
             alert(`✅ Resultado guardado para la fecha ${fecha}`);
 
-            // Actualizar tabla con la fecha registrada
             const filtroFecha = document.getElementById('filtro-fecha-historial');
             if (filtroFecha) filtroFecha.value = fecha;
 

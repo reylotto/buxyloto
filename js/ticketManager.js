@@ -406,8 +406,7 @@ window.descargarPDFTicket = descargarPDFTicket;
 window.mostrarOpcionesExportacionTicket = mostrarOpcionesExportacionTicket;
 
 // ==========================================================
-// ==========================================================
-// FUNCIÓN DE ANULACIÓN DIRECCIÓN A SUPABASE (SIN ERROR 400)
+// FUNCIÓN DE ANULACIÓN DIRECCIÓN A SUPABASE (RPC)
 // ==========================================================
 export async function anularTicketCancelado(identificadorTicket) {
     if (!identificadorTicket) return { success: false, error: 'Identificador no válido.' };
@@ -418,7 +417,6 @@ export async function anularTicketCancelado(identificadorTicket) {
     try {
         const refStr = String(identificadorTicket).trim();
 
-        // Ejecutar la función RPC universal creada en SQL
         const { data, error } = await supabase.rpc('cancelar_ticket_universal', { 
             p_referencia: refStr 
         });
@@ -426,20 +424,6 @@ export async function anularTicketCancelado(identificadorTicket) {
         if (error) throw error;
 
         if (data && data.success) {
-            // Cancelar también las jugadas vinculadas si aplica
-            const { data: ticketData } = await supabase
-                .from('tickets')
-                .select('id')
-                .or(`codigo.eq.${refStr},codigo_ticket.eq.${refStr},folio.eq.${refStr}`)
-                .maybeSingle();
-
-            if (ticketData?.id) {
-                await supabase
-                    .from('jugadas')
-                    .update({ estatus: 'cancelado', estado: 'cancelado' })
-                    .eq('ticket_id', ticketData.id);
-            }
-
             return { success: true, message: data.message };
         } else {
             return { success: false, error: data?.message || 'No se pudo cancelar el ticket.' };
@@ -450,4 +434,5 @@ export async function anularTicketCancelado(identificadorTicket) {
     }
 }
 
-window.anularOTicketCancelado = anularOTicketCancelado;
+// Exposición global corrigiendo cualquier fe de errata en el nombre
+window.anularTicketCancelado = anularTicketCancelado;

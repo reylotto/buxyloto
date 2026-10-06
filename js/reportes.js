@@ -699,60 +699,42 @@ window.verTicketHistorial = async function(uniqueId) {
 };
 
 // ==========================================================
-// CANCELACIÓN DE TICKET (SIN ERROR 400 EN SUPABASE)
+// CANCELACIÓN DE TICKET VÍA RPC (SIN ERRORES HTTP 400)
 // ==========================================================
 window.cancelarTicketHistorial = async function(uniqueId) {
+    if (!uniqueId) return;
+    
     if (!confirm(`¿Está seguro de que desea anular el ticket #${uniqueId}?`)) return;
 
     try {
         const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
         if (!supabase) throw new Error("Sin conexión con Supabase.");
 
-        const refStr = String(uniqueId).trim();
-        let targetId = null;
+        // Llamada limpia a la función del servidor SQL
+        const { data, error } = await supabase.rpc('anular_ticket_por_codigo', {
+            p_referencia: String(uniqueId).trim()
+        });
 
-        // Si refStr es un número entero puro, buscamos por ID
-        if (/^\d+$/.test(refStr)) {
-            const { data } = await supabase.from('tickets').select('id').eq('id', parseInt(refStr, 10)).maybeSingle();
-            if (data) targetId = data.id;
+        if (error) {
+            throw new Error(error.message);
         }
 
-        // Si no se encontró o es un código en texto (ej: BX-976964), buscamos solo en columnas de texto
-        if (!targetId) {
-            const { data } = await supabase.from('tickets').select('id').eq('codigo_ticket', refStr).maybeSingle();
-            if (data) targetId = data.id;
-        }
+        if (data && data.success) {
+            alert(`✅ ${data.message}`);
 
-        if (!targetId) {
-            throw new Error(`No se encontró el ticket ${refStr} en la base de datos.`);
-        }
-
-        // 1. Actualizar el estado en la tabla 'tickets' usando la clave id numérica
-        const { error: errTicket } = await supabase
-            .from('tickets')
-            .update({ estatus: 'cancelado', estado: 'cancelado' })
-            .eq('id', targetId);
-
-        if (errTicket) throw errTicket;
-
-        // 2. Actualizar las jugadas en la tabla 'jugadas'
-        await supabase
-            .from('jugadas')
-            .update({ estatus: 'cancelado', estado: 'cancelado' })
-            .eq('ticket_id', targetId);
-
-        alert(`✅ Ticket #${refStr} anulado correctamente en la base de datos.`);
-
-        // 3. Refrescar la vista
-        if (typeof cargarHistorialTickets === 'function') {
-            await cargarHistorialTickets();
+            // Actualizar interfaz
+            if (typeof cargarHistorialTickets === 'function') {
+                await cargarHistorialTickets();
+            } else {
+                window.location.reload();
+            }
         } else {
-            window.location.reload();
+            alert(`⚠️ ${data ? data.message : 'No se pudo anular el ticket.'}`);
         }
 
     } catch (err) {
         console.error("Error al anular ticket:", err);
-        alert("❌ No se pudo anular: " + err.message);
+        alert("❌ Error al anular ticket: " + err.message);
     }
 };
 

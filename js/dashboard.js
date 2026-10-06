@@ -1121,52 +1121,6 @@ function renderizarGraficoSorteos(tickets) {
 }
 window.renderizarGraficoSorteos = renderizarGraficoSorteos;
 
-function renderizarGraficoSorteos(tickets) {
-    const canvas = document.getElementById('chart-distribucion-sorteo') || document.getElementById('chartDistribucionSorteo');
-    if (!canvas) return;
-
-    // Agrupar ventas por Sorteo
-    const sorteosMap = {};
-    tickets.forEach(t => {
-        const nombreSorteo = t.sorteo || t.nombre_sorteo || t.sorteo_nombre || 'Sorteo General';
-        const monto = parseFloat(t.total || t.monto || t.monto_total || 0);
-        sorteosMap[nombreSorteo] = (sorteosMap[nombreSorteo] || 0) + monto;
-    });
-
-    const labels = Object.keys(sorteosMap);
-    const data = Object.values(sorteosMap);
-
-    if (window.chartSorteosInstance) {
-        window.chartSorteosInstance.destroy();
-    }
-
-    if (typeof Chart !== 'undefined') {
-        const ctx = canvas.getContext('2d');
-        window.chartSorteosInstance = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: labels.length ? labels : ['Sin Datos'],
-                datasets: [{
-                    data: data.length ? data : [1],
-                    backgroundColor: [
-                        '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'
-                    ],
-                    borderWidth: 2,
-                    borderColor: '#0f172a'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } }
-                }
-            }
-        });
-    }
-}
-window.renderizarGraficoSorteos = renderizarGraficoSorteos;
-
 // Grilla dinámica de sorteos en vivo
 async function cargarGridSorteosEnVivo() {
     try {

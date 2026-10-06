@@ -1,6 +1,6 @@
 // ==========================================================
 // ARCHIVO: js/resultados.js
-// Módulo de Escrutinio e Historial de Resultados por Fecha
+// Módulo de Escrutinio e Historial de Resultados
 // ==========================================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -9,9 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     cargarHistorialResultados();
 });
 
-/**
- * Establece la fecha de hoy por defecto en los selectores.
- */
 function inicializarFechas() {
     const hoy = new Date().toISOString().split('T')[0];
     const inputFechaForm = document.getElementById('result-fecha');
@@ -21,9 +18,6 @@ function inicializarFechas() {
     if (inputFiltro && !inputFiltro.value) inputFiltro.value = hoy;
 }
 
-/**
- * Consulta y renderiza los resultados guardados según la fecha activa.
- */
 async function cargarHistorialResultados() {
     inicializarFechas();
     const filtroFecha = document.getElementById('filtro-fecha-historial')?.value;
@@ -32,10 +26,7 @@ async function cargarHistorialResultados() {
     if (!tbody) return;
 
     const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
-    if (!supabase) {
-        console.error("Cliente Supabase no disponible.");
-        return;
-    }
+    if (!supabase) return;
 
     try {
         let query = supabase
@@ -48,7 +39,6 @@ async function cargarHistorialResultados() {
         }
 
         const { data, error } = await query;
-
         if (error) throw error;
 
         if (!data || data.length === 0) {
@@ -62,7 +52,7 @@ async function cargarHistorialResultados() {
         }
 
         tbody.innerHTML = data.map(res => {
-            const nombreSorteo = res.sorteos?.nombre || res.sorteo_nombre || res.nombre || `Sorteo #${res.sorteo_id}`;
+            const nombreSorteo = res.sorteos?.nombre || res.sorteo_nombre || `Sorteo #${res.sorteo_id}`;
             const num1 = res.primero ?? res.p1 ?? res.num1 ?? '--';
             const num2 = res.segundo ?? res.p2 ?? res.num2 ?? '--';
             const num3 = res.tercero ?? res.p3 ?? res.num3 ?? '--';
@@ -93,9 +83,6 @@ async function cargarHistorialResultados() {
 }
 window.cargarHistorialResultados = cargarHistorialResultados;
 
-/**
- * Carga un registro previo en el formulario para modificarlo.
- */
 function cargarResultadoEnFormulario(res) {
     if (!res) return;
 
@@ -113,9 +100,6 @@ function cargarResultadoEnFormulario(res) {
 }
 window.cargarResultadoEnFormulario = cargarResultadoEnFormulario;
 
-/**
- * Procesa el guardado del formulario y actualiza la tabla.
- */
 function inicializarFormularioResultados() {
     const form = document.getElementById('form-register-results');
     if (!form) return;
@@ -142,8 +126,8 @@ function inicializarFormularioResultados() {
                 sorteo_id: parseInt(sorteo_id),
                 fecha: fecha,
                 primero: primero,
-                segundo: segundo,
-                tercero: tercero,
+                segundo: segundo || '',
+                tercero: tercero || '',
                 updated_at: new Date().toISOString()
             };
 
@@ -153,7 +137,7 @@ function inicializarFormularioResultados() {
 
             if (error) throw error;
 
-            alert(`✅ Resultado guardado para la fecha ${fecha}`);
+            alert(`✅ Resultado registrado con éxito para la fecha ${fecha}`);
 
             const filtroFecha = document.getElementById('filtro-fecha-historial');
             if (filtroFecha) filtroFecha.value = fecha;

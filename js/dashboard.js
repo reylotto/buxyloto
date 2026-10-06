@@ -855,7 +855,6 @@ if (typeof window.actualizarTexto !== 'function') {
         if (el) el.textContent = valor;
     };
 }
-const actualizarTexto = window.actualizarTexto;
 
 async function cargarResumenOperacionesHoy() {
     try {

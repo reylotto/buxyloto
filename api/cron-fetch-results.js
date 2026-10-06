@@ -105,6 +105,7 @@ async function fetchText(url) {
     }
 }
 
+
 function extraerPremiosEnLoteria(html, listaSorteos) {
     const hallados = [];
     for (const sorteo of listaSorteos) {

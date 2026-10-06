@@ -9,7 +9,7 @@ import {
     compartirTicketWhatsApp as compartirWhatsAppManager,
     descargarPDFTicket as descargarPDFManager,
     mostrarOpcionesExportacionTicket as mostrarOpcionesManager,
-    anularOTicketCancelado
+    anularTicketCancelado
 } from './ticketManager.js';
 
 // Estado global de la venta activa
@@ -18,7 +18,7 @@ window.jugadasActuales = window.jugadasActuales || [];
 window.ultimoMontoIngresado = window.ultimoMontoIngresado || null;
 
 // Exponer la función globalmente para su uso desde cualquier parte del flujo del POS
-window.anularOTicketCancelado = anularOTicketCancelado;
+window.anularTicketCancelado = anularTicketCancelado;
 
 // ----------------------------------------------------------
 // 1. INICIALIZACIÓN DEL MÓDULO POS

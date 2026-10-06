@@ -292,24 +292,17 @@ export function agregarJugadaAlCarrito() {
 }
 window.agregarJugadaAlCarrito = agregarJugadaAlCarrito;
 
+// ==========================================================
+// 5. AGREGAR JUGADA Y RENDERIZAR EN TIEMPO REAL (CORREGIDO)
+// ==========================================================
 export function renderizarCarrito() {
     let totalMonto = 0;
     const cantidadJugadas = window.jugadasActuales ? window.jugadasActuales.length : 0;
 
-    // Buscar contenedor de la lista en HTML
-    let areaLista = document.getElementById('ticket-actual-list') || 
-                    document.querySelector('.ticket-actual-list') ||
-                    document.querySelector('[data-ticket-list]');
-
-    if (!areaLista) {
-        const posibles = document.querySelectorAll('div, section, aside');
-        for (let el of posibles) {
-            if (el.textContent && (el.textContent.includes('TOTAL A PAGAR') || el.textContent.includes('Cantidad de apuestas') || el.textContent.includes('Cantidad de jugadas'))) {
-                areaLista = el.querySelector('.space-y-2') || el.querySelector('.overflow-y-auto') || el;
-                if (areaLista) break;
-            }
-        }
-    }
+    // 1. Contenedor específico de la lista de jugadas
+    const areaLista = document.getElementById('ticket-actual-list') || 
+                      document.querySelector('.ticket-actual-list') ||
+                      document.querySelector('[data-ticket-list]');
 
     if (areaLista) {
         areaLista.innerHTML = '';
@@ -361,28 +354,18 @@ export function renderizarCarrito() {
         window.jugadasActuales.forEach(j => totalMonto += parseFloat(j.monto || 0));
     }
 
-    // Actualizar Totales en HTML
+    // 2. Actualizar únicamente los elementos específicos de total
     const totalFormatted = `$${totalMonto.toFixed(2)}`;
-    const elTotales = document.querySelectorAll('#lbl-total-pagar, .lbl-total-pagar, [data-total-pagar], .total-pagar-monto, h2, span, div');
+    const elTotales = document.querySelectorAll('#lbl-total-pagar, .lbl-total-pagar, [data-total-pagar], .total-pagar-monto');
     
     elTotales.forEach(el => {
-        if (el.textContent && (el.textContent.includes('TOTAL A PAGAR:') || el.classList?.contains('total-pagar-monto'))) {
-            const spanMonto = el.querySelector('span:last-child') || el;
-            if (spanMonto && spanMonto !== el && spanMonto.children.length === 0) {
-                spanMonto.textContent = totalFormatted;
-            } else if (el.classList?.contains('total-pagar-monto')) {
-                el.textContent = totalFormatted;
-            }
-        }
+        el.textContent = totalFormatted;
     });
 
-    // Actualizar Cantidad de Apuestas en HTML
-    const elCantidades = document.querySelectorAll('#lbl-cantidad-jugadas, .lbl-cantidad-jugadas, [data-cantidad-jugadas], .cantidad-jugadas-count, span, div');
+    // 3. Actualizar únicamente los elementos específicos de cantidad
+    const elCantidades = document.querySelectorAll('#lbl-cantidad-jugadas, .lbl-cantidad-jugadas, [data-cantidad-jugadas], .cantidad-jugadas-count');
     elCantidades.forEach(el => {
-        if (el.textContent && el.textContent.includes('Cantidad de apuestas:')) {
-            const spanCount = el.querySelector('span:last-child') || el;
-            if (spanCount) spanCount.textContent = cantidadJugadas;
-        }
+        el.textContent = cantidadJugadas;
     });
 }
 window.renderizarCarrito = renderizarCarrito;

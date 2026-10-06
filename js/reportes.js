@@ -787,23 +787,34 @@ window.imprimirTicketHistorial = function(uniqueId) {
 };
 
 window.cancelarTicketHistorial = async function(uniqueId) {
-    const ticket = buscarTicketEnCache(uniqueId);
-    if (!ticket) return alert("Ticket no encontrado.");
+    const ticket = typeof buscarTicketEnCache === 'function' ? buscarTicketEnCache(uniqueId) : null;
+    const folioTarget = ticket ? (ticket.codigo_ticket || ticket.folio || ticket.ticket_numero || ticket.id) : uniqueId;
 
-    const folioTarget = ticket.codigo_ticket || ticket.folio || ticket.ticket_numero || ticket.id;
+    if (!folioTarget) return alert("Ticket no encontrado.");
 
-    if (typeof window.cancelarTicketPOS === 'function') {
-        await window.cancelarTicketPOS(folioTarget);
-    } else {
-        const conf = confirm(`¿Está seguro de que desea cancelar el ticket #${folioTarget}?`);
-        if (!conf) return;
+    const conf = confirm(`¿Está seguro de que desea cancelar el ticket #${folioTarget}?`);
+    if (!conf) return;
 
-        const supabase = window.supabase;
-        if (supabase) {
-            await supabase.from('tickets').update({ estatus: 'CANCELADO', status: 'CANCELADO', estado: 'CANCELADO' }).or(`codigo_ticket.eq.${folioTarget},folio.eq.${folioTarget},id.eq.${folioTarget}`);
+    try {
+        const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+        if (!supabase) throw new Error("Cliente de Supabase no disponible.");
+
+        const { data, error } = await supabase.rpc('cancelar_ticket_universal', { 
+            p_referencia: String(folioTarget).trim() 
+        });
+
+        if (error) throw error;
+
+        if (data && data.success) {
+            alert(`✅ ${data.message}`);
+            if (typeof cargarHistorialTickets === 'function') await cargarHistorialTickets();
+            else location.reload();
+        } else {
+            alert(`⚠️ ${data?.message || 'No se pudo cancelar.'}`);
         }
-        alert(`Ticket #${folioTarget} cancelado correctamente.`);
-        cargarHistorialTickets();
+    } catch (err) {
+        console.error("Error al cancelar ticket en reportes:", err);
+        alert("❌ Error: " + err.message);
     }
 };
 

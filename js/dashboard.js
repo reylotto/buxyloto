@@ -743,38 +743,30 @@ window.cargarVentas = cargarHistorialTickets;
 // ANULACIÓN / ELIMINACIÓN DE TICKETS EN DASHBOARD (CORREGIDA)
 // ==========================================================
 window.eliminarTicketHistorial = async function(ticketId) {
+    if (!ticketId) return;
     if (!confirm('¿Está seguro de que desea anular/cancelar este ticket?')) return;
 
     try {
-        if (typeof window.anularOTicketCancelado === 'function') {
-            const res = await window.anularOTicketCancelado(ticketId);
-            if (!res.success) throw new Error(res.error);
+        const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+        if (!supabase) throw new Error("Cliente de Supabase no disponible.");
+
+        const { data, error } = await supabase.rpc('cancelar_ticket_universal', { 
+            p_referencia: String(ticketId).trim() 
+        });
+
+        if (error) throw error;
+
+        if (data && data.success) {
+            alert('✅ ' + data.message);
+
+            if (typeof cargarHistorialTickets === 'function') await cargarHistorialTickets();
+            if (typeof cargarMetricasSeguras === 'function') await cargarMetricasSeguras();
+            if (typeof cargarResumenOperacionesHoy === 'function') await cargarResumenOperacionesHoy();
         } else {
-            // Fallback directo a Supabase con búsqueda por ID o Folio
-            const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
-            const ref = String(ticketId).trim();
-            const esNumero = /^\d+$/.test(ref);
-
-            let query = supabase.from('tickets').update({ estatus: 'cancelado', estado: 'cancelado' });
-
-            if (esNumero) {
-                query = query.eq('id', parseInt(ref, 10));
-            } else {
-                query = query.or(`folio.eq.${ref},codigo_ticket.eq.${ref}`);
-            }
-
-            const { error } = await query;
-            if (error) throw error;
+            alert('⚠️ ' + (data?.message || 'No se completó la anulación.'));
         }
-
-        alert('✅ Ticket anulado correctamente.');
-
-        // Recalcular métricas
-        if (typeof cargarHistorialTickets === 'function') await cargarHistorialTickets();
-        if (typeof cargarMetricasSeguras === 'function') await cargarMetricasSeguras();
-        if (typeof cargarResumenOperacionesHoy === 'function') await cargarResumenOperacionesHoy();
-
     } catch (err) {
+        console.error("Error en eliminarTicketHistorial:", err);
         alert('❌ Error al anular el ticket: ' + err.message);
     }
 };

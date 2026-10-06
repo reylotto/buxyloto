@@ -130,7 +130,52 @@ export async function cancelarTicketDefinitivo(ticketRef) {
     }
 }
 
-// Exposición global
-window.cargarHistorialTicketsCentral = cargarHistorialTicketsCentral;
-window.cancelarTicketDefinitivo = cancelarTicketDefinitivo;
-window.anularTicket = cancelarTicketDefinitivo;
+// Exposición explícita en el ámbito global del navegador
+if (typeof window !== 'undefined') {
+    window.cancelarTicketDefinitivo = async function(ticketRef) {
+        if (!ticketRef || ticketRef === 'undefined' || ticketRef === 'null') {
+            alert("⚠️ Error: La referencia del ticket es inválida.");
+            return;
+        }
+
+        if (!confirm(`¿Desea anular definitivamente el ticket "${ticketRef}"?`)) return;
+
+        try {
+            const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+            
+            if (!supabase) {
+                alert("❌ Error: Cliente de Supabase no disponible.");
+                return;
+            }
+
+            // Llamada RPC a la función SQL
+            const { data, error } = await supabase.rpc('cancelar_ticket_universal', { 
+                p_referencia: String(ticketRef).trim() 
+            });
+
+            if (error) {
+                console.error("Error devuelto por Supabase RPC:", error);
+                alert("❌ Error en BD: " + error.message);
+                return;
+            }
+
+            if (data && data.success) {
+                alert(`✅ ${data.message}`);
+                // Recargar historial
+                if (typeof window.cargarHistorialTicketsCentral === 'function') {
+                    await window.cargarHistorialTicketsCentral();
+                } else {
+                    location.reload();
+                }
+            } else {
+                alert(`⚠️ ${data?.message || 'No se pudo cancelar el ticket.'}`);
+            }
+
+        } catch (err) {
+            console.error("Excepción al cancelar ticket:", err);
+            alert("❌ Error: " + (err.message || "Fallo inesperado."));
+        }
+    };
+
+    window.anularTicket = window.cancelarTicketDefinitivo;
+}

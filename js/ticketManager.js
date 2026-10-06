@@ -409,7 +409,7 @@ window.mostrarOpcionesExportacionTicket = mostrarOpcionesExportacionTicket;
 // ==========================================================
 // FUNCIÓN DE ANULACIÓN DIRECCIÓN A SUPABASE (SIN ERROR 400)
 // ==========================================================
-export async function anularOTicketCancelado(identificadorTicket) {
+export async function anularTicketCancelado(identificadorTicket) {
     if (!identificadorTicket) return { success: false, error: 'Identificador no válido.' };
 
     const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
@@ -418,41 +418,35 @@ export async function anularOTicketCancelado(identificadorTicket) {
     try {
         const refStr = String(identificadorTicket).trim();
 
-        // 1. Obtener el ID numérico real del ticket
-        const { data: ticketData, error: searchErr } = await supabase
-            .from('tickets')
-            .select('id, codigo_ticket, folio')
-            .or(`codigo_ticket.eq.${refStr},folio.eq.${refStr}${/^\d+$/.test(refStr) ? `,id.eq.${refStr}` : ''}`)
-            .maybeSingle();
+        // Ejecutar la función RPC universal creada en SQL
+        const { data, error } = await supabase.rpc('cancelar_ticket_universal', { 
+            p_referencia: refStr 
+        });
 
-        if (searchErr) throw searchErr;
-        if (!ticketData) return { success: false, error: 'Ticket no encontrado en la base de datos.' };
+        if (error) throw error;
 
-        const ticketIdReal = ticketData.id;
+        if (data && data.success) {
+            // Cancelar también las jugadas vinculadas si aplica
+            const { data: ticketData } = await supabase
+                .from('tickets')
+                .select('id')
+                .or(`codigo.eq.${refStr},codigo_ticket.eq.${refStr},folio.eq.${refStr}`)
+                .maybeSingle();
 
-        // 2. Actualizar el estatus del ticket usando id (bigint)
-        const { error: updateTicketErr } = await supabase
-            .from('tickets')
-            .update({ estatus: 'cancelado', estado: 'cancelado' })
-            .eq('id', ticketIdReal);
+            if (ticketData?.id) {
+                await supabase
+                    .from('jugadas')
+                    .update({ estatus: 'cancelado', estado: 'cancelado' })
+                    .eq('ticket_id', ticketData.id);
+            }
 
-        if (updateTicketErr) throw updateTicketErr;
-
-        // 3. Cancelar las jugadas vinculadas por ticket_id
-        await supabase
-            .from('jugadas')
-            .update({ estatus: 'cancelado', estado: 'cancelado' })
-            .eq('ticket_id', ticketIdReal);
-
-        // 4. Refrescar la interfaz
-        if (typeof window.cargarHistorialTickets === 'function') await window.cargarHistorialTickets();
-        if (typeof window.cargarMetricasSeguras === 'function') await window.cargarMetricasSeguras();
-        if (typeof window.cargarResumenOperacionesHoy === 'function') await window.cargarResumenOperacionesHoy();
-
-        return { success: true };
+            return { success: true, message: data.message };
+        } else {
+            return { success: false, error: data?.message || 'No se pudo cancelar el ticket.' };
+        }
     } catch (err) {
-        console.error('Error al anular ticket:', err);
-        return { success: false, error: err.message };
+        console.error("Error en anularTicketCancelado:", err);
+        return { success: false, error: err.message || 'Error al procesar la cancelación.' };
     }
 }
 

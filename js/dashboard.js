@@ -840,33 +840,28 @@ function cambiarSeccion(seccionId) {
 // ==========================================================
 // RESUMEN DE OPERACIONES Y MÉTRICAS HOY CON GRÁFICOS
 // ==========================================================
-function actualizarTexto(id, valor) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = valor;
-}
 
-// ==========================================================
-// RESUMEN DE OPERACIONES Y MÉTRICAS HOY CON GRÁFICOS
-// ==========================================================
-// ✅ REEMPLAZAR EN JS/DASHBOARD.JS (LÍNEA 851):
+// 1. Declaración global/auxiliar segura para actualizar texto en el DOM
 if (typeof window.actualizarTexto !== 'function') {
     window.actualizarTexto = function(id, valor) {
         const el = document.getElementById(id);
         if (el) el.textContent = valor;
     };
 }
+const actualizarTexto = window.actualizarTexto;
 
+// 2. Función Principal: Cargar Resumen de Operaciones
 async function cargarResumenOperacionesHoy() {
     try {
         const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
         if (!supabase) return;
 
-        // 1. Rango de fecha de hoy
+        // Rango de fecha de hoy (00:00:00 - 23:59:59)
         const hoy = new Date();
         const inicioDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0);
         const finDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59, 999);
 
-        // 2. Consultar tickets de hoy
+        // Consultar tickets de hoy
         const { data: ticketsHoy, error: errTickets } = await supabase
             .from('tickets')
             .select('*')
@@ -880,7 +875,7 @@ async function cargarResumenOperacionesHoy() {
 
         const ticketsRaw = ticketsHoy || [];
 
-        // Excluir cancelados o anulados
+        // Excluir tickets cancelados o anulados
         const tickets = ticketsRaw.filter(t => {
             const est = String(t.estatus || t.status || t.estado || '').toLowerCase();
             return est !== 'cancelado' && est !== 'anulado';
@@ -888,7 +883,7 @@ async function cargarResumenOperacionesHoy() {
 
         const totalTickets = tickets.length;
 
-        // 3. Cálculos Financieros
+        // Cálculos Financieros
         let ventaTotal = 0;
         let comisionesTotal = 0;
         let premiosTotal = 0;
@@ -930,7 +925,7 @@ async function cargarResumenOperacionesHoy() {
 
         const gananciaNeta = ventaTotal - comisionesTotal - premiosTotal;
 
-        // 4. Inyectar datos en el DOM
+        // Inyectar datos en el DOM (Compatibilidad con múltiples IDs de plantillas)
         const totalVentasFmt = `$${ventaTotal.toFixed(2)}`;
         const totalComisionesFmt = `$${comisionesTotal.toFixed(2)}`;
         const totalPremiosFmt = `$${premiosTotal.toFixed(2)}`;
@@ -957,16 +952,26 @@ async function cargarResumenOperacionesHoy() {
 
         console.log(`✅ Resumen y ventas actualizadas automáticamente: ${totalVentasFmt} en ${totalTickets} tickets.`);
 
-        // 5. LLAMADA SEGURA A LOS GRÁFICOS
+        // Cargar caché de bancas si está disponible y no se ha cargado aún
+        if (typeof window.cargarBancas === 'function' && (!window._bancasCache || window._bancasCache.length === 0)) {
+            try { await window.cargarBancas(); } catch (e) { console.warn("Aviso pre-cargando bancas:", e); }
+        }
+
+        // Llamada segura a renderizar gráficos
         renderizarGraficosCompletos(tickets);
 
-        // 6. Cargar grilla de sorteos
-        await cargarGridSorteosEnVivo();
+        // Cargar grilla de sorteos en vivo si existe la función
+        if (typeof window.cargarGridSorteosEnVivo === 'function') {
+            await window.cargarGridSorteosEnVivo();
+        } else if (typeof cargarGridSorteosEnVivo === 'function') {
+            await cargarGridSorteosEnVivo();
+        }
 
     } catch (err) {
         console.error("Error al cargar resumen de operaciones:", err);
     }
 }
+window.cargarResumenOperacionesHoy = cargarResumenOperacionesHoy;
 
 // ==========================================================
 // RENDERING DE GRÁFICOS (VENTAS POR BANCA Y BALANCE POR SORTEO)
@@ -983,7 +988,7 @@ function renderizarGraficosCompletos(tickets = []) {
 window.renderizarGraficosCompletos = renderizarGraficosCompletos;
 
 // 1. Gráfico de Ventas por Banca / Vendedor
-function renderizarGraficoVendedores(tickets) {
+function renderizarGraficoVendedores(tickets = []) {
     const canvas = document.getElementById('chart-ventas-vendedor') || document.getElementById('chartVentasBanca');
     if (!canvas) return;
 
@@ -992,14 +997,20 @@ function renderizarGraficoVendedores(tickets) {
 
     tickets.forEach(t => {
         let nombre = t.banca_nombre || t.vendedor_nombre || t.banca || t.vendedor || '';
-        if (!nombre && (t.banca_id || t.usuario_id)) {
-            const bId = String(t.banca_id || t.usuario_id);
-            const encontrada = bancasCache.find(b => String(b.id) === bId);
-            if (encontrada) nombre = encontrada.nombre_banca || encontrada.vendedor_nombre;
-        }
-        if (!nombre) nombre = 'Banca General';
 
-        const monto = parseFloat(t.total || t.monto || t.monto_total || 0);
+        if (!nombre && (t.banca_id !== undefined && t.banca_id !== null || t.usuario_id !== undefined && t.usuario_id !== null)) {
+            const bId = String(t.banca_id ?? t.usuario_id);
+            const encontrada = bancasCache.find(b => String(b.id) === bId);
+            if (encontrada) {
+                nombre = encontrada.nombre_banca || encontrada.vendedor_nombre || encontrada.nombre || encontrada.username || '';
+            }
+        }
+
+        if (!nombre || nombre === '0' || nombre === 0 || String(nombre).trim() === '') {
+            nombre = 'Banca General';
+        }
+
+        const monto = parseFloat(t.total || t.monto || t.monto_total || t.monto_venta || 0);
         bancasMap[nombre] = (bancasMap[nombre] || 0) + monto;
     });
 
@@ -1028,10 +1039,24 @@ function renderizarGraficoVendedores(tickets) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: { 
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `Venta Total: $${Number(ctx.raw).toFixed(2)}`
+                    }
+                }
+            },
             scales: {
-                y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(51, 65, 85, 0.3)' } },
-                x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+                y: { 
+                    beginAtZero: true,
+                    ticks: { color: '#94a3b8' }, 
+                    grid: { color: 'rgba(51, 65, 85, 0.3)' } 
+                },
+                x: { 
+                    ticks: { color: '#94a3b8' }, 
+                    grid: { display: false } 
+                }
             }
         }
     });
@@ -1039,8 +1064,7 @@ function renderizarGraficoVendedores(tickets) {
 window.renderizarGraficoVendedores = renderizarGraficoVendedores;
 
 // 2. Gráfico de Distribución y Ganancia/Pérdida por Sorteo
-// MANTENER SOLO UNA DEFINICIÓN DE ESTA FUNCIÓN EN DASHBOARD.JS:
-function renderizarGraficoSorteos(tickets) {
+function renderizarGraficoSorteos(tickets = []) {
     const canvas = document.getElementById('chart-distribucion-sorteo') || document.getElementById('chartDistribucionSorteo');
     if (!canvas) return;
 
@@ -1053,7 +1077,7 @@ function renderizarGraficoSorteos(tickets) {
         let montoPremio = parseFloat(t.premio || t.monto_premio || t.total_premio || 0);
         const est = String(t.estatus || t.estado || '').toLowerCase();
         
-        if (est === 'premiado' || est === 'ganador') {
+        if (est === 'premiado' || est === 'ganador' || est === 'pagado') {
             if (montoPremio === 0 && Array.isArray(t.jugadas || t.detalles)) {
                 (t.jugadas || t.detalles).forEach(j => {
                     montoPremio += parseFloat(j.premio || j.monto_premio || 0);

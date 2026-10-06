@@ -1,6 +1,6 @@
 // ==========================================================
 // ARCHIVO: js/resultados.js
-// Módulo de Escrutinio e Historial de Resultados
+// Gestión de Resultados, Escrutinio e Historial con Eliminación
 // ==========================================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -9,6 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
     cargarHistorialResultados();
 });
 
+/**
+ * Inicializa la fecha por defecto si los campos están vacíos.
+ */
 function inicializarFechas() {
     const hoy = new Date().toISOString().split('T')[0];
     const inputFechaForm = document.getElementById('result-fecha');
@@ -18,6 +21,9 @@ function inicializarFechas() {
     if (inputFiltro && !inputFiltro.value) inputFiltro.value = hoy;
 }
 
+/**
+ * Carga el historial de resultados según la fecha seleccionada en el filtro.
+ */
 async function cargarHistorialResultados() {
     inicializarFechas();
     const filtroFecha = document.getElementById('filtro-fecha-historial')?.value;
@@ -26,7 +32,10 @@ async function cargarHistorialResultados() {
     if (!tbody) return;
 
     const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
-    if (!supabase) return;
+    if (!supabase) {
+        console.error("Cliente Supabase no disponible.");
+        return;
+    }
 
     try {
         let query = supabase
@@ -44,8 +53,8 @@ async function cargarHistorialResultados() {
         if (!data || data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="6" class="text-center p-4 text-slate-500">
-                        No hay números registrados para la fecha ${filtroFecha || 'seleccionada'}.
+                    <td colspan="6" class="text-center p-4 text-slate-500 font-medium">
+                        No hay sorteos registrados ni escrutados para la fecha ${filtroFecha || 'seleccionada'}.
                     </td>
                 </tr>`;
             return;
@@ -62,14 +71,18 @@ async function cargarHistorialResultados() {
             return `
                 <tr class="hover:bg-slate-700/30 transition border-b border-slate-700/50">
                     <td class="p-3 font-semibold text-white">${nombreSorteo}</td>
-                    <td class="p-3 text-slate-400">${res.fecha || 'Sin fecha'}</td>
+                    <td class="p-3 text-slate-400 font-mono">${res.fecha || 'Sin fecha'}</td>
                     <td class="p-3 text-amber-400 font-bold font-mono text-sm">${num1}</td>
                     <td class="p-3 text-amber-400 font-bold font-mono text-sm">${num2}</td>
                     <td class="p-3 text-amber-400 font-bold font-mono text-sm">${num3}</td>
-                    <td class="p-3 text-center">
+                    <td class="p-3 text-center flex items-center justify-center gap-2">
                         <button type="button" onclick="cargarResultadoEnFormulario(${jsonStr})" 
                             class="text-xs bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-slate-950 px-2.5 py-1 rounded-lg font-bold transition">
                             ✏️ Editar
+                        </button>
+                        <button type="button" onclick="eliminarResultado('${res.id}')" 
+                            class="text-xs bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white px-2.5 py-1 rounded-lg font-bold transition">
+                            🗑️ Eliminar
                         </button>
                     </td>
                 </tr>
@@ -78,11 +91,14 @@ async function cargarHistorialResultados() {
 
     } catch (err) {
         console.error("Error al cargar historial:", err);
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-rose-400">Error: ${err.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-rose-400">Error al consultar datos: ${err.message}</td></tr>`;
     }
 }
 window.cargarHistorialResultados = cargarHistorialResultados;
 
+/**
+ * Carga los datos de un sorteo registrado de vuelta al formulario.
+ */
 function cargarResultadoEnFormulario(res) {
     if (!res) return;
 
@@ -100,6 +116,43 @@ function cargarResultadoEnFormulario(res) {
 }
 window.cargarResultadoEnFormulario = cargarResultadoEnFormulario;
 
+/**
+ * Elimina un registro de resultado de Supabase.
+ */
+async function eliminarResultado(id) {
+    if (!id || id === 'undefined') {
+        alert("El ID del registro no es válido.");
+        return;
+    }
+
+    if (!confirm("¿Está seguro de que desea eliminar este resultado de sorteo? Esto alterará el historial.")) {
+        return;
+    }
+
+    const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
+    if (!supabase) return;
+
+    try {
+        const { error } = await supabase
+            .from('resultados')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+
+        alert("✅ Resultado eliminado correctamente.");
+        cargarHistorialResultados();
+
+    } catch (err) {
+        console.error("Error al eliminar resultado:", err);
+        alert("Error al eliminar de Supabase: " + err.message);
+    }
+}
+window.eliminarResultado = eliminarResultado;
+
+/**
+ * Procesa el registro y actualización de sorteos ganadores.
+ */
 function inicializarFormularioResultados() {
     const form = document.getElementById('form-register-results');
     if (!form) return;
@@ -137,8 +190,9 @@ function inicializarFormularioResultados() {
 
             if (error) throw error;
 
-            alert(`✅ Resultado registrado con éxito para la fecha ${fecha}`);
+            alert(`✅ Resultado guardado e impreso para la fecha ${fecha}`);
 
+            // Cambiar filtro a la fecha guardada para verificarla de inmediato
             const filtroFecha = document.getElementById('filtro-fecha-historial');
             if (filtroFecha) filtroFecha.value = fecha;
 

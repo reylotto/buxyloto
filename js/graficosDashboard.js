@@ -9,7 +9,7 @@ let instanceChartSorteos = null;
  * Función principal para procesar tickets y actualizar todos los gráficos
  * @param {Array} tickets - Lista de tickets del día (excluyendo cancelados)
  */
-export function renderizarGraficosCompletos(tickets = []) {
+function renderizarGraficosCompletos(tickets = []) {
     if (typeof Chart === 'undefined') {
         console.warn("⚠️ Chart.js no está disponible en la página.");
         return;
@@ -31,7 +31,8 @@ window.renderizarGraficosCompletos = renderizarGraficosCompletos;
 // ----------------------------------------------------------
 function renderizarGraficoVentaYGananciaBancas(tickets) {
     const canvas = document.getElementById('chart-ventas-vendedor') || 
-                   document.getElementById('chartVentasBanca');
+                   document.getElementById('chartVentasBanca') ||
+                   document.getElementById('chartVentasVendedor');
     if (!canvas) return;
 
     const bancasMap = {};
@@ -55,6 +56,7 @@ function renderizarGraficoVentaYGananciaBancas(tickets) {
 
     if (instanceChartBancas) {
         instanceChartBancas.destroy();
+        instanceChartBancas = null;
     }
 
     const ctx = canvas.getContext('2d');
@@ -75,10 +77,10 @@ function renderizarGraficoVentaYGananciaBancas(tickets) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+                legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        label: (ctx) => `Venta: $${Number(ctx.raw).toFixed(2)}`
+                        label: (ctx) => `Venta Total: $${Number(ctx.raw).toFixed(2)}`
                     }
                 }
             },
@@ -128,14 +130,10 @@ function renderizarGraficoDistribucionYBalanceSorteos(tickets) {
 
     const labels = Object.keys(sorteosMap);
     const dataVentas = labels.map(l => sorteosMap[l].venta);
-    const dataBalances = labels.map(l => sorteosMap[l].balance);
-
-    // Asignar colores según si el sorteo tuvo ganancia (verde) o pérdida (rojo)
-    const backgroundColors = dataBalances.map(b => b >= 0 ? 'rgba(16, 185, 129, 0.8)' : 'rgba(244, 63, 94, 0.8)');
-    const borderColors = dataBalances.map(b => b >= 0 ? '#10b981' : '#f43f5e');
 
     if (instanceChartSorteos) {
         instanceChartSorteos.destroy();
+        instanceChartSorteos = null;
     }
 
     const ctx = canvas.getContext('2d');
@@ -144,7 +142,6 @@ function renderizarGraficoDistribucionYBalanceSorteos(tickets) {
         data: {
             labels: labels.length ? labels : ['Sin Datos'],
             datasets: [{
-                label: 'Ventas por Sorteo ($)',
                 data: dataVentas.length ? dataVentas : [1],
                 backgroundColor: [
                     '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'
@@ -166,9 +163,10 @@ function renderizarGraficoDistribucionYBalanceSorteos(tickets) {
                             if (!info) return `${label}: $${ctx.raw}`;
                             const estadoStr = info.balance >= 0 ? 'GANANCIA' : 'PÉRDIDA';
                             return [
-                                ` Venta Total: $${info.venta.toFixed(2)}`,
-                                ` Premios Pagados: $${info.premios.toFixed(2)}`,
-                                ` Balance (${estadoStr}): $${info.balance.toFixed(2)}`
+                                `${label}`,
+                                `• Venta Total: $${info.venta.toFixed(2)}`,
+                                `• Premios Pagados: $${info.premios.toFixed(2)}`,
+                                `• Balance (${estadoStr}): $${info.balance.toFixed(2)}`
                             ];
                         }
                     }

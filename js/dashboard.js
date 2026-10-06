@@ -1,5 +1,5 @@
 // --- MÓDULO DASHBOARD Y MÉTRICAS ACTUALIZADO (PERFIL ADMIN & REALTIME CONECTADO) ---
-import { renderizarGraficosCompletos } from './graficosDashboard.js';
+
 // Respaldo por si getSupabaseClient o getSupabaseClientDashboard no están definidos globalmente
 if (typeof window.getSupabaseClient !== 'function') {
     window.getSupabaseClient = function() {
@@ -845,17 +845,25 @@ function actualizarTexto(id, valor) {
     if (el) el.textContent = valor;
 }
 
+// ==========================================================
+// RESUMEN DE OPERACIONES Y MÉTRICAS HOY CON GRÁFICOS
+// ==========================================================
+function actualizarTexto(id, valor) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = valor;
+}
+
 async function cargarResumenOperacionesHoy() {
     try {
-        const supabase = window.getSupabaseClient();
+        const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
         if (!supabase) return;
 
-        // 1. Rango de fecha de hoy ajustado al día local
+        // 1. Rango de fecha de hoy
         const hoy = new Date();
         const inicioDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0);
         const finDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59, 999);
 
-        // 2. Consultar tickets emitidos hoy
+        // 2. Consultar tickets de hoy
         const { data: ticketsHoy, error: errTickets } = await supabase
             .from('tickets')
             .select('*')
@@ -869,7 +877,7 @@ async function cargarResumenOperacionesHoy() {
 
         const ticketsRaw = ticketsHoy || [];
 
-        // EXCLUIR ESTRICTAMENTE CANCELADOS O ANULADOS
+        // Excluir cancelados o anulados
         const tickets = ticketsRaw.filter(t => {
             const est = String(t.estatus || t.status || t.estado || '').toLowerCase();
             return est !== 'cancelado' && est !== 'anulado';
@@ -946,7 +954,7 @@ async function cargarResumenOperacionesHoy() {
 
         console.log(`✅ Resumen y ventas actualizadas automáticamente: ${totalVentasFmt} en ${totalTickets} tickets.`);
 
-        // REEMPLAZAR EN DASHBOARD.JS (DENTRO DE cargarResumenOperacionesHoy):
+        // 5. LLAMADA SEGURA A LOS GRÁFICOS
         renderizarGraficosCompletos(tickets);
 
         // 6. Cargar grilla de sorteos
@@ -957,12 +965,25 @@ async function cargarResumenOperacionesHoy() {
     }
 }
 
-// --- RENDERING DE GRÁFICOS (VENTA POR BANCA Y POR SORTEO) ---
+// ==========================================================
+// RENDERING DE GRÁFICOS (VENTAS POR BANCA Y BALANCE POR SORTEO)
+// ==========================================================
+function renderizarGraficosCompletos(tickets = []) {
+    if (typeof Chart === 'undefined') {
+        console.warn("⚠️ Chart.js no está cargado en la página.");
+        return;
+    }
+
+    renderizarGraficoVendedores(tickets);
+    renderizarGraficoSorteos(tickets);
+}
+window.renderizarGraficosCompletos = renderizarGraficosCompletos;
+
+// 1. Gráfico de Ventas por Banca / Vendedor
 function renderizarGraficoVendedores(tickets) {
     const canvas = document.getElementById('chart-ventas-vendedor') || document.getElementById('chartVentasBanca');
     if (!canvas) return;
 
-    // Agrupar ventas por Banca / Vendedor
     const bancasMap = {};
     const bancasCache = window._bancasCache || [];
 
@@ -973,7 +994,7 @@ function renderizarGraficoVendedores(tickets) {
             const encontrada = bancasCache.find(b => String(b.id) === bId);
             if (encontrada) nombre = encontrada.nombre_banca || encontrada.vendedor_nombre;
         }
-        if (!nombre) nombre = 'General';
+        if (!nombre) nombre = 'Banca General';
 
         const monto = parseFloat(t.total || t.monto || t.monto_total || 0);
         bancasMap[nombre] = (bancasMap[nombre] || 0) + monto;
@@ -984,36 +1005,117 @@ function renderizarGraficoVendedores(tickets) {
 
     if (window.chartVendedoresInstance) {
         window.chartVendedoresInstance.destroy();
+        window.chartVendedoresInstance = null;
     }
 
-    if (typeof Chart !== 'undefined') {
-        const ctx = canvas.getContext('2d');
-        window.chartVendedoresInstance = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: labels.length ? labels : ['Sin Datos'],
-                datasets: [{
-                    label: 'Venta por Banca ($)',
-                    data: data.length ? data : [0],
-                    backgroundColor: 'rgba(16, 185, 129, 0.6)',
-                    borderColor: '#10b981',
-                    borderWidth: 1.5,
-                    borderRadius: 6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(51, 65, 85, 0.3)' } },
-                    x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
-                }
+    const ctx = canvas.getContext('2d');
+    window.chartVendedoresInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels.length ? labels : ['Sin Datos'],
+            datasets: [{
+                label: 'Ventas ($)',
+                data: data.length ? data : [0],
+                backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                borderColor: '#10b981',
+                borderWidth: 1.5,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(51, 65, 85, 0.3)' } },
+                x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
             }
-        });
-    }
+        }
+    });
 }
 window.renderizarGraficoVendedores = renderizarGraficoVendedores;
+
+// 2. Gráfico de Distribución y Ganancia/Pérdida por Sorteo
+function renderizarGraficoSorteos(tickets) {
+    const canvas = document.getElementById('chart-distribucion-sorteo') || document.getElementById('chartDistribucionSorteo');
+    if (!canvas) return;
+
+    const sorteosMap = {};
+
+    tickets.forEach(t => {
+        const nombreSorteo = t.sorteo_nombre || t.sorteo || t.nombre_sorteo || 'Sorteo General';
+        const montoVenta = parseFloat(t.total || t.monto || t.monto_total || 0);
+        
+        let montoPremio = parseFloat(t.premio || t.monto_premio || t.total_premio || 0);
+        const est = String(t.estatus || t.estado || '').toLowerCase();
+        
+        if (est === 'premiado' || est === 'ganador') {
+            if (montoPremio === 0 && Array.isArray(t.jugadas || t.detalles)) {
+                (t.jugadas || t.detalles).forEach(j => {
+                    montoPremio += parseFloat(j.premio || j.monto_premio || 0);
+                });
+            }
+        } else {
+            montoPremio = 0;
+        }
+
+        if (!sorteosMap[nombreSorteo]) {
+            sorteosMap[nombreSorteo] = { venta: 0, premios: 0, balance: 0 };
+        }
+
+        sorteosMap[nombreSorteo].venta += montoVenta;
+        sorteosMap[nombreSorteo].premios += montoPremio;
+        sorteosMap[nombreSorteo].balance = sorteosMap[nombreSorteo].venta - sorteosMap[nombreSorteo].premios;
+    });
+
+    const labels = Object.keys(sorteosMap);
+    const dataVentas = labels.map(l => sorteosMap[l].venta);
+
+    if (window.chartSorteosInstance) {
+        window.chartSorteosInstance.destroy();
+        window.chartSorteosInstance = null;
+    }
+
+    const ctx = canvas.getContext('2d');
+    window.chartSorteosInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels.length ? labels : ['Sin Datos'],
+            datasets: [{
+                data: dataVentas.length ? dataVentas : [1],
+                backgroundColor: [
+                    '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'
+                ],
+                borderWidth: 2,
+                borderColor: '#0f172a'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => {
+                            const label = ctx.label || '';
+                            const info = sorteosMap[label];
+                            if (!info) return `${label}: $${ctx.raw}`;
+                            const estadoStr = info.balance >= 0 ? 'GANANCIA' : 'PÉRDIDA';
+                            return [
+                                `${label}`,
+                                `• Venta Total: $${info.venta.toFixed(2)}`,
+                                `• Premios Pagados: $${info.premios.toFixed(2)}`,
+                                `• Balance (${estadoStr}): $${info.balance.toFixed(2)}`
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+window.renderizarGraficoSorteos = renderizarGraficoSorteos;
 
 function renderizarGraficoSorteos(tickets) {
     const canvas = document.getElementById('chart-distribucion-sorteo') || document.getElementById('chartDistribucionSorteo');

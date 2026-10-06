@@ -9,7 +9,7 @@ import {
     compartirTicketWhatsApp as compartirWhatsAppManager,
     descargarPDFTicket as descargarPDFManager,
     mostrarOpcionesExportacionTicket as mostrarOpcionesManager,
-    anularTicketCancelado
+    anularOTicketCancelado
 } from './ticketManager.js';
 
 // Estado global de la venta activa
@@ -18,7 +18,7 @@ window.jugadasActuales = window.jugadasActuales || [];
 window.ultimoMontoIngresado = window.ultimoMontoIngresado || null;
 
 // Exponer la función globalmente para su uso desde cualquier parte del flujo del POS
-window.anularTicketCancelado = anularTicketCancelado;
+window.anularOTicketCancelado = anularOTicketCancelado;
 
 // ----------------------------------------------------------
 // 1. INICIALIZACIÓN DEL MÓDULO POS
@@ -292,17 +292,24 @@ export function agregarJugadaAlCarrito() {
 }
 window.agregarJugadaAlCarrito = agregarJugadaAlCarrito;
 
-// ==========================================================
-// 5. AGREGAR JUGADA Y RENDERIZAR EN TIEMPO REAL (CORREGIDO)
-// ==========================================================
 export function renderizarCarrito() {
     let totalMonto = 0;
     const cantidadJugadas = window.jugadasActuales ? window.jugadasActuales.length : 0;
 
-    // 1. Contenedor específico de la lista de jugadas
-    const areaLista = document.getElementById('ticket-actual-list') || 
-                      document.querySelector('.ticket-actual-list') ||
-                      document.querySelector('[data-ticket-list]');
+    // Buscar contenedor de la lista en HTML
+    let areaLista = document.getElementById('ticket-actual-list') || 
+                    document.querySelector('.ticket-actual-list') ||
+                    document.querySelector('[data-ticket-list]');
+
+    if (!areaLista) {
+        const posibles = document.querySelectorAll('div, section, aside');
+        for (let el of posibles) {
+            if (el.textContent && (el.textContent.includes('TOTAL A PAGAR') || el.textContent.includes('Cantidad de apuestas') || el.textContent.includes('Cantidad de jugadas'))) {
+                areaLista = el.querySelector('.space-y-2') || el.querySelector('.overflow-y-auto') || el;
+                if (areaLista) break;
+            }
+        }
+    }
 
     if (areaLista) {
         areaLista.innerHTML = '';
@@ -354,18 +361,28 @@ export function renderizarCarrito() {
         window.jugadasActuales.forEach(j => totalMonto += parseFloat(j.monto || 0));
     }
 
-    // 2. Actualizar únicamente los elementos específicos de total
+    // Actualizar Totales en HTML
     const totalFormatted = `$${totalMonto.toFixed(2)}`;
-    const elTotales = document.querySelectorAll('#lbl-total-pagar, .lbl-total-pagar, [data-total-pagar], .total-pagar-monto');
+    const elTotales = document.querySelectorAll('#lbl-total-pagar, .lbl-total-pagar, [data-total-pagar], .total-pagar-monto, h2, span, div');
     
     elTotales.forEach(el => {
-        el.textContent = totalFormatted;
+        if (el.textContent && (el.textContent.includes('TOTAL A PAGAR:') || el.classList?.contains('total-pagar-monto'))) {
+            const spanMonto = el.querySelector('span:last-child') || el;
+            if (spanMonto && spanMonto !== el && spanMonto.children.length === 0) {
+                spanMonto.textContent = totalFormatted;
+            } else if (el.classList?.contains('total-pagar-monto')) {
+                el.textContent = totalFormatted;
+            }
+        }
     });
 
-    // 3. Actualizar únicamente los elementos específicos de cantidad
-    const elCantidades = document.querySelectorAll('#lbl-cantidad-jugadas, .lbl-cantidad-jugadas, [data-cantidad-jugadas], .cantidad-jugadas-count');
+    // Actualizar Cantidad de Apuestas en HTML
+    const elCantidades = document.querySelectorAll('#lbl-cantidad-jugadas, .lbl-cantidad-jugadas, [data-cantidad-jugadas], .cantidad-jugadas-count, span, div');
     elCantidades.forEach(el => {
-        el.textContent = cantidadJugadas;
+        if (el.textContent && el.textContent.includes('Cantidad de apuestas:')) {
+            const spanCount = el.querySelector('span:last-child') || el;
+            if (spanCount) spanCount.textContent = cantidadJugadas;
+        }
     });
 }
 window.renderizarCarrito = renderizarCarrito;

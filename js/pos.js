@@ -293,16 +293,31 @@ export function agregarJugadaAlCarrito() {
 window.agregarJugadaAlCarrito = agregarJugadaAlCarrito;
 
 // ==========================================================
-// 5. AGREGAR JUGADA Y RENDERIZAR EN TIEMPO REAL (CORREGIDO)
+// 5. AGREGAR JUGADA Y RENDERIZAR EN TIEMPO REAL (CORREGIDO Y PROTEGIDO)
 // ==========================================================
 export function renderizarCarrito() {
     let totalMonto = 0;
     const cantidadJugadas = window.jugadasActuales ? window.jugadasActuales.length : 0;
 
-    // 1. Contenedor específico de la lista de jugadas
-    const areaLista = document.getElementById('ticket-actual-list') || 
-                      document.querySelector('.ticket-actual-list') ||
-                      document.querySelector('[data-ticket-list]');
+    // 1. Buscar contenedor de la lista en HTML
+    let areaLista = document.getElementById('ticket-actual-list') || 
+                    document.querySelector('.ticket-actual-list') ||
+                    document.querySelector('[data-ticket-list]');
+
+    // Si no tiene ID directo, buscar en los elementos del POS excluyendo el menú lateral y la cabecera
+    if (!areaLista) {
+        const contenedorPos = document.getElementById('section-pos') || document.getElementById('dashboard-view') || document;
+        const posibles = contenedorPos.querySelectorAll('div, section');
+        for (let el of posibles) {
+            // Ignorar elementos del menú lateral o barra superior
+            if (el.closest('aside') || el.closest('header') || el.closest('#sidebar')) continue;
+
+            if (el.textContent && (el.textContent.includes('TOTAL A PAGAR') || el.textContent.includes('Cantidad de apuestas') || el.textContent.includes('Cantidad de jugadas'))) {
+                areaLista = el.querySelector('.space-y-2') || el.querySelector('.overflow-y-auto') || el;
+                if (areaLista) break;
+            }
+        }
+    }
 
     if (areaLista) {
         areaLista.innerHTML = '';
@@ -354,19 +369,57 @@ export function renderizarCarrito() {
         window.jugadasActuales.forEach(j => totalMonto += parseFloat(j.monto || 0));
     }
 
-    // 2. Actualizar únicamente los elementos específicos de total
+    // 2. Actualizar Totales en HTML (Búsqueda protegida)
     const totalFormatted = `$${totalMonto.toFixed(2)}`;
-    const elTotales = document.querySelectorAll('#lbl-total-pagar, .lbl-total-pagar, [data-total-pagar], .total-pagar-monto');
     
-    elTotales.forEach(el => {
+    // Coincidencias directas por ID/Clase primero
+    const directTotales = document.querySelectorAll('#lbl-total-pagar, .lbl-total-pagar, [data-total-pagar], .total-pagar-monto');
+    let totalActualizado = false;
+
+    directTotales.forEach(el => {
+        if (el.closest('aside') || el.closest('header') || el.closest('#sidebar')) return;
         el.textContent = totalFormatted;
+        totalActualizado = true;
     });
 
-    // 3. Actualizar únicamente los elementos específicos de cantidad
-    const elCantidades = document.querySelectorAll('#lbl-cantidad-jugadas, .lbl-cantidad-jugadas, [data-cantidad-jugadas], .cantidad-jugadas-count');
-    elCantidades.forEach(el => {
+    // Si no hay IDs directos, buscar la etiqueta de total pero NUNCA en el sidebar o la barra superior
+    if (!totalActualizado) {
+        const elTotales = document.querySelectorAll('h2, span, div, p');
+        elTotales.forEach(el => {
+            if (el.closest('aside') || el.closest('header') || el.closest('#sidebar')) return; // Filtro de seguridad
+            
+            if (el.textContent && (el.textContent.includes('TOTAL A PAGAR:') || el.classList?.contains('total-pagar-monto'))) {
+                const spanMonto = el.querySelector('span:last-child') || el;
+                if (spanMonto && spanMonto !== el && spanMonto.children.length === 0) {
+                    spanMonto.textContent = totalFormatted;
+                } else if (el.classList?.contains('total-pagar-monto')) {
+                    el.textContent = totalFormatted;
+                }
+            }
+        });
+    }
+
+    // 3. Actualizar Cantidad de Apuestas en HTML (Búsqueda protegida)
+    const directCantidades = document.querySelectorAll('#lbl-cantidad-jugadas, .lbl-cantidad-jugadas, [data-cantidad-jugadas], .cantidad-jugadas-count');
+    let cantidadActualizada = false;
+
+    directCantidades.forEach(el => {
+        if (el.closest('aside') || el.closest('header') || el.closest('#sidebar')) return;
         el.textContent = cantidadJugadas;
+        cantidadActualizada = true;
     });
+
+    if (!cantidadActualizada) {
+        const elCantidades = document.querySelectorAll('span, div, p');
+        elCantidades.forEach(el => {
+            if (el.closest('aside') || el.closest('header') || el.closest('#sidebar')) return; // Filtro de seguridad
+            
+            if (el.textContent && el.textContent.includes('Cantidad de apuestas:')) {
+                const spanCount = el.querySelector('span:last-child') || el;
+                if (spanCount) spanCount.textContent = cantidadJugadas;
+            }
+        });
+    }
 }
 window.renderizarCarrito = renderizarCarrito;
 

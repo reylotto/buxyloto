@@ -42,7 +42,7 @@ module.exports = async function handler(req, res) {
             resultadosAInsertar.push(...extractedAnguilla);
         }
 
-        // 4. Guardar resultados en Supabase vía REST API (Dispara el Trigger de Escrutinio)
+        // 4. Guardar resultados en Supabase vía REST API
         let totalGuardados = 0;
         for (const resData of resultadosAInsertar) {
             if (!resData.sorteo_id || !resData.primero) continue;
@@ -72,8 +72,6 @@ module.exports = async function handler(req, res) {
 
             if (respUpsert.ok) {
                 totalGuardados++;
-            } else {
-                console.error(`Error al guardar sorteo ID ${resData.sorteo_id}:`, await respUpsert.text());
             }
         }
 
@@ -104,7 +102,6 @@ async function fetchText(url) {
         return null;
     }
 }
-
 
 function extraerPremiosEnLoteria(html, listaSorteos) {
     const hallados = [];

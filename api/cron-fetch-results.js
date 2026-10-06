@@ -1,37 +1,41 @@
-import { createClient } from '@supabase/supabase-js';
+const { createClient } = require('@supabase/supabase-js');
 
-// Inicializar cliente Supabase con privilegios
-const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
     try {
-        const hoy = new Date().toISOString().split('T')[0];
-        console.log(`[CRON AUTO-ESCRUTINIO] Ejecutando búsqueda para ${hoy}...`);
+        const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-        // Obtener la lista de sorteos desde Supabase para mapear IDs
+        if (!supabaseUrl || !supabaseKey) {
+            return res.status(500).json({ 
+                status: 'error',
+                message: 'Variables de entorno SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no encontradas en Vercel.' 
+            });
+        }
+
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        const hoy = new Date().toISOString().split('T')[0];
+
+        // Obtener lista de sorteos desde la base de datos
         const { data: sorteos, error: errSorteos } = await supabase.from('sorteos').select('id, nombre');
         if (errSorteos) throw errSorteos;
 
         const resultadosAInsertar = [];
 
-        // 1. EXTRAER ENLOTERIA.COM (Florida, Anguilla, La Primera)
+        // 1. Extraer de enloteria.com
         const htmlEnLoteria = await fetchText('https://enloteria.com/');
-        if (htmlEnLoteria) {
-            // Ejemplo de extracción general de bloques de juego
+        if (htmlEnLoteria && sorteos) {
             const extracted = extraerPremiosEnLoteria(htmlEnLoteria, sorteos);
             resultadosAInsertar.push(...extracted);
         }
 
-        // 2. EXTRAER ANGUILLA
+        // 2. Extraer Anguilla
         const htmlAnguilla = await fetchText('https://enloteria.com/resultados-anguilla');
-        if (htmlAnguilla) {
+        if (htmlAnguilla && sorteos) {
             const extractedAnguilla = extraerPremiosEnLoteria(htmlAnguilla, sorteos);
             resultadosAInsertar.push(...extractedAnguilla);
         }
 
-        // 3. GUARDAR EN SUPABASE (Detona el Trigger de Escrutinio)
+        // 3. Guardar en Supabase (Dispara el Trigger automático)
         let totalGuardados = 0;
         for (const resData of resultadosAInsertar) {
             if (!resData.sorteo_id || !resData.primero) continue;
@@ -53,7 +57,6 @@ export default async function handler(req, res) {
                 .upsert(payload, { onConflict: 'sorteo_id,fecha' });
 
             if (!error) totalGuardados++;
-            else console.error(`Error guardando sorteo ${resData.sorteo_id}:`, error);
         }
 
         return res.status(200).json({
@@ -65,9 +68,9 @@ export default async function handler(req, res) {
 
     } catch (err) {
         console.error('[CRON ERROR]:', err);
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ status: 'error', message: err.message || 'Error interno en la ejecución' });
     }
-}
+};
 
 async function fetchText(url) {
     try {
@@ -83,17 +86,11 @@ async function fetchText(url) {
 
 function extraerPremiosEnLoteria(html, listaSorteos) {
     const hallados = [];
-    
-    // Recorrer los sorteos conocidos para buscar sus números en el HTML
     for (const sorteo of listaSorteos) {
         const nombreNorm = sorteo.nombre.toLowerCase();
-        
-        // Expresión regular para encontrar bloques de números ganadores en HTML
         if (html.toLowerCase().includes(nombreNorm)) {
-            // Extraer secuencias de 2 dígitos continuos cerca del nombre del sorteo
             const regexBloque = new RegExp(`${nombreNorm}[\\s\\S]{1,300}?(\\d{2})[\\s\\-]{1,5}(\\d{2})[\\s\\-]{1,5}(\\d{2})`, 'i');
             const match = html.match(regexBloque);
-
             if (match) {
                 hallados.push({
                     sorteo_id: sorteo.id,

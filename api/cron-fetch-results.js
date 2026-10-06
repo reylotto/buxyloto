@@ -1,18 +1,25 @@
 module.exports = async function handler(req, res) {
     try {
-        const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        let supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+        let supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+        supabaseUrl = supabaseUrl.trim().replace(/\/+$/, '');
+        supabaseKey = supabaseKey.trim();
 
         if (!supabaseUrl || !supabaseKey) {
             return res.status(200).json({ 
                 status: 'error',
-                message: 'Faltan las variables SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en Vercel.' 
+                message: 'Faltan las variables de entorno SUPABASE_URL o SUPABASE_KEY/SUPABASE_SERVICE_ROLE_KEY en Vercel.' 
             });
+        }
+
+        if (!supabaseUrl.startsWith('http://') && !supabaseUrl.startsWith('https://')) {
+            supabaseUrl = `https://${supabaseUrl}`;
         }
 
         const hoy = new Date().toISOString().split('T')[0];
 
-        // 1. Obtener la lista de sorteos directamente vía REST API de Supabase
+        // 1. Obtener la lista de sorteos desde Supabase
         const respSorteos = await fetch(`${supabaseUrl}/rest/v1/sorteos?select=id,nombre`, {
             headers: {
                 'apikey': supabaseKey,
@@ -22,7 +29,11 @@ module.exports = async function handler(req, res) {
 
         if (!respSorteos.ok) {
             const errText = await respSorteos.text();
-            throw new Error(`Error al consultar sorteos de Supabase: ${errText}`);
+            return res.status(200).json({
+                status: 'error_supabase_sorteos',
+                statusCode: respSorteos.status,
+                message: `Error al consultar la tabla 'sorteos' en Supabase: ${errText}`
+            });
         }
 
         const sorteos = await respSorteos.json();
@@ -42,8 +53,10 @@ module.exports = async function handler(req, res) {
             resultadosAInsertar.push(...extractedAnguilla);
         }
 
-        // 4. Guardar resultados en Supabase vía REST API
+        // 4. Guardar resultados en Supabase
         let totalGuardados = 0;
+        const erroresUpsert = [];
+
         for (const resData of resultadosAInsertar) {
             if (!resData.sorteo_id || !resData.primero) continue;
 
@@ -72,21 +85,25 @@ module.exports = async function handler(req, res) {
 
             if (respUpsert.ok) {
                 totalGuardados++;
+            } else {
+                const errTxt = await respUpsert.text();
+                erroresUpsert.push({ sorteo_id: resData.sorteo_id, error: errTxt });
             }
         }
 
         return res.status(200).json({
             status: 'ok',
             fecha: hoy,
+            totalSorteosEnBaseDatos: Array.isArray(sorteos) ? sorteos.length : 0,
             encontrados: resultadosAInsertar.length,
-            procesados: totalGuardados
+            procesados: totalGuardados,
+            erroresGuardado: erroresUpsert.length > 0 ? erroresUpsert : undefined
         });
 
     } catch (err) {
-        console.error('[CRON ERROR]:', err);
-        return res.status(500).json({ 
-            status: 'error', 
-            message: err.message || 'Error interno durante la ejecución' 
+        return res.status(200).json({ 
+            status: 'error_excepcion', 
+            message: err.message || String(err)
         });
     }
 };

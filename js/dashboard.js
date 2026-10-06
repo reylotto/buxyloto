@@ -1,5 +1,5 @@
 // --- MÓDULO DASHBOARD Y MÉTRICAS ACTUALIZADO (PERFIL ADMIN & REALTIME CONECTADO) ---
-
+import { renderizarGraficosCompletos } from './graficosDashboard.js';
 // Respaldo por si getSupabaseClient o getSupabaseClientDashboard no están definidos globalmente
 if (typeof window.getSupabaseClient !== 'function') {
     window.getSupabaseClient = function() {
@@ -946,9 +946,8 @@ async function cargarResumenOperacionesHoy() {
 
         console.log(`✅ Resumen y ventas actualizadas automáticamente: ${totalVentasFmt} en ${totalTickets} tickets.`);
 
-        // 5. RENDERIZAR GRÁFICOS
-        renderizarGraficoVendedores(tickets);
-        renderizarGraficoSorteos(tickets);
+        // REEMPLAZAR EN DASHBOARD.JS (DENTRO DE cargarResumenOperacionesHoy):
+        renderizarGraficosCompletos(tickets);
 
         // 6. Cargar grilla de sorteos
         await cargarGridSorteosEnVivo();

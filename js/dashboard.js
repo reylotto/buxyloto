@@ -630,6 +630,9 @@ window.eliminarBanca = async function(id) {
     }
 };
 
+// ==========================================================
+// CARGAR HISTORIAL DE TICKETS CON RESTRICCIÓN STRICTA DE ANULACIÓN
+// ==========================================================
 async function cargarHistorialTickets() {
     const tbody = document.getElementById('tickets-table-body') || 
                   document.getElementById('tabla-historial-tickets') ||
@@ -641,7 +644,13 @@ async function cargarHistorialTickets() {
         const supabase = window.getSupabaseClient();
         if (!supabase) return;
 
-        // Consultar los tickets ordenados del más reciente al más antiguo
+        // 1. Obtener la lista de sorteos para consultar estado y hora de cierre
+        const { data: sorteosData } = await supabase
+            .from('sorteos')
+            .select('*');
+        const sorteosCache = sorteosData || [];
+
+        // 2. Consultar los tickets ordenados del más reciente al más antiguo
         const { data: tickets, error } = await supabase
             .from('tickets')
             .select('*')
@@ -657,6 +666,7 @@ async function cargarHistorialTickets() {
         }
 
         const bancasCache = window._bancasCache || [];
+        const ahora = new Date();
 
         tickets.forEach(t => {
             const tr = document.createElement('tr');
@@ -677,7 +687,7 @@ async function cargarHistorialTickets() {
 
             const montoVenta = Number(t.monto_total || t.monto || t.total || 0).toFixed(2);
             const montoPremio = Number(t.premio || t.monto_premio || 0).toFixed(2);
-            const estado = (t.estatus || t.estado || 'pendiente').toLowerCase();
+            const estado = String(t.estatus || t.estado || 'pendiente').toLowerCase();
 
             let jugadasTexto = '-';
             const lista = t.detalles || t.jugadas;
@@ -692,19 +702,60 @@ async function cargarHistorialTickets() {
                 } catch(e) {}
             }
 
+            // --- REGLAS DE ESTATUS Y BOTÓN DE ANULACIÓN ---
             let estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400">PENDIENTE</span>`;
             let textoPremio = `<span class="text-slate-500 font-mono">$0.00</span>`;
+            let puedeAnular = false;
+            let motivoBloqueo = 'Cerrado';
 
+            // 1. Evaluar si el ticket está en un estado finalizado (PREMIADO, NO PREMIADO, CANCELADO, PAGADO)
             if (estado === 'premiado' || estado === 'ganador') {
                 estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">PREMIADO</span>`;
                 textoPremio = `<span class="text-emerald-400 font-mono font-bold text-sm">$${montoPremio}</span>`;
+                motivoBloqueo = 'Escrutado';
             } else if (estado === 'no_premiado' || estado === 'perdedor') {
                 estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/20 text-slate-400">NO PREMIADO</span>`;
+                motivoBloqueo = 'Escrutado';
             } else if (estado === 'cancelado' || estado === 'anulado') {
                 estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400">CANCELADO</span>`;
+                motivoBloqueo = 'Anulado';
+            } else if (estado === 'pendiente' || estado === 'activo' || estado === 'en_juego') {
+                // 2. Si el ticket sigue pendiente/activo, validar el estado del sorteo correspondiente
+                let sorteoCerrado = false;
+                const sorteoAsociado = sorteosCache.find(s => String(s.id) === String(t.sorteo_id));
+
+                if (sorteoAsociado) {
+                    const estatusSorteo = String(sorteoAsociado.estatus || sorteoAsociado.estado || 'activo').toLowerCase();
+                    if (['cerrado', 'finalizado', 'escrutado', 'realizado'].includes(estatusSorteo)) {
+                        sorteoCerrado = true;
+                    }
+
+                    if (sorteoAsociado.hora_cierre) {
+                        const [h, m] = sorteoAsociado.hora_cierre.split(':');
+                        const fechaCierre = new Date();
+                        fechaCierre.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
+                        if (ahora >= fechaCierre) {
+                            sorteoCerrado = true;
+                        }
+                    }
+                }
+
+                if (sorteoCerrado) {
+                    estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">EN JUEGO (SORTEO CERRADO)</span>`;
+                    puedeAnular = false;
+                    motivoBloqueo = 'Sorteo Cerrado';
+                } else {
+                    puedeAnular = true;
+                }
             }
 
-            const puedeAnular = (estado === 'pendiente');
+            // Generar HTML del botón o indicador de bloqueo
+            const botonAnulacionHTML = puedeAnular 
+                ? `<button onclick="eliminarTicketHistorial('${t.id}')" title="Anular Ticket"
+                           class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2 py-1 rounded transition-colors text-xs flex items-center gap-1">
+                       <i class="fa-solid fa-ban"></i> Anular
+                   </button>` 
+                : `<span class="text-slate-500 text-[10px] bg-slate-800 px-2 py-0.5 rounded border border-slate-700" title="No se puede cancelar">${motivoBloqueo}</span>`;
 
             tr.innerHTML = `
                 <td class="p-3 font-mono font-bold text-cyan-400">${codigo}</td>
@@ -720,11 +771,7 @@ async function cargarHistorialTickets() {
                                 class="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white px-2 py-1 rounded transition-colors text-xs flex items-center gap-1">
                             <i class="fa-solid fa-eye"></i> Ver
                         </button>
-                        ${puedeAnular ? `
-                        <button onclick="eliminarTicketHistorial('${t.id}')" title="Anular Ticket"
-                                class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2 py-1 rounded transition-colors text-xs flex items-center gap-1">
-                            <i class="fa-solid fa-ban"></i> Anular
-                        </button>` : '<span class="text-slate-500 text-[10px] bg-slate-800 px-1.5 py-0.5 rounded">Cerrado</span>'}
+                        ${botonAnulacionHTML}
                     </div>
                 </td>
             `;

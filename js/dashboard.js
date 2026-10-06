@@ -848,10 +848,14 @@ function actualizarTexto(id, valor) {
 // ==========================================================
 // RESUMEN DE OPERACIONES Y MÉTRICAS HOY CON GRÁFICOS
 // ==========================================================
-function actualizarTexto(id, valor) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = valor;
+// ✅ REEMPLAZAR EN JS/DASHBOARD.JS (LÍNEA 851):
+if (typeof window.actualizarTexto !== 'function') {
+    window.actualizarTexto = function(id, valor) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = valor;
+    };
 }
+const actualizarTexto = window.actualizarTexto;
 
 async function cargarResumenOperacionesHoy() {
     try {

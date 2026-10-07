@@ -6,6 +6,10 @@ function getSupabaseClient() {
     return window.supabaseClient || window.supabase || (typeof supabaseClient !== 'undefined' ? supabaseClient : null);
 }
 
+function getFechaPanamaEscrutinio() {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+}
+
 async function notificarActualizacionResumen() {
     if (typeof window.actualizarResumenOperaciones === 'function') {
         try {
@@ -66,7 +70,7 @@ async function cargarHistorialSorteosEscrutados() {
             const p2 = s.p2 || s.segundo_premio || '--';
             const p3 = s.p3 || s.tercer_premio || '--';
             const fechaVal = s.created_at || s.fecha || s.created_time;
-            const fecha = fechaVal ? new Date(fechaVal).toLocaleDateString() : '--';
+            const fecha = fechaVal ? new Date(fechaVal).toLocaleDateString('es-PA') : '--';
 
             tr.innerHTML = `
                 <td class="p-3 font-semibold text-white">${s.nombre || `Sorteo #${s.id}`}</td>
@@ -97,7 +101,7 @@ async function cargarHistorialSorteosEscrutados() {
 window.cargarHistorialSorteosEscrutados = cargarHistorialSorteosEscrutados;
 
 // ==========================================================
-// 2. EDITAR RESULTADO DE SORTEO
+// 2. EDITAR RESULTADO DE SORTEO (ACTUALIZA AMBAS TABLAS Y REEVALÚA)
 // ==========================================================
 window.editarResultadoSorteo = async function(id, p1Actual, p2Actual, p3Actual) {
     const valP1 = (p1Actual === '--') ? '' : p1Actual;
@@ -120,6 +124,8 @@ window.editarResultadoSorteo = async function(id, p1Actual, p2Actual, p3Actual) 
         const cleanP1 = nuevoP1.trim();
         const cleanP2 = nuevoP2.trim();
         const cleanP3 = nuevoP3.trim();
+        const sorteoIdNum = parseInt(id, 10);
+        const fechaHoy = getFechaPanamaEscrutinio();
 
         const payload = {
             p1: cleanP1,
@@ -132,17 +138,46 @@ window.editarResultadoSorteo = async function(id, p1Actual, p2Actual, p3Actual) 
             estado: 'cerrado'
         };
 
-        const { error } = await supabase
+        const { error: errSorteo } = await supabase
             .from('sorteos')
             .update(payload)
-            .eq('id', id);
+            .eq('id', sorteoIdNum);
 
-        if (error) throw error;
+        if (errSorteo) throw errSorteo;
 
-        alert("✅ Resultado del sorteo actualizado.");
+        await supabase
+            .from('resultados')
+            .upsert({
+                sorteo_id: sorteoIdNum,
+                fecha: fechaHoy,
+                p1: cleanP1,
+                p2: cleanP2,
+                p3: cleanP3,
+                primero: cleanP1,
+                segundo: cleanP2,
+                tercero: cleanP3,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'sorteo_id,fecha' });
+
+        try {
+            await supabase.rpc('evaluar_tickets_sorteo', {
+                p_id_sorteo: sorteoIdNum,
+                p_num1: cleanP1,
+                p_num2: cleanP2,
+                p_num3: cleanP3
+            });
+        } catch (rpcErr) {
+            console.warn("Aviso al reevaluar tickets:", rpcErr);
+        }
+
+        alert("✅ Resultado del sorteo actualizado y tickets reevaluados.");
 
         if (typeof window.cargarHistorialResultados === 'function') {
             await window.cargarHistorialResultados();
+        }
+        await cargarHistorialSorteosEscrutados();
+        if (typeof window.cargarHistorialTickets === 'function') {
+            await window.cargarHistorialTickets();
         }
         await notificarActualizacionResumen();
 
@@ -182,7 +217,7 @@ window.eliminarResultadoSorteo = async function(id) {
         const { error: errSorteo } = await supabase
             .from('sorteos')
             .update(payloadSorteo)
-            .eq('id', id);
+            .eq('id', sorteoIdNum);
 
         if (errSorteo) throw errSorteo;
 
@@ -195,6 +230,10 @@ window.eliminarResultadoSorteo = async function(id) {
 
         if (typeof window.cargarHistorialResultados === 'function') {
             await window.cargarHistorialResultados();
+        }
+        await cargarHistorialSorteosEscrutados();
+        if (typeof window.cargarHistorialTickets === 'function') {
+            await window.cargarHistorialTickets();
         }
         await notificarActualizacionResumen();
 

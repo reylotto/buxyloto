@@ -127,7 +127,10 @@ async function eliminarResultado(id) {
         if (error) throw error;
 
         alert("✅ Resultado eliminado correctamente.");
-        cargarHistorialResultados();
+        await cargarHistorialResultados();
+        if (typeof window.cargarHistorialSorteosEscrutados === 'function') {
+            await window.cargarHistorialSorteosEscrutados();
+        }
     } catch (err) {
         console.error("Error al eliminar:", err);
         alert("Error al eliminar de Supabase: " + err.message);
@@ -142,7 +145,6 @@ function inicializarFormularioResultados() {
     const form = document.getElementById('form-register-results');
     if (!form) return;
 
-    // Clonar para limpiar cualquier listener acumulado previamente
     const newForm = form.cloneNode(true);
     form.parentNode.replaceChild(newForm, form);
 
@@ -171,7 +173,7 @@ function inicializarFormularioResultados() {
         try {
             const sorteoIdNum = parseInt(sorteo_id, 10);
 
-            // 1. Guardar en la tabla 'resultados' vía UPSERT (evita filas duplicadas)
+            // 1. Guardar en la tabla 'resultados'
             const payloadResultados = {
                 sorteo_id: sorteoIdNum,
                 fecha: fecha,
@@ -190,7 +192,7 @@ function inicializarFormularioResultados() {
 
             if (errRes) throw errRes;
 
-            // 2. Actualizar la tabla 'sorteos' para cerrar el sorteo e iniciar escrutinio
+            // 2. Actualizar la tabla 'sorteos'
             const payloadSorteo = {
                 p1: primero,
                 p2: segundo,
@@ -209,7 +211,7 @@ function inicializarFormularioResultados() {
 
             if (errSorteo) throw errSorteo;
 
-            // 3. EJECUTAR EVALUACIÓN DE TICKETS VÍA RPC EN SUPABASE
+            // 3. Ejecutar evaluación de tickets vía RPC
             try {
                 const { error: errRpc } = await supabase.rpc('evaluar_tickets_sorteo', {
                     p_id_sorteo: sorteoIdNum,
@@ -227,7 +229,6 @@ function inicializarFormularioResultados() {
 
             alert(`🚀 Resultado guardado y tickets evaluados correctamente (${fecha})`);
 
-            // Limpiar formulario y refrescar vista
             document.getElementById('result-p1').value = '';
             document.getElementById('result-p2').value = '';
             document.getElementById('result-p3').value = '';
@@ -236,7 +237,9 @@ function inicializarFormularioResultados() {
             if (filtroFecha) filtroFecha.value = fecha;
 
             await cargarHistorialResultados();
-
+            if (typeof window.cargarHistorialSorteosEscrutados === 'function') {
+                await window.cargarHistorialSorteosEscrutados();
+            }
             if (typeof window.cargarHistorialTickets === 'function') {
                 await window.cargarHistorialTickets();
             }
@@ -279,7 +282,13 @@ async function sincronizarResultadosAutomaticos() {
         const filtroFecha = document.getElementById('filtro-fecha-historial');
         if (filtroFecha) filtroFecha.value = getFechaLocalPanama();
 
-        cargarHistorialResultados();
+        await cargarHistorialResultados();
+        if (typeof window.cargarHistorialSorteosEscrutados === 'function') {
+            await window.cargarHistorialSorteosEscrutados();
+        }
+        if (typeof window.cargarHistorialTickets === 'function') {
+            await window.cargarHistorialTickets();
+        }
 
     } catch (err) {
         console.error('Error en sincronización automática:', err);

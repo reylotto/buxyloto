@@ -9,11 +9,7 @@ let loteriasCache = [];
 let usuariosCache = [];
 
 function getHoyYMD() {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
 }
 
 async function asegurarBancasCache() {
@@ -92,8 +88,6 @@ function obtenerObjetoBanca(bancaId, ticket = {}) {
 }
 
 export async function initReportesModule() {
-    console.log("📊 Inicializando Módulo de Balances Financieros y Auditoría...");
-
     const hoyStr = getHoyYMD();
     const inputDesde = document.getElementById('rep-fecha-desde');
     const inputHasta = document.getElementById('rep-fecha-hasta');
@@ -405,8 +399,6 @@ export function imprimirReportePDF() {
 // =================================================================
 
 export async function initTicketsHistoryModule() {
-    console.log("🎟️ Inicializando Historial de Tickets...");
-
     const hoyStr = getHoyYMD();
     const dateFrom = document.getElementById('tickets-date-from');
     const dateTo = document.getElementById('tickets-date-to');
@@ -620,7 +612,6 @@ window.verTicketHistorial = async function(uniqueId) {
 
     const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
 
-    // Obtener las jugadas reales desde Supabase si no existen en memoria
     let items = normalizarItemsTicket(ticket);
     if ((!items || items.length === 0) && supabase) {
         try {
@@ -640,7 +631,6 @@ window.verTicketHistorial = async function(uniqueId) {
         }
     }
 
-    // Obtener el nombre del sorteo/lotería
     let loteriaNombre = ticket.sorteo_nombre || ticket.sorteo || 'Sorteo General';
     if ((!loteriaNombre || loteriaNombre === 'N/A') && ticket.sorteo_id && supabase) {
         try {
@@ -649,12 +639,10 @@ window.verTicketHistorial = async function(uniqueId) {
         } catch (e) {}
     }
 
-    // Declarar 'cfg' globalmente en window por si showTicketModal la requiere directamente
     if (typeof window.cfg === 'undefined') {
         window.cfg = window.AppState || {};
     }
 
-    // Estructura adaptada idéntica a la que consume showTicketModal
     const ticketParaPOSModal = {
         id: ticket.id,
         folio: ticket.codigo_ticket || ticket.folio || ticket.id,
@@ -670,13 +658,11 @@ window.verTicketHistorial = async function(uniqueId) {
         esCopia: true
     };
 
-    // Llamar al modal de manera segura
     try {
         const fnModal = typeof showTicketModal === 'function' ? showTicketModal : window.showTicketModal;
         if (typeof fnModal === 'function') {
             fnModal(ticketParaPOSModal);
 
-            // Inyectar marca visual de REIMPRESIÓN / COPIA
             setTimeout(() => {
                 const container = document.querySelector('#ticketModal .modal-body') || 
                                   document.querySelector('#ticketModal') || 
@@ -699,93 +685,8 @@ window.verTicketHistorial = async function(uniqueId) {
 };
 
 // ==========================================================
-// CANCELACIÓN DE TICKET VÍA RPC (SIN ERRORES HTTP 400)
+// CANCELACIÓN DE TICKET VÍA RPC ÚNICA Y ROBUSTA
 // ==========================================================
-window.cancelarTicketHistorial = async function(uniqueId) {
-    if (!uniqueId) return;
-    
-    if (!confirm(`¿Está seguro de que desea anular el ticket #${uniqueId}?`)) return;
-
-    try {
-        const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
-        if (!supabase) throw new Error("Sin conexión con Supabase.");
-
-        // Llamada limpia a la función del servidor SQL
-        const { data, error } = await supabase.rpc('anular_ticket_por_codigo', {
-            p_referencia: String(uniqueId).trim()
-        });
-
-        if (error) {
-            throw new Error(error.message);
-        }
-
-        if (data && data.success) {
-            alert(`✅ ${data.message}`);
-
-            // Actualizar interfaz
-            if (typeof cargarHistorialTickets === 'function') {
-                await cargarHistorialTickets();
-            } else {
-                window.location.reload();
-            }
-        } else {
-            alert(`⚠️ ${data ? data.message : 'No se pudo anular el ticket.'}`);
-        }
-
-    } catch (err) {
-        console.error("Error al anular ticket:", err);
-        alert("❌ Error al anular ticket: " + err.message);
-    }
-};
-
-window.imprimirTicketHistorial = function(uniqueId) {
-    const ticket = buscarTicketEnCache(uniqueId);
-    if (!ticket) return alert("Ticket no encontrado para imprimir.");
-
-    const items = normalizarItemsTicket(ticket);
-    const bancaNom = obtenerNombreBanca(ticket.banca_id, ticket);
-    const folio = ticket.codigo_ticket || ticket.folio || ticket.ticket_numero || ticket.id;
-    const fecha = new Date(ticket.created_at || ticket.createdAt).toLocaleString('es-PA');
-    const total = parseFloat(ticket.monto_total || ticket.monto || 0).toFixed(2);
-
-    let itemsHtml = items.map(i => {
-        const num = i.numero || i.jugada || '';
-        const tipo = i.tipo || 'Directo';
-        const monto = parseFloat(i.monto || 0).toFixed(2);
-        return '<div style="display:flex; justify-content:space-between; margin: 3px 0; font-size:12px;"><span>' + num + ' (' + tipo + ')</span><span>$' + monto + '</span></div>';
-    }).join('');
-
-    const printWindow = window.open('', '_blank', 'width=350,height=500');
-    if (!printWindow) return alert("Por favor permita las ventanas emergentes (popups) para imprimir.");
-
-    printWindow.document.write(
-        '<!DOCTYPE html><html><head><title>Ticket #' + folio + '</title>' +
-        '<style>' +
-        'body { font-family: "Courier New", Courier, monospace; width: 280px; padding: 10px; margin: auto; font-size: 12px; }' +
-        '.center { text-align: center; }' +
-        '.bold { font-weight: bold; }' +
-        '.line { border-bottom: 1px dashed #000; margin: 8px 0; }' +
-        '.total { font-size: 14px; text-align: right; margin-top: 10px; }' +
-        '</style></head><body>' +
-        '<div class="center bold" style="font-size:16px;">BUXYLOTO POS</div>' +
-        '<div class="center">' + bancaNom + '</div>' +
-        '<div class="line"></div>' +
-        '<div><b>TICKET:</b> #' + folio + '</div>' +
-        '<div><b>FECHA:</b> ' + fecha + '</div>' +
-        '<div><b>ESTADO:</b> ' + String(ticket.estatus || ticket.status || ticket.estado || 'PENDIENTE').toUpperCase() + '</div>' +
-        '<div class="line"></div>' +
-        '<div class="bold">JUGADAS / APUESTAS</div>' +
-        itemsHtml +
-        '<div class="line"></div>' +
-        '<div class="total bold">TOTAL: $' + total + '</div>' +
-        '<div class="line"></div>' +
-        '<div class="center" style="font-size:10px; margin-top:15px;">¡GRACIAS POR SU COMPRA!<br>Conserve este boleto.</div>' +
-        '<script>window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };<\/script>' +
-        '</body></html>'
-    );
-    printWindow.document.close();
-};
-
 window.cancelarTicketHistorial = async function(uniqueId) {
     const ticket = typeof buscarTicketEnCache === 'function' ? buscarTicketEnCache(uniqueId) : null;
     const folioTarget = ticket ? (ticket.codigo_ticket || ticket.folio || ticket.ticket_numero || ticket.id) : uniqueId;
@@ -799,9 +700,18 @@ window.cancelarTicketHistorial = async function(uniqueId) {
         const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
         if (!supabase) throw new Error("Cliente de Supabase no disponible.");
 
-        const { data, error } = await supabase.rpc('cancelar_ticket_universal', { 
-            p_referencia: String(folioTarget).trim() 
-        });
+        let data = null;
+        let error = null;
+
+        const resRpc = await supabase.rpc('anular_ticket_por_codigo', { p_referencia: String(folioTarget).trim() });
+        data = resRpc.data;
+        error = resRpc.error;
+
+        if (error) {
+            const fallbackRpc = await supabase.rpc('cancelar_ticket_universal', { p_referencia: String(folioTarget).trim() });
+            data = fallbackRpc.data;
+            error = fallbackRpc.error;
+        }
 
         if (error) throw error;
 
@@ -810,98 +720,13 @@ window.cancelarTicketHistorial = async function(uniqueId) {
             if (typeof cargarHistorialTickets === 'function') await cargarHistorialTickets();
             else location.reload();
         } else {
-            alert(`⚠️ ${data?.message || 'No se pudo cancelar.'}`);
+            alert(`⚠️ ${data?.message || 'No se pudo cancelar el ticket.'}`);
         }
     } catch (err) {
         console.error("Error al cancelar ticket en reportes:", err);
         alert("❌ Error: " + err.message);
     }
 };
-
-function mostrarModalTermicoRespaldo(ticket) {
-    if (!ticket) return;
-
-    const items = normalizarItemsTicket(ticket);
-    const total = parseFloat(ticket.monto_total || ticket.monto || ticket.total || 0).toFixed(2);
-    const fecha = ticket.created_at || ticket.createdAt ? new Date(ticket.created_at || ticket.createdAt).toLocaleString('es-PA') : new Date().toLocaleString('es-PA');
-    const bancaNom = ticket.banca_nombre || obtenerNombreBanca(ticket.banca_id, ticket);
-    const folioCode = ticket.codigo_ticket || ticket.folio || ticket.id || '';
-
-    const modal = document.createElement('div');
-    modal.className = "fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4";
-    modal.onclick = (e) => { 
-        if (e.target === modal) modal.remove(); 
-    };
-
-    const itemsRows = items.map(i => {
-        const num = i.numero || i.jugada || '';
-        const tipo = i.tipo || 'Directo';
-        const monto = parseFloat(i.monto || 0).toFixed(2);
-        return '<div class="flex justify-between text-slate-200"><span>' + num + ' (' + tipo + ')</span><span>$' + monto + '</span></div>';
-    }).join('');
-
-    modal.innerHTML = `
-        <div class="bg-slate-900 border border-slate-700 text-white rounded-xl p-6 max-w-sm w-full font-mono shadow-2xl">
-            <div class="text-center border-b border-slate-700 pb-3 mb-3">
-                <h3 class="text-lg font-bold text-emerald-400">🎰 BUXYLOTO POS</h3>
-                <p class="text-xs text-slate-400">${bancaNom}</p>
-            </div>
-            <div class="text-xs space-y-1 text-slate-300 border-b border-slate-700 pb-3 mb-3">
-                <p><b>FOLIO:</b> ${folioCode}</p>
-                <p><b>FECHA:</b> ${fecha}</p>
-                <p><b>ESTADO:</b> <span class="uppercase text-amber-400 font-bold">${ticket.estatus || ticket.status || ticket.estado || 'PENDIENTE'}</span></p>
-            </div>
-            <div class="text-xs space-y-1 mb-4">
-                <p class="font-bold border-b border-slate-800 pb-1">JUGADAS:</p>
-                ${itemsRows}
-            </div>
-            <div class="text-right font-bold text-base text-emerald-400 border-t border-slate-700 pt-2 mb-4">
-                TOTAL: $${total}
-            </div>
-            <div class="flex gap-2">
-                <button id="btn-modal-print-respaldo" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-lg text-xs font-sans font-bold">
-                    <i class="fa-solid fa-print mr-1"></i> Imprimir
-                </button>
-                <button id="btn-modal-close-respaldo" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded-lg text-xs font-sans font-bold">
-                    Cerrar
-                </button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    const btnPrint = document.getElementById('btn-modal-print-respaldo');
-    if (btnPrint) {
-        btnPrint.onclick = () => {
-            window.imprimirTicketHistorial(folioCode);
-            modal.remove();
-        };
-    }
-
-    const btnClose = document.getElementById('btn-modal-close-respaldo');
-    if (btnClose) {
-        btnClose.onclick = () => {
-            modal.remove();
-        };
-    }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    const ticketSection = document.getElementById('section-tickets');
-    if (ticketSection) {
-        const observerTickets = new MutationObserver(() => {
-            if (!ticketSection.classList.contains('hidden')) {
-                initTicketsHistoryModule();
-            }
-        });
-        observerTickets.observe(ticketSection, { attributes: true });
-    }
-});
-
-// ==========================================================
-// REIMPRESIÓN Y COMPARTIR TICKET COMO COPIA (WHATSAPP / IMPRESIÓN)
-// ==========================================================
 
 window.imprimirTicketHistorial = async function(uniqueId) {
     const ticket = buscarTicketEnCache(uniqueId);
@@ -922,7 +747,6 @@ window.imprimirTicketHistorial = async function(uniqueId) {
     const folio = ticket.codigo_ticket || ticket.folio || ticket.id;
     const estatus = String(ticket.estatus || ticket.estado || 'pendiente').toUpperCase();
 
-    // 1. Generación de texto estructurado con marca de COPIA para WhatsApp
     let mensajeWA = `*--- TICKET DE JUGADA (COPIA) ---*\n`;
     if (estatus === 'CANCELADO') mensajeWA += `*=== TICKET CANCELADO ===*\n`;
     mensajeWA += `*Folio:* ${folio}\n`;
@@ -943,14 +767,12 @@ window.imprimirTicketHistorial = async function(uniqueId) {
     mensajeWA += `*ESTADO:* ${estatus}\n`;
     mensajeWA += `*** REIMPRESIÓN / COPIA ***`;
 
-    // 2. Preguntar al usuario la vía de envío
     const opcion = confirm("¿Desea enviar esta COPIA por WhatsApp?\n\n(Aceptar = WhatsApp / Cancelar = Imprimir en Ticketera)");
 
     if (opcion) {
         const urlWA = `https://api.whatsapp.com/send?text=${encodeURIComponent(mensajeWA)}`;
         window.open(urlWA, '_blank');
     } else {
-        // Objeto preparado para la impresora térmica con la etiqueta de COPIA
         const ticketParaImprimir = {
             ...ticket,
             folio: folio,
@@ -967,13 +789,26 @@ window.imprimirTicketHistorial = async function(uniqueId) {
         }
     }
 };
+
+document.addEventListener('DOMContentLoaded', () => {
+    const ticketSection = document.getElementById('section-tickets');
+    if (ticketSection) {
+        const observerTickets = new MutationObserver(() => {
+            if (!ticketSection.classList.contains('hidden')) {
+                initTicketsHistoryModule();
+            }
+        });
+        observerTickets.observe(ticketSection, { attributes: true });
+    }
+});
+
 // Exportaciones globales
 window.initReportesModule = initReportesModule;
 window.generarReporte = generarReporte;
 window.limpiarFiltrosReportes = limpiarFiltrosReportes;
 window.exportarReporteExcel = exportarReporteExcel;
 window.imprimirReportePDF = imprimirReportePDF;
-window.exportarReportePDF = imprimirReportePDF; // Alias para resolver el Uncaught TypeError de index.html
+window.exportarReportePDF = imprimirReportePDF;
 window.initTicketsHistoryModule = initTicketsHistoryModule;
 window.cargarHistorialTickets = cargarHistorialTickets;
 window.filtrarYRenderizarTicketsLocal = filtrarYRenderizarTicketsLocal;

@@ -7,11 +7,9 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default async function handler(req, res) {
   try {
-    // 1. Obtener lista de sorteos desde Supabase
     const { data: sorteos, error: errSorteos } = await supabase.from('sorteos').select('id, nombre');
     if (errSorteos || !sorteos) throw new Error('No se pudieron obtener los sorteos.');
 
-    // 2. Consultar directamente a enloteria.com desde el servidor (sin CORS ni bloqueos)
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     };
@@ -29,7 +27,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, message: 'No hay nuevos números publicados.' });
     }
 
-    // 3. Fecha oficial de Panamá YYYY-MM-DD
     const hoyPanama = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
     let guardados = 0;
 

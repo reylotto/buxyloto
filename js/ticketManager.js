@@ -116,7 +116,7 @@ export async function renderizarPlantillaTicket(ticketData) {
 
     const totalItems = conteoTotalJugadas.toString().padStart(3, '0');
 
-    // CONSTRUCCIÓN DE BLOQUES POR SORTEO EN 2 COLUMNAS (IGUAL A LA FOTO)
+    // CONSTRUCCIÓN DE BLOQUES POR SORTEO EN 2 COLUMNAS
     let bloquesSorteosHTML = '';
 
     for (const [sorteoNombre, listaJugadasSorteo] of Object.entries(jugadasPorSorteo)) {
@@ -406,7 +406,59 @@ window.descargarPDFTicket = descargarPDFTicket;
 window.mostrarOpcionesExportacionTicket = mostrarOpcionesExportacionTicket;
 
 // ==========================================================
-// FUNCIÓN DE ANULACIÓN DIRECCIÓN A SUPABASE (RPC)
+// FUNCIÓN DE VALIDACIÓN DE TICKET Y COMPROBACIÓN DE ESTADO
+// ==========================================================
+export async function validarTicket(identificadorTicket) {
+    if (!identificadorTicket) return { success: false, error: 'Identificador de ticket no proporcionado.' };
+
+    const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
+    if (!supabase) return { success: false, error: 'No hay conexión con Supabase.' };
+
+    try {
+        const refStr = String(identificadorTicket).trim();
+
+        // Consultar ticket por id o por código
+        const { data, error } = await supabase
+            .from('tickets')
+            .select('*, ticket_detalles(*), sorteos(*)')
+            .or(`codigo_ticket.eq.${refStr},id.eq.${refStr}`)
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) return { success: false, error: 'Ticket no encontrado en el sistema.' };
+
+        const estado = String(data.estatus || data.estado || '').toLowerCase();
+        const esAnulado = estado === 'cancelado' || estado === 'anulado';
+        const esGanador = estado === 'ganador' || estado === 'premiado';
+        const esPerdedor = estado === 'perdedor' || estado === 'no_premiado';
+
+        return {
+            success: true,
+            valido: !esAnulado,
+            ticket: data,
+            estado: estado,
+            esAnulado,
+            esGanador,
+            esPerdedor,
+            mensaje: esAnulado 
+                ? 'El ticket está cancelado/anulado.' 
+                : esGanador 
+                    ? '¡Ticket GANADOR!' 
+                    : esPerdedor 
+                        ? 'Ticket procesado (no premiado).' 
+                        : 'Ticket activo y válido.'
+        };
+    } catch (err) {
+        console.error("Error al validar ticket:", err);
+        return { success: false, error: err.message || 'Error en la validación del ticket.' };
+    }
+}
+
+// Exposición global de validación
+window.validarTicket = validarTicket;
+
+// ==========================================================
+// FUNCIÓN DE ANULACIÓN DIRECTA A SUPABASE (RPC)
 // ==========================================================
 export async function anularTicketCancelado(identificadorTicket) {
     if (!identificadorTicket) return { success: false, error: 'Identificador no válido.' };
@@ -416,6 +468,12 @@ export async function anularTicketCancelado(identificadorTicket) {
 
     try {
         const refStr = String(identificadorTicket).trim();
+
+        // Validar estado previo antes de anular
+        const validacion = await validarTicket(refStr);
+        if (validacion.success && validacion.esAnulado) {
+            return { success: false, error: 'El ticket ya se encuentra anulado/cancelado.' };
+        }
 
         const { data, error } = await supabase.rpc('cancelar_ticket_universal', { 
             p_referencia: refStr 

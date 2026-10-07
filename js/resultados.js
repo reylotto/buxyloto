@@ -209,7 +209,23 @@ function inicializarFormularioResultados() {
 
             if (errSorteo) throw errSorteo;
 
-            alert(`🚀 Resultado guardado y escrutinio procesado correctamente (${fecha})`);
+            // 3. EJECUTAR EVALUACIÓN DE TICKETS VÍA RPC EN SUPABASE
+            try {
+                const { error: errRpc } = await supabase.rpc('evaluar_tickets_sorteo', {
+                    p_id_sorteo: sorteoIdNum,
+                    p_num1: primero,
+                    p_num2: segundo,
+                    p_num3: tercero
+                });
+
+                if (errRpc) {
+                    console.warn("Aviso en evaluar_tickets_sorteo:", errRpc.message);
+                }
+            } catch (rpcErr) {
+                console.error("Error al ejecutar RPC evaluar_tickets_sorteo:", rpcErr);
+            }
+
+            alert(`🚀 Resultado guardado y tickets evaluados correctamente (${fecha})`);
 
             // Limpiar formulario y refrescar vista
             document.getElementById('result-p1').value = '';

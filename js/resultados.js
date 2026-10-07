@@ -10,6 +10,13 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
+ * Retorna la fecha local oficial de Panamá en formato YYYY-MM-DD.
+ */
+function getFechaLocalPanama() {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+}
+
+/**
  * Obtiene la instancia de Supabase de manera centralizada.
  */
 function getSupabaseInstance() {
@@ -17,22 +24,22 @@ function getSupabaseInstance() {
 }
 
 /**
- * Permite seleccionar cualquier fecha (pasada o presente) sin bloquear el input.
+ * Inicializa los selectores de fecha con la hora exacta de Panamá.
  */
 function inicializarFechas() {
-    const hoy = new Date().toISOString().split('T')[0];
+    const hoyPanama = getFechaLocalPanama();
     const inputFechaForm = document.getElementById('result-fecha');
     const inputFiltro = document.getElementById('filtro-fecha-historial');
 
-    if (inputFechaForm && !inputFechaForm.value) inputFechaForm.value = hoy;
-    if (inputFiltro && !inputFiltro.value) inputFiltro.value = hoy;
+    if (inputFechaForm && !inputFechaForm.value) inputFechaForm.value = hoyPanama;
+    if (inputFiltro && !inputFiltro.value) inputFiltro.value = hoyPanama;
 }
 
 /**
  * Consulta y muestra los resultados registrados filtrados por la fecha seleccionada.
  */
 async function cargarHistorialResultados() {
-    const filtroFecha = document.getElementById('filtro-fecha-historial')?.value;
+    const filtroFecha = document.getElementById('filtro-fecha-historial')?.value || getFechaLocalPanama();
     const tbody = document.getElementById('tabla-historial-resultados');
 
     if (!tbody) return;
@@ -44,11 +51,8 @@ async function cargarHistorialResultados() {
         let query = supabase
             .from('resultados')
             .select('*, sorteos(nombre)')
+            .eq('fecha', filtroFecha)
             .order('created_at', { ascending: false });
-
-        if (filtroFecha) {
-            query = query.eq('fecha', filtroFecha);
-        }
 
         const { data, error } = await query;
         if (error) throw error;
@@ -57,7 +61,7 @@ async function cargarHistorialResultados() {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="6" class="text-center p-4 text-slate-500 font-medium">
-                        No hay sorteos escrutados para la fecha ${filtroFecha || 'seleccionada'}.
+                        No hay sorteos escrutados para la fecha ${filtroFecha}.
                     </td>
                 </tr>`;
             return;
@@ -74,7 +78,7 @@ async function cargarHistorialResultados() {
             return `
                 <tr class="hover:bg-slate-700/30 transition border-b border-slate-700/50">
                     <td class="p-3 font-semibold text-white">${nombreSorteo}</td>
-                    <td class="p-3 text-slate-400 font-mono">${res.fecha || 'Sin fecha'}</td>
+                    <td class="p-3 text-slate-400 font-mono">${res.fecha}</td>
                     <td class="p-3 text-amber-400 font-bold font-mono text-sm">${num1}</td>
                     <td class="p-3 text-amber-400 font-bold font-mono text-sm">${num2}</td>
                     <td class="p-3 text-amber-400 font-bold font-mono text-sm">${num3}</td>
@@ -100,7 +104,7 @@ async function cargarHistorialResultados() {
 window.cargarHistorialResultados = cargarHistorialResultados;
 
 /**
- * Sube los datos del historial al formulario para modificar sorteos anteriores.
+ * Carga un resultado guardado en el formulario para editarlo.
  */
 function cargarResultadoEnFormulario(res) {
     if (!res) return;
@@ -134,16 +138,11 @@ async function eliminarResultado(id) {
     if (!supabase) return;
 
     try {
-        const { error } = await supabase
-            .from('resultados')
-            .delete()
-            .eq('id', id);
-
+        const { error } = await supabase.from('resultados').delete().eq('id', id);
         if (error) throw error;
 
         alert("✅ Resultado eliminado correctamente.");
         cargarHistorialResultados();
-
     } catch (err) {
         console.error("Error al eliminar:", err);
         alert("Error al eliminar de Supabase: " + err.message);
@@ -152,7 +151,7 @@ async function eliminarResultado(id) {
 window.eliminarResultado = eliminarResultado;
 
 /**
- * Registra o edita los premios de un sorteo para cualquier fecha seleccionada.
+ * Registra o edita manualmente los premios de un sorteo.
  */
 function inicializarFormularioResultados() {
     const form = document.getElementById('form-register-results');
@@ -161,11 +160,11 @@ function inicializarFormularioResultados() {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        const fecha = document.getElementById('result-fecha')?.value;
+        const fecha = document.getElementById('result-fecha')?.value || getFechaLocalPanama();
         const sorteo_id = document.getElementById('results-loteria-select')?.value;
         const primero = document.getElementById('result-p1')?.value.trim();
-        const segundo = document.getElementById('result-p2')?.value.trim();
-        const tercero = document.getElementById('result-p3')?.value.trim();
+        const segundo = document.getElementById('result-p2')?.value.trim() || '';
+        const tercero = document.getElementById('result-p3')?.value.trim() || '';
 
         if (!fecha || !sorteo_id || !primero) {
             alert("Seleccione la fecha, el sorteo y complete al menos el 1er premio.");
@@ -176,17 +175,15 @@ function inicializarFormularioResultados() {
         if (!supabase) return;
 
         try {
-            // Se envían ambos formatos de columnas (p1/p2/p3 y primero/segundo/tercero)
-            // para compatibilidad total con la tabla de Supabase.
             const payload = {
                 sorteo_id: parseInt(sorteo_id),
                 fecha: fecha,
                 p1: primero,
-                p2: segundo || '',
-                p3: tercero || '',
+                p2: segundo,
+                p3: tercero,
                 primero: primero,
-                segundo: segundo || '',
-                tercero: tercero || '',
+                segundo: segundo,
+                tercero: tercero,
                 updated_at: new Date().toISOString()
             };
 
@@ -198,12 +195,10 @@ function inicializarFormularioResultados() {
 
             alert(`✅ Resultado guardado y escrutado correctamente para la fecha ${fecha}`);
 
-            // Sincronizar la fecha en el filtro del historial para mostrar el registro guardado/editado
             const filtroFecha = document.getElementById('filtro-fecha-historial');
             if (filtroFecha) filtroFecha.value = fecha;
 
             cargarHistorialResultados();
-
         } catch (err) {
             console.error("Error al guardar:", err);
             alert("Error al guardar en Supabase: " + err.message);
@@ -212,7 +207,7 @@ function inicializarFormularioResultados() {
 }
 
 /**
- * Sincroniza automáticamente los resultados consultando la web mediante proxy.
+ * Sincroniza automáticamente los resultados de enloteria.com.
  */
 async function sincronizarResultadosAutomaticos() {
     const btn = document.getElementById('btn-auto-sync');
@@ -226,25 +221,13 @@ async function sincronizarResultadosAutomaticos() {
 
     try {
         const supabase = getSupabaseInstance();
-        let sorteos = [];
+        if (!supabase) throw new Error('No hay conexión con la base de datos.');
 
-        // 1. Obtener lista de sorteos desde Supabase
-        if (supabase) {
-            const { data, error } = await supabase.from('sorteos').select('id, nombre');
-            if (error) throw error;
-            sorteos = data || [];
-        } else if (typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined') {
-            const resp = await fetch(`${SUPABASE_URL}/rest/v1/sorteos?select=id,nombre`, {
-                headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
-            });
-            sorteos = await resp.json();
-        }
+        const { data: sorteos, error } = await supabase.from('sorteos').select('id, nombre');
+        if (error) throw error;
+        if (!sorteos || sorteos.length === 0) throw new Error('No hay sorteos configurados.');
 
-        if (!sorteos.length) throw new Error('No se pudieron cargar los sorteos desde la base de datos.');
-
-        // 2. Traer HTML evitando bloqueos CORS mediante proxy
         const corsProxy = 'https://corsproxy.io/?';
-        
         const [htmlPrincipal, htmlAnguilla] = await Promise.all([
             fetchTextWithProxy(`${corsProxy}https://enloteria.com/`),
             fetchTextWithProxy(`${corsProxy}https://enloteria.com/resultados-anguilla`)
@@ -256,23 +239,18 @@ async function sincronizarResultadosAutomaticos() {
 
         if (resultadosHallados.length === 0) {
             const msg = 'No se encontraron nuevos números publicados en este momento.';
-            if (status) {
-                status.style.color = '#eab308';
-                status.innerText = msg;
-            } else {
-                alert(msg);
-            }
+            if (status) { status.style.color = '#eab308'; status.innerText = msg; }
+            else alert(msg);
             return;
         }
 
-        // 3. Insertar/Actualizar en Supabase
-        const hoy = document.getElementById('result-fecha')?.value || new Date().toISOString().split('T')[0];
+        const fechaGuardar = document.getElementById('result-fecha')?.value || getFechaLocalPanama();
         let guardados = 0;
 
         for (const resData of resultadosHallados) {
             const payload = {
                 sorteo_id: resData.sorteo_id,
-                fecha: hoy,
+                fecha: fechaGuardar,
                 primero: resData.primero,
                 segundo: resData.segundo || '',
                 tercero: resData.tercero || '',
@@ -282,55 +260,31 @@ async function sincronizarResultadosAutomaticos() {
                 updated_at: new Date().toISOString()
             };
 
-            if (supabase) {
-                const { error } = await supabase.from('resultados').upsert(payload, { onConflict: 'sorteo_id,fecha' });
-                if (!error) guardados++;
-            } else if (typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined') {
-                const resp = await fetch(`${SUPABASE_URL}/rest/v1/resultados`, {
-                    method: 'POST',
-                    headers: {
-                        'apikey': SUPABASE_KEY,
-                        'Authorization': `Bearer ${SUPABASE_KEY}`,
-                        'Content-Type': 'application/json',
-                        'Prefer': 'resolution=merge-duplicates'
-                    },
-                    body: JSON.stringify([payload])
-                });
-                if (resp.ok) guardados++;
-            }
+            const { error: upsertErr } = await supabase.from('resultados').upsert(payload, { onConflict: 'sorteo_id,fecha' });
+            if (!upsertErr) guardados++;
         }
 
-        const msgExito = `¡Éxito! ${guardados} sorteos sincronizados y tickets escrutados automáticamente.`;
-        if (status) {
-            status.style.color = '#16a34a';
-            status.innerText = msgExito;
-        } else {
-            alert(msgExito);
-        }
+        const msgExito = `¡Éxito! ${guardados} sorteos sincronizados para la fecha ${fechaGuardar}.`;
+        if (status) { status.style.color = '#16a34a'; status.innerText = msgExito; }
+        else alert(msgExito);
 
-        // Recargar la tabla de historial con los datos sincronizados
         cargarHistorialResultados();
 
     } catch (err) {
         console.error('Error en sincronización automática:', err);
         const msgErr = `Error: ${err.message || 'Fallo de conexión'}`;
-        if (status) {
-            status.style.color = '#dc2626';
-            status.innerText = msgErr;
-        } else {
-            alert(msgErr);
-        }
+        if (status) { status.style.color = '#dc2626'; status.innerText = msgErr; }
+        else alert(msgErr);
     } finally {
         if (btn) btn.disabled = false;
     }
 }
 
-// Mapeo dual para compatibilidad de nombres en el HTML
 window.sincronizarResultadosAutomaticos = sincronizarResultadosAutomaticos;
 window.obtenerResultadosAutomaticos = sincronizarResultadosAutomaticos;
 
 /**
- * Pide el contenido mediante Fetch tolerando fallos de red/proxy.
+ * Consulta la URL usando el proxy.
  */
 async function fetchTextWithProxy(url) {
     try {
@@ -343,7 +297,7 @@ async function fetchTextWithProxy(url) {
 }
 
 /**
- * Parsea el HTML para extraer los primeros, segundos y terceros premios.
+ * Parsea el HTML de la web para extraer los 3 números ganadores.
  */
 function extraerPremios(html, listaSorteos) {
     const hallados = [];

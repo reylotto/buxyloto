@@ -7,6 +7,14 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarFechas();
     inicializarFormularioResultados();
     cargarHistorialResultados();
+
+    // Evento para cambiar automáticamente la tabla al seleccionar otra fecha en el filtro
+    const inputFiltro = document.getElementById('filtro-fecha-historial');
+    if (inputFiltro) {
+        inputFiltro.addEventListener('change', () => {
+            cargarHistorialResultados();
+        });
+    }
 });
 
 /**
@@ -24,7 +32,7 @@ function getSupabaseInstance() {
 }
 
 /**
- * Inicializa los selectores de fecha con la hora exacta de Panamá.
+ * Inicializa los selectores de fecha con la fecha exacta de Panamá solo si están vacíos.
  */
 function inicializarFechas() {
     const hoyPanama = getFechaLocalPanama();
@@ -36,7 +44,7 @@ function inicializarFechas() {
 }
 
 /**
- * Consulta y muestra los resultados registrados filtrados por la fecha seleccionada.
+ * Consulta y muestra los resultados registrados filtrados por la fecha seleccionada en el historial.
  */
 async function cargarHistorialResultados() {
     const filtroFecha = document.getElementById('filtro-fecha-historial')?.value || getFechaLocalPanama();
@@ -104,7 +112,7 @@ async function cargarHistorialResultados() {
 window.cargarHistorialResultados = cargarHistorialResultados;
 
 /**
- * Carga un resultado guardado en el formulario para editarlo.
+ * Carga un resultado guardado en el formulario para editarlo (mantiene la fecha original del registro).
  */
 function cargarResultadoEnFormulario(res) {
     if (!res) return;
@@ -115,11 +123,13 @@ function cargarResultadoEnFormulario(res) {
     const p2 = document.getElementById('result-p2');
     const p3 = document.getElementById('result-p3');
 
-    if (fechaInput) fechaInput.value = res.fecha;
-    if (selectSorteo) selectSorteo.value = res.sorteo_id;
+    if (fechaInput && res.fecha) fechaInput.value = res.fecha;
+    if (selectSorteo && res.sorteo_id) selectSorteo.value = res.sorteo_id;
     if (p1) p1.value = res.primero ?? res.p1 ?? '';
     if (p2) p2.value = res.segundo ?? res.p2 ?? '';
     if (p3) p3.value = res.tercero ?? res.p3 ?? '';
+
+    document.getElementById('form-register-results')?.scrollIntoView({ behavior: 'smooth' });
 }
 window.cargarResultadoEnFormulario = cargarResultadoEnFormulario;
 
@@ -151,7 +161,7 @@ async function eliminarResultado(id) {
 window.eliminarResultado = eliminarResultado;
 
 /**
- * Registra o edita manualmente los premios de un sorteo.
+ * Registra o edita manualmente los premios de un sorteo respetando la fecha elegida en el campo.
  */
 function inicializarFormularioResultados() {
     const form = document.getElementById('form-register-results');
@@ -160,14 +170,20 @@ function inicializarFormularioResultados() {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        const fecha = document.getElementById('result-fecha')?.value || getFechaLocalPanama();
+        // Toma la fecha exacta seleccionada por el usuario (permite fechas pasadas)
+        const fecha = document.getElementById('result-fecha')?.value;
         const sorteo_id = document.getElementById('results-loteria-select')?.value;
         const primero = document.getElementById('result-p1')?.value.trim();
         const segundo = document.getElementById('result-p2')?.value.trim() || '';
         const tercero = document.getElementById('result-p3')?.value.trim() || '';
 
-        if (!fecha || !sorteo_id || !primero) {
-            alert("Seleccione la fecha, el sorteo y complete al menos el 1er premio.");
+        if (!fecha) {
+            alert("Por favor seleccione la fecha del sorteo.");
+            return;
+        }
+
+        if (!sorteo_id || !primero) {
+            alert("Seleccione el sorteo y complete al menos el 1er premio.");
             return;
         }
 
@@ -177,7 +193,7 @@ function inicializarFormularioResultados() {
         try {
             const payload = {
                 sorteo_id: parseInt(sorteo_id),
-                fecha: fecha,
+                fecha: fecha, // Respetado directamente de lo seleccionado en el selector
                 p1: primero,
                 p2: segundo,
                 p3: tercero,
@@ -193,10 +209,19 @@ function inicializarFormularioResultados() {
 
             if (error) throw error;
 
-            alert(`✅ Resultado guardado y escrutado correctamente para la fecha ${fecha}`);
+            alert(`✅ Resultado guardado correctamente para la fecha ${fecha}`);
 
+            // Cambiar la tabla al día guardado para visualizar la actualización inmediatamente
             const filtroFecha = document.getElementById('filtro-fecha-historial');
             if (filtroFecha) filtroFecha.value = fecha;
+
+            // Limpiar los inputs numéricos tras guardar
+            const p1Input = document.getElementById('result-p1');
+            const p2Input = document.getElementById('result-p2');
+            const p3Input = document.getElementById('result-p3');
+            if (p1Input) p1Input.value = '';
+            if (p2Input) p2Input.value = '';
+            if (p3Input) p3Input.value = '';
 
             cargarHistorialResultados();
         } catch (err) {
@@ -234,6 +259,10 @@ async function sincronizarResultadosAutomaticos() {
         } else {
             alert(msgExito);
         }
+
+        // Al presionar sincronización automática en vivo, cambia el filtro a la fecha de hoy
+        const filtroFecha = document.getElementById('filtro-fecha-historial');
+        if (filtroFecha) filtroFecha.value = getFechaLocalPanama();
 
         cargarHistorialResultados();
 

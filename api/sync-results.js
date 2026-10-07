@@ -1,65 +1,71 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Inicializar cliente administrativo de Supabase
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 /**
- * TABLA DE EQUIVALENCIAS HORARIAS:
- * Clave: Nombre exacto del sorteo registrado en tu base de datos (Panamá).
- * Valor: Términos de búsqueda en la página origen (República Dominicana / EE.UU.).
+ * CONFIGURACIÓN DE SORTEOS:
+ * - horaPanama: Hora exacta de juego en Panamá (Formato 24h). No se busca antes de esta hora.
+ * - keywords: Términos de búsqueda en la web de origen.
  */
-const MAPEO_SORTEOS = {
-    // --- LA PRIMERA (Panamá: 11:00 AM y 6:00 PM) ---
-    'LA PRIMERA 11AM': ['la primera 12pm', 'la primera mediodia', 'primera 12pm'],
-    'LA PRIMERA 11:00 AM': ['la primera 12pm', 'la primera mediodia', 'primera 12pm'],
-    'LA PRIMERA 6PM': ['la primera 8pm', 'la primera noche', 'primera 8pm', 'la primera 7pm'],
-    'LA PRIMERA 6:00 PM': ['la primera 8pm', 'la primera noche', 'primera 8pm', 'la primera 7pm'],
+const CONFIG_SORTEOS = {
+    // --- LA PRIMERA ---
+    'LA PRIMERA 11AM': { horaPanama: '11:00', keywords: ['la primera 12pm', 'la primera mediodia', 'primera 12pm'] },
+    'LA PRIMERA 11:00 AM': { horaPanama: '11:00', keywords: ['la primera 12pm', 'la primera mediodia', 'primera 12pm'] },
+    'LA PRIMERA 6PM': { horaPanama: '18:00', keywords: ['la primera 8pm', 'la primera noche', 'primera 8pm', 'la primera 7pm'] },
+    'LA PRIMERA 6:00 PM': { horaPanama: '18:00', keywords: ['la primera 8pm', 'la primera noche', 'primera 8pm', 'la primera 7pm'] },
 
-    // --- ANGUILLA (Panamá: 12:00 PM, 5:00 PM y 8:00 PM) ---
-    'ANGUILLA 12PM': ['anguilla 1pm', 'anguilla 1:00 pm', 'anguilla 1 pm'],
-    'ANGUILLA 12:00 PM': ['anguilla 1pm', 'anguilla 1:00 pm', 'anguilla 1 pm'],
-    'ANGUILLA 5PM': ['anguilla 6pm', 'anguilla 6:00 pm', 'anguilla 6 pm'],
-    'ANGUILLA 5:00 PM': ['anguilla 6pm', 'anguilla 6:00 pm', 'anguilla 6 pm'],
-    'ANGUILLA 8PM': ['anguilla 9pm', 'anguilla 9:00 pm', 'anguilla 9 pm'],
-    'ANGUILLA 8:00 PM': ['anguilla 9pm', 'anguilla 9:00 pm', 'anguilla 9 pm'],
+    // --- ANGUILLA ---
+    'ANGUILLA 12PM': { horaPanama: '12:00', keywords: ['anguilla 1pm', 'anguilla 1:00 pm', 'anguilla 1 pm'] },
+    'ANGUILLA 12:00 PM': { horaPanama: '12:00', keywords: ['anguilla 1pm', 'anguilla 1:00 pm', 'anguilla 1 pm'] },
+    'ANGUILLA 5PM': { horaPanama: '17:00', keywords: ['anguilla 6pm', 'anguilla 6:00 pm', 'anguilla 6 pm'] },
+    'ANGUILLA 5:00 PM': { horaPanama: '17:00', keywords: ['anguilla 6pm', 'anguilla 6:00 pm', 'anguilla 6 pm'] },
+    'ANGUILLA 8PM': { horaPanama: '20:00', keywords: ['anguilla 9pm', 'anguilla 9:00 pm', 'anguilla 9 pm'] },
+    'ANGUILLA 8:00 PM': { horaPanama: '20:00', keywords: ['anguilla 9pm', 'anguilla 9:00 pm', 'anguilla 9 pm'] },
 
-    // --- FLORIDA (Panamá: 12:30 PM y 8:45 PM) ---
-    'FLORIDA 12:30PM': ['florida mediodia', 'florida midday', 'florida 1:30', 'florida dia'],
-    'FLORIDA DIA': ['florida mediodia', 'florida midday', 'florida 1:30', 'florida dia'],
-    'FLORIDA 8:45PM': ['florida noche', 'florida evening', 'florida 9:45'],
-    'FLORIDA NOCHE': ['florida noche', 'florida evening', 'florida 9:45'],
+    // --- FLORIDA ---
+    'FLORIDA DIA': { horaPanama: '12:30', keywords: ['florida mediodia', 'florida midday', 'florida 1:30', 'florida dia'] },
+    'FLORIDA 12:30PM': { horaPanama: '12:30', keywords: ['florida mediodia', 'florida midday', 'florida 1:30', 'florida dia'] },
+    'FLORIDA NOCHE': { horaPanama: '20:45', keywords: ['florida noche', 'florida evening', 'florida 9:45'] },
+    'FLORIDA 8:45PM': { horaPanama: '20:45', keywords: ['florida noche', 'florida evening', 'florida 9:45'] },
 
-    // --- NEW YORK (Panamá: 1:30 PM y 9:30 PM) ---
-    'NEW YORK 1:30PM': ['new york mediodia', 'new york midday', 'new york 2:30', 'new york dia'],
-    'NEW YORK DIA': ['new york mediodia', 'new york midday', 'new york 2:30', 'new york dia'],
-    'NEW YORK 9:30PM': ['new york noche', 'new york evening', 'new york 10:30'],
-    'NEW YORK NOCHE': ['new york noche', 'new york evening', 'new york 10:30']
+    // --- NEW YORK ---
+    'NEW YORK DIA': { horaPanama: '13:30', keywords: ['new york mediodia', 'new york midday', 'new york 2:30', 'new york dia'] },
+    'NEW YORK 1:30PM': { horaPanama: '13:30', keywords: ['new york mediodia', 'new york midday', 'new york 2:30', 'new york dia'] },
+    'NEW YORK NOCHE': { horaPanama: '21:30', keywords: ['new york noche', 'new york evening', 'new york 10:30'] },
+    'NEW YORK 9:30PM': { horaPanama: '21:30', keywords: ['new york noche', 'new york evening', 'new york 10:30'] }
 };
 
-/**
- * Obtiene la fecha actual en la zona horaria de Panamá (YYYY-MM-DD)
- */
 function getFechaPanama() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
 }
 
+function yaJugoEnPanama(horaSorteoStr) {
+    const ahoraStr = new Date().toLocaleTimeString('en-US', { timeZone: 'America/Panama', hour12: false });
+    const [hAhora, mAhora] = ahoraStr.split(':').map(Number);
+    const [hSorteo, mSorteo] = horaSorteoStr.split(':').map(Number);
+
+    const minutosActuales = hAhora * 60 + mAhora;
+    const minutosSorteo = hSorteo * 60 + mSorteo;
+
+    return minutosActuales >= minutosSorteo;
+}
+
 export default async function handler(req, res) {
     try {
-        const fechaHoy = getFechaPanama();
+        // La sincronización automática WEB solo debe actuar sobre la fecha actual de Panamá
+        const fechaProcesar = getFechaPanama();
 
-        // 1. Obtener la lista de sorteos registrados en Supabase
         const { data: sorteos, error: errSorteos } = await supabase
             .from('sorteos')
             .select('id, nombre');
 
         if (errSorteos || !sorteos || sorteos.length === 0) {
-            return res.status(400).json({ success: false, message: 'No hay sorteos configurados en la base de datos.' });
+            return res.status(400).json({ success: false, message: 'No hay sorteos configurados.' });
         }
 
-        // 2. Páginas de origen para extracción de datos
         const urls = [
             'https://enloteria.com/',
             'https://enloteria.com/resultados-anguilla',
@@ -79,19 +85,22 @@ export default async function handler(req, res) {
         const htmlCompleto = htmlResponses.join(' ');
         const resultadosAInsertar = [];
 
-        // 3. Emparejar cada sorteo de la base de datos con los datos de la web
         for (const sorteo of sorteos) {
             const nombreBD = sorteo.nombre.trim().toUpperCase();
-            
-            // Buscar equivalencias configuradas o usar el mismo nombre en minúsculas
-            const keywords = MAPEO_SORTEOS[nombreBD] || [nombreBD.toLowerCase()];
+            const config = CONFIG_SORTEOS[nombreBD];
 
+            // Si el sorteo aún no ha jugado hoy en Panamá, se ignora
+            if (config && !yaJugoEnPanama(config.horaPanama)) {
+                continue;
+            }
+
+            const keywords = config ? config.keywords : [nombreBD.toLowerCase()];
             const resultadoEncontrado = buscarResultadoEnHtml(htmlCompleto, keywords);
 
             if (resultadoEncontrado) {
                 resultadosAInsertar.push({
                     sorteo_id: sorteo.id,
-                    fecha: fechaHoy,
+                    fecha: fechaProcesar,
                     primero: resultadoEncontrado.p1,
                     segundo: resultadoEncontrado.p2,
                     tercero: resultadoEncontrado.p3,
@@ -106,11 +115,10 @@ export default async function handler(req, res) {
         if (resultadosAInsertar.length === 0) {
             return res.status(200).json({
                 success: true,
-                message: `No se encontraron nuevos resultados para la fecha ${fechaHoy}.`
+                message: `No hay sorteos pendientes para sincronizar en la fecha ${fechaProcesar}.`
             });
         }
 
-        // 4. Insertar o actualizar resultados en Supabase
         const { error: upsertError } = await supabase
             .from('resultados')
             .upsert(resultadosAInsertar, { onConflict: 'sorteo_id,fecha' });
@@ -119,7 +127,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({
             success: true,
-            message: `Sincronizados ${resultadosAInsertar.length} sorteo(s) para la fecha ${fechaHoy}.`,
+            message: `Sincronizados ${resultadosAInsertar.length} sorteo(s) para la fecha ${fechaProcesar}.`,
             data: resultadosAInsertar
         });
 
@@ -129,9 +137,6 @@ export default async function handler(req, res) {
     }
 }
 
-/**
- * Busca las secuencias de números ganadores según los nombres de la página web
- */
 function buscarResultadoEnHtml(html, keywords) {
     if (!html) return null;
     const htmlLower = html.toLowerCase();

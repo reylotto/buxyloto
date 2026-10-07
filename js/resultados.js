@@ -28,7 +28,7 @@ function getFechaLocalPanama() {
  * Obtiene la instancia de Supabase de manera centralizada.
  */
 function getSupabaseInstance() {
-    return window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
+    return window.getSupabaseClient ? window.getSupabaseClient() : (window.supabaseClient || window.supabase);
 }
 
 /**
@@ -169,13 +169,19 @@ function inicializarFormularioResultados() {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        e.stopImmediatePropagation();
 
-        // Toma la fecha exacta seleccionada por el usuario (permite fechas pasadas)
-        const fecha = document.getElementById('result-fecha')?.value;
-        const sorteo_id = document.getElementById('results-loteria-select')?.value;
-        const primero = document.getElementById('result-p1')?.value.trim();
-        const segundo = document.getElementById('result-p2')?.value.trim() || '';
-        const tercero = document.getElementById('result-p3')?.value.trim() || '';
+        const fechaInput = document.getElementById('result-fecha');
+        const sorteoSelect = document.getElementById('results-loteria-select');
+        const p1Input = document.getElementById('result-p1');
+        const p2Input = document.getElementById('result-p2');
+        const p3Input = document.getElementById('result-p3');
+
+        const fecha = fechaInput?.value || getFechaLocalPanama();
+        const sorteo_id = sorteoSelect?.value;
+        const primero = p1Input?.value.trim();
+        const segundo = p2Input?.value.trim() || '';
+        const tercero = p3Input?.value.trim() || '';
 
         if (!fecha) {
             alert("Por favor seleccione la fecha del sorteo.");
@@ -190,10 +196,16 @@ function inicializarFormularioResultados() {
         const supabase = getSupabaseInstance();
         if (!supabase) return;
 
+        const btnSubmit = form.querySelector('button[type="submit"]');
+        if (btnSubmit) btnSubmit.disabled = true;
+
         try {
+            const sorteoIdNum = parseInt(sorteo_id, 10);
+
+            // 1. Guardar o actualizar en la tabla 'resultados' respetando la fecha del formulario
             const payload = {
-                sorteo_id: parseInt(sorteo_id),
-                fecha: fecha, // Respetado directamente de lo seleccionado en el selector
+                sorteo_id: sorteoIdNum,
+                fecha: fecha,
                 p1: primero,
                 p2: segundo,
                 p3: tercero,
@@ -203,30 +215,54 @@ function inicializarFormularioResultados() {
                 updated_at: new Date().toISOString()
             };
 
-            const { error } = await supabase
+            const { error: errResultados } = await supabase
                 .from('resultados')
                 .upsert(payload, { onConflict: 'sorteo_id,fecha' });
 
-            if (error) throw error;
+            if (errResultados) throw errResultados;
+
+            // 2. Actualizar el estado del sorteo en la tabla 'sorteos'
+            const payloadSorteo = {
+                p1: primero,
+                p2: segundo,
+                p3: tercero,
+                primer_premio: primero,
+                segundo_premio: segundo,
+                tercer_premio: tercero,
+                estatus: 'cerrado',
+                estado: 'cerrado'
+            };
+
+            await supabase
+                .from('sorteos')
+                .update(payloadSorteo)
+                .eq('id', sorteoIdNum);
 
             alert(`✅ Resultado guardado correctamente para la fecha ${fecha}`);
 
-            // Cambiar la tabla al día guardado para visualizar la actualización inmediatamente
+            // Cambiar la tabla al día guardado para visualizar de inmediato
             const filtroFecha = document.getElementById('filtro-fecha-historial');
             if (filtroFecha) filtroFecha.value = fecha;
 
             // Limpiar los inputs numéricos tras guardar
-            const p1Input = document.getElementById('result-p1');
-            const p2Input = document.getElementById('result-p2');
-            const p3Input = document.getElementById('result-p3');
             if (p1Input) p1Input.value = '';
             if (p2Input) p2Input.value = '';
             if (p3Input) p3Input.value = '';
 
-            cargarHistorialResultados();
+            await cargarHistorialResultados();
+
+            if (typeof window.cargarHistorialTickets === 'function') {
+                await window.cargarHistorialTickets();
+            }
+            if (typeof window.actualizarResumenOperaciones === 'function') {
+                await window.actualizarResumenOperaciones();
+            }
+
         } catch (err) {
             console.error("Error al guardar:", err);
-            alert("Error al guardar en Supabase: " + err.message);
+            alert("Error al guardar en Supabase: " + (err.message || err));
+        } finally {
+            if (btnSubmit) btnSubmit.disabled = false;
         }
     });
 }
@@ -260,7 +296,6 @@ async function sincronizarResultadosAutomaticos() {
             alert(msgExito);
         }
 
-        // Al presionar sincronización automática en vivo, cambia el filtro a la fecha de hoy
         const filtroFecha = document.getElementById('filtro-fecha-historial');
         if (filtroFecha) filtroFecha.value = getFechaLocalPanama();
 

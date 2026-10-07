@@ -207,7 +207,7 @@ function inicializarFormularioResultados() {
 }
 
 /**
- * Sincroniza automáticamente los resultados de enloteria.com.
+ * Sincroniza automáticamente los resultados llamando a la Serverless Function de Vercel.
  */
 async function sincronizarResultadosAutomaticos() {
     const btn = document.getElementById('btn-auto-sync');
@@ -220,61 +220,32 @@ async function sincronizarResultadosAutomaticos() {
     }
 
     try {
-        const supabase = getSupabaseInstance();
-        if (!supabase) throw new Error('No hay conexión con la base de datos.');
+        const response = await fetch('/api/sync-results');
+        const data = await response.json();
 
-        const { data: sorteos, error } = await supabase.from('sorteos').select('id, nombre');
-        if (error) throw error;
-        if (!sorteos || sorteos.length === 0) throw new Error('No hay sorteos configurados.');
-
-        const corsProxy = 'https://corsproxy.io/?';
-        const [htmlPrincipal, htmlAnguilla] = await Promise.all([
-            fetchTextWithProxy(`${corsProxy}https://enloteria.com/`),
-            fetchTextWithProxy(`${corsProxy}https://enloteria.com/resultados-anguilla`)
-        ]);
-
-        const resultadosHallados = [];
-        if (htmlPrincipal) resultadosHallados.push(...extraerPremios(htmlPrincipal, sorteos));
-        if (htmlAnguilla) resultadosHallados.push(...extraerPremios(htmlAnguilla, sorteos));
-
-        if (resultadosHallados.length === 0) {
-            const msg = 'No se encontraron nuevos números publicados en este momento.';
-            if (status) { status.style.color = '#eab308'; status.innerText = msg; }
-            else alert(msg);
-            return;
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || 'Error en la respuesta del servidor.');
         }
 
-        const fechaGuardar = document.getElementById('result-fecha')?.value || getFechaLocalPanama();
-        let guardados = 0;
-
-        for (const resData of resultadosHallados) {
-            const payload = {
-                sorteo_id: resData.sorteo_id,
-                fecha: fechaGuardar,
-                primero: resData.primero,
-                segundo: resData.segundo || '',
-                tercero: resData.tercero || '',
-                p1: resData.primero,
-                p2: resData.segundo || '',
-                p3: resData.tercero || '',
-                updated_at: new Date().toISOString()
-            };
-
-            const { error: upsertErr } = await supabase.from('resultados').upsert(payload, { onConflict: 'sorteo_id,fecha' });
-            if (!upsertErr) guardados++;
+        const msgExito = `¡Éxito! ${data.message}`;
+        if (status) { 
+            status.style.color = '#16a34a'; 
+            status.innerText = msgExito; 
+        } else {
+            alert(msgExito);
         }
-
-        const msgExito = `¡Éxito! ${guardados} sorteos sincronizados para la fecha ${fechaGuardar}.`;
-        if (status) { status.style.color = '#16a34a'; status.innerText = msgExito; }
-        else alert(msgExito);
 
         cargarHistorialResultados();
 
     } catch (err) {
         console.error('Error en sincronización automática:', err);
         const msgErr = `Error: ${err.message || 'Fallo de conexión'}`;
-        if (status) { status.style.color = '#dc2626'; status.innerText = msgErr; }
-        else alert(msgErr);
+        if (status) { 
+            status.style.color = '#dc2626'; 
+            status.innerText = msgErr; 
+        } else {
+            alert(msgErr);
+        }
     } finally {
         if (btn) btn.disabled = false;
     }
@@ -282,41 +253,3 @@ async function sincronizarResultadosAutomaticos() {
 
 window.sincronizarResultadosAutomaticos = sincronizarResultadosAutomaticos;
 window.obtenerResultadosAutomaticos = sincronizarResultadosAutomaticos;
-
-/**
- * Consulta la URL usando el proxy.
- */
-async function fetchTextWithProxy(url) {
-    try {
-        const res = await fetch(url);
-        if (!res.ok) return null;
-        return await res.text();
-    } catch (e) {
-        return null;
-    }
-}
-
-/**
- * Parsea el HTML de la web para extraer los 3 números ganadores.
- */
-function extraerPremios(html, listaSorteos) {
-    const hallados = [];
-    for (const sorteo of listaSorteos) {
-        if (!sorteo.nombre) continue;
-        const nombreNorm = sorteo.nombre.toLowerCase();
-
-        if (html.toLowerCase().includes(nombreNorm)) {
-            const regexBloque = new RegExp(`${nombreNorm}[\\s\\S]{1,300}?(\\d{2})[\\s\\-]{1,5}(\\d{2})[\\s\\-]{1,5}(\\d{2})`, 'i');
-            const match = html.match(regexBloque);
-            if (match) {
-                hallados.push({
-                    sorteo_id: sorteo.id,
-                    primero: match[1],
-                    segundo: match[2],
-                    tercero: match[3]
-                });
-            }
-        }
-    }
-    return hallados;
-}

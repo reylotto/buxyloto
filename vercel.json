@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron-fetch-results",
-      "schedule": "*/15 10-23 * * *"
-    }
-  ]
-}

@@ -1,5 +1,5 @@
 // ==========================================================
-// MÓDULO DE AUTENTICACIÓN HÍBRIDO CON CONTROL DE ROLES (auth.js)
+// MÓDULO DE AUTENTICACIÓN HÍBRIDO CON GESTIÓN DE ROLES Y ZONAS (auth.js)
 // ==========================================================
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
@@ -10,43 +10,83 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 window.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// 1. APLICAR RESTRICCIONES VISUALES SEGÚN EL ROL
+// 1. APLICAR RESTRICCIONES VISUALES Y FILTROS SEGÚN EL ROL
 function aplicarRestriccionesPorRol(usuario) {
     const rol = String(usuario.rol || 'admin').toLowerCase().trim();
-    console.log("🛡️ Aplicando restricciones de interfaz para el rol:", rol);
+    const zona = usuario.zona || 'Zona General';
+    const nombre = usuario.nombre || usuario.nombre_completo || 'Usuario';
 
-    const elementosAdmin = document.querySelectorAll('.admin-only');
-    
-    if (rol !== 'admin' && rol !== 'administrador') {
-        // Ocultar elementos exclusivos de administración para supervisores y cajeros
-        elementosAdmin.forEach(el => {
-            el.style.display = 'none';
+    console.log(`🛡️ Aplicando permisos para [Rol: ${rol}] [Zona: ${zona}] [Nombre: ${nombre}]`);
+    window.currentUserProfile = usuario;
+
+    // Actualizar el nombre y rol en la esquina superior derecha
+    setTimeout(() => {
+        const headerNameEl = document.querySelector('#admin-user-name, .user-name-display, [data-user-name]');
+        if (headerNameEl) headerNameEl.textContent = nombre;
+
+        const headerRoleEl = document.querySelector('#admin-user-role, .user-role-display, [data-user-role]');
+        if (headerRoleEl) {
+            headerRoleEl.textContent = rol === 'supervisor' ? `Supervisor (${zona})` : (rol === 'caja' ? 'Banca / Vendedor' : 'Administrador Central');
+        }
+    }, 400);
+
+    const ocultarPorSelector = (selectores) => {
+        selectores.forEach(selector => {
+            document.querySelectorAll(selector).forEach(el => {
+                el.style.display = 'none';
+            });
         });
-    } else {
-        // Mostrar todo si es administrador
-        elementosAdmin.forEach(el => {
-            el.style.display = '';
-        });
+    };
+
+    if (rol === 'supervisor') {
+        // Ocultar POS (no pueden emitir apuestas) y menús exclusivos de administrador central
+        ocultarPorSelector([
+            '[href="#pos"]', '[data-target="pos"]', '.nav-item-pos',
+            '[href="#usuarios"]', '[data-target="usuarios"]', '.nav-item-usuarios',
+            '[href="#bancas"]', '[data-target="bancas"]', '.nav-item-bancas',
+            '[href="#loterias"]', '[data-target="loterias"]', '.nav-item-loterias',
+            '[href="#riesgo"]', '[data-target="riesgo"]', '.nav-item-riesgo',
+            '[href="#ticket"]', '[data-target="ticket"]', '.nav-item-ticket'
+        ]);
+
+        setTimeout(() => {
+            document.querySelectorAll('.btn-guardar-escrutinio, .btn-editar-resultado, .admin-only-btn').forEach(btn => {
+                btn.style.display = 'none';
+            });
+        }, 1000);
+
+    } else if (rol === 'caja' || rol === 'vendedor') {
+        ocultarPorSelector([
+            'nav a:not([href*="pos"]):not([href*="historial"])',
+            '.admin-only', '.supervisor-only'
+        ]);
     }
 }
 
-// 2. VERIFICAR SESIÓN ACTIVA AL CARGAR LA PÁGINA (Anti-cierre con F5)
+// Filtro global de zona para que las consultas a Supabase traigan solo las bancas del supervisor
+window.obtenerFiltroZonaSupervisor = function() {
+    const user = window.currentUserProfile || JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+    const rol = String(user.rol || '').toLowerCase();
+    if (rol === 'supervisor' && user.zona) {
+        return { zona: user.zona, supervisor_id: user.id };
+    }
+    return null; // Admin ve todo
+};
+
+// 2. VERIFICAR SESIÓN ACTIVA AL CARGAR LA PÁGINA
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const sesionGuardada = localStorage.getItem('usuario_sesion');
         if (sesionGuardada) {
             const user = JSON.parse(sesionGuardada);
             if (user && user.id) {
-                console.log("🟢 Sesión activa detectada en almacenamiento local.");
-                window.currentUserProfile = user;
+                aplicarRestriccionesPorRol(user);
                 
                 const loginWrapper = document.getElementById('auth-login-wrapper');
                 const mainContainer = document.getElementById('main-app-container');
 
                 if (loginWrapper) loginWrapper.classList.add('hidden');
                 if (mainContainer) mainContainer.classList.remove('hidden');
-
-                aplicarRestriccionesPorRol(user);
 
                 if (typeof iniciarAplicacionPrincipal === 'function') {
                     iniciarAplicacionPrincipal();
@@ -55,7 +95,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // Verificar sesión activa de Supabase Auth (para admin@buxiloto.com)
         const { data: { session }, error } = await supabase.auth.getSession();
         if (!error && session) {
             const userId = session.user.id;
@@ -66,8 +105,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .maybeSingle();
 
             const profileUser = profileData || { id: userId, email: session.user.email, rol: 'admin', nombre: 'Administrador Maestro' };
-            window.currentUserProfile = profileUser;
             localStorage.setItem('usuario_sesion', JSON.stringify(profileUser));
+            aplicarRestriccionesPorRol(profileUser);
 
             const loginWrapper = document.getElementById('auth-login-wrapper');
             const mainContainer = document.getElementById('main-app-container');
@@ -75,7 +114,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (loginWrapper) loginWrapper.classList.add('hidden');
             if (mainContainer) mainContainer.classList.remove('hidden');
 
-            aplicarRestriccionesPorRol(profileUser);
             iniciarAplicacionPrincipal();
         }
     } catch (err) {
@@ -83,7 +121,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// 3. EVENTO DE INICIO DE SESIÓN DESDE EL FORMULARIO
+// 3. EVENTO DE INICIO DE SESIÓN
 const loginForm = document.getElementById('login-form');
 if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
@@ -100,7 +138,6 @@ if (loginForm) {
         try {
             let cuentaUsuario = null;
 
-            // A. Si ingresa un correo (ej. admin@buxiloto.com), intentar Supabase Auth
             if (userInput.includes('@')) {
                 const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
                     email: userInput,
@@ -125,21 +162,19 @@ if (loginForm) {
                 }
             }
 
-            // B. Si no es correo, buscar en la tabla 'public.usuarios' (por username y password)
             if (!cuentaUsuario) {
                 const { data: usuarioData, error: errUsu } = await supabase
                     .from('usuarios')
                     .select('*')
                     .eq('username', userInput)
                     .eq('password', passwordInput)
-                    .maybeSingle();
+                .maybeSingle();
 
                 if (!errUsu && usuarioData) {
                     cuentaUsuario = usuarioData;
                 }
             }
 
-            // C. Si no se encuentra, buscar en la tabla 'public.bancas'
             if (!cuentaUsuario) {
                 const { data: bancaData, error: errBanca } = await supabase
                     .from('bancas')
@@ -157,14 +192,12 @@ if (loginForm) {
                 }
             }
 
-            // Verificación final de la cuenta
             if (!cuentaUsuario) {
                 alert('❌ Usuario o contraseña incorrectos.');
                 resetBtn();
                 return;
             }
 
-            // Verificar estatus activo
             const estatus = String(cuentaUsuario.estatus || cuentaUsuario.estado || 'activo').toLowerCase();
             if (estatus !== 'activo') {
                 alert(`⚠️ Esta cuenta se encuentra ${estatus}. Contacte al administrador.`);
@@ -172,19 +205,14 @@ if (loginForm) {
                 return;
             }
 
-            // Guardar en window y en localStorage
-            window.currentUserProfile = cuentaUsuario;
             localStorage.setItem('usuario_sesion', JSON.stringify(cuentaUsuario));
+            aplicarRestriccionesPorRol(cuentaUsuario);
 
-            // Ocultar login y mostrar app principal
             const loginWrapper = document.getElementById('auth-login-wrapper');
             const mainContainer = document.getElementById('main-app-container');
 
             if (loginWrapper) loginWrapper.classList.add('hidden');
             if (mainContainer) mainContainer.classList.remove('hidden');
-
-            // Aplicar restricciones visuales según el rol del usuario
-            aplicarRestriccionesPorRol(cuentaUsuario);
 
             iniciarAplicacionPrincipal();
 

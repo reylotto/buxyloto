@@ -1025,44 +1025,55 @@
                 </div>
             </div>
 
+            <!-- Botones de Acción -->
+            <div class="pt-3 flex gap-2">
+                <button type="button" onclick="cerrarModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition btn-close-user-modal">
+                    Cancelar
+                </button>
+                <button type="submit" id="btn-guardar-usuario" class="w-1/2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition">
+                    <i class="fa-solid fa-floppy-disk"></i> Guardar en Supabase
+                </button>
             </div>
+        </form>
+    </div>
+</div>
+            <!-- SECCIÓN: GESTIÓN DE LOTERÍAS & SORTEOS -->
+<section id="section-loterias" class="content-section space-y-6 hidden admin-only">
+    <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+            <div>
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-ticket text-emerald-400"></i>
+                    <span>Configuración de Loterías & Sorteos</span>
+                </h3>
+                <p class="text-xs text-slate-400">Edita horarios de apertura, cierre, días de juego y estatus de cada sorteo sin tener que borrarlo.</p>
+            </div>
+            <button id="btn-open-loteria-modal" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-lg shadow-emerald-500/20 flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i>
+                <span>Nuevo Sorteo</span>
+            </button>
+        </div>
 
-            <section id="section-loterias" class="content-section space-y-6 hidden admin-only">
-                <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-4">
-                    <div class="flex items-center justify-between border-b border-slate-700 pb-3">
-                        <div>
-                            <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                                <i class="fa-solid fa-ticket text-emerald-400"></i>
-                                <span>Configuración de Loterías & Sorteos</span>
-                            </h3>
-                            <p class="text-xs text-slate-400">Edita horarios de apertura, cierre, días de juego y estatus de cada sorteo sin tener que borrarlo.</p>
-                        </div>
-                        <button id="btn-open-loteria-modal" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-lg shadow-emerald-500/20 flex items-center gap-2">
-                            <i class="fa-solid fa-plus"></i>
-                            <span>Nuevo Sorteo</span>
-                        </button>
-                    </div>
-
-                    <div class="overflow-x-auto custom-scrollbar">
-                        <table class="w-full text-left text-xs text-slate-300">
-                            <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] tracking-wider font-bold">
-                                <tr>
-                                    <th class="p-3">Sorteo / Lotería</th>
-                                    <th class="p-3">Horario Apertura</th>
-                                    <th class="p-3">Horario Cierre</th>
-                                    <th class="p-3">Días de Juego</th>
-                                    <th class="p-3">Factor Pago (x)</th>
-                                    <th class="p-3">Estatus</th>
-                                    <th class="p-3 text-center">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody id="loterias-table-body" class="divide-y divide-slate-700/60">
-                                <!-- Dinámico -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left text-xs text-slate-300">
+                <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] tracking-wider font-bold">
+                    <tr>
+                        <th class="p-3">Sorteo / Lotería</th>
+                        <th class="p-3">Horario Apertura</th>
+                        <th class="p-3">Horario Cierre</th>
+                        <th class="p-3">Días de Juego</th>
+                        <th class="p-3">Factor Pago (x)</th>
+                        <th class="p-3">Estatus</th>
+                        <th class="p-3 text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="loterias-table-body" class="divide-y divide-slate-700/60">
+                    <!-- Dinámico desde js/sorteos.js -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
 
             <!-- SECCIÓN 7.5: PERSONALIZACIÓN DE TICKET TÉRMICO (ADMIN) -->
             <section id="section-ticket-config" class="content-section space-y-6 hidden admin-only">

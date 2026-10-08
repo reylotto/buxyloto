@@ -41,15 +41,14 @@
             }
         }
 
-        // 3. ELIMINAR ÚNICAMENTE LA CAJITA DE SIMULACIÓN DE ROLES
-        const selects = document.querySelectorAll('select');
-        selects.forEach(select => {
-            if (select.textContent.includes('Administrador Central') || select.textContent.includes('Supervisor')) {
-                select.style.display = 'none'; // Oculta solo la cajita de selección
-                const label = select.previousElementSibling;
-                if (label && label.tagName === 'LABEL') {
-                    label.style.display = 'none'; // Oculta el texto "CAMBIAR ROL"
-                }
+        // 3. ELIMINAR EL SIMULADOR DE ROLES SOLO EN LA CABECERA (NO EN LOS FORMULARIOS)
+        // Buscamos específicamente dentro del "header" o la parte superior
+        const selectsHeader = document.querySelectorAll('header select, .top-0 select');
+        selectsHeader.forEach(select => {
+            select.style.display = 'none'; // Oculta solo la cajita de selección arriba
+            const label = select.previousElementSibling;
+            if (label && label.tagName === 'LABEL') {
+                label.style.display = 'none'; // Oculta el texto "CAMBIAR ROL"
             }
         });
 
@@ -87,7 +86,7 @@
             };
 
             ocultarElementosProhibidos();
-            setTimeout(ocultarElementosProhibidos, 500); // Se ejecuta doble vez para asegurar
+            setTimeout(ocultarElementosProhibidos, 500); 
         }
     };
 

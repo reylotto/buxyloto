@@ -309,28 +309,17 @@ export async function cargarBancasSistema() {
         const esAdmin = rol === 'admin' || rol === 'administrador';
         const zonaUsuario = sesion.zona || 'Zona General';
 
-        let bancas = [];
-
-        try {
-            const resRpc = await supabase.rpc('obtener_bancas_por_zona', {
-                p_zona: zonaUsuario,
-                p_es_admin: esAdmin
-            });
-            if (!resRpc.error && resRpc.data) {
-                bancas = resRpc.data;
-            } else {
-                throw new Error("RPC no disponible");
-            }
-        } catch (e) {
-            let query = supabase.from('bancas').select('*');
-            if (!esAdmin && zonaUsuario) {
-                query = query.eq('zona', zonaUsuario);
-            }
-            const resDirect = await query.order('created_at', { ascending: false });
-            if (resDirect.error) throw resDirect.error;
-            bancas = resDirect.data || [];
+        // LÓGICA CORREGIDA: Eliminado el RPC que devolvía las bancas vacías. 
+        // Ahora busca directamente en la tabla y filtra si es supervisor.
+        let query = supabase.from('bancas').select('*');
+        if (!esAdmin && zonaUsuario) {
+            query = query.eq('zona', zonaUsuario);
         }
-
+        
+        const resDirect = await query.order('created_at', { ascending: false });
+        if (resDirect.error) throw resDirect.error;
+        
+        const bancas = resDirect.data || [];
         window._bancasCache = bancas || [];
 
         if (!bancas || bancas.length === 0) {

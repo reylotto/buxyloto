@@ -5,9 +5,9 @@
 window.obtenerSesionActual = function() {
     try {
         const sesion = localStorage.getItem('usuario_sesion');
-        return sesion ? JSON.parse(sesion) : {};
+        return sesion ? JSON.parse(sesion) : { rol: 'admin', zona: 'Zona General' };
     } catch (e) {
-        return {};
+        return { rol: 'admin', zona: 'Zona General' };
     }
 };
 
@@ -20,36 +20,42 @@ window.esAdministradorGlobal = function() {
 window.obtenerFiltroZonaSupervisor = function() {
     const user = window.obtenerSesionActual();
     const rol = String(user.rol || '').toLowerCase().trim();
-    if (rol === 'supervisor' && user.zona) {
-        return user.zona; // Retorna por ejemplo "Zona Ciudad" o "Zona Oeste"
+    if (rol.includes('supervisor') && user.zona) {
+        return String(user.zona).trim();
     }
-    return null; // Si es admin, retorna null para ver todo
+    return null; // Admin ve todo
 };
 
-// Aplicar restricciones visuales y actualizar cabecera
 window.aplicarPermisosGlobales = function() {
     const user = window.obtenerSesionActual();
     const rol = String(user.rol || 'admin').toLowerCase().trim();
     const zona = user.zona || 'Zona General';
     const nombre = user.nombre || user.nombre_completo || user.username || 'Usuario';
 
-    console.log(`🛡️ Control de Roles -> [Rol: ${rol}] [Zona: ${zona}] [Nombre: ${nombre}]`);
+    console.log(`🛡️ [SEGURIDAD] Aplicando permisos estrictos -> [Rol: ${rol}] [Zona: ${zona}]`);
 
-    // 1. Actualizar el indicador superior derecho (Nombre y Rol Real)
+    // 1. Actualizar indicador superior derecho (Nombre y Rol Real) y OCULTAR SIMULADOR DE ROLES
     setTimeout(() => {
-        // Buscar el elemento del nombre en la esquina superior derecha
+        // Ocultar el selector de "CAMBIAR ROL / SIMULACIÓN" para que nadie pueda alterar el rol visualmente
+        const contenedorSimulacion = document.querySelector('.cambiar-rol-container, select[id*="rol"], div:has(> label:contains("CAMBIAR ROL"))');
+        document.querySelectorAll('div, label, select').forEach(el => {
+            if (el.textContent.includes('CAMBIAR ROL') || el.textContent.includes('SIMULACIÓN')) {
+                const padre = el.closest('div.relative') || el.closest('div') || el;
+                if (padre) padre.style.display = 'none';
+            }
+        });
+
         const headerNameEl = document.querySelector('#admin-user-name, .user-name-display, header div.font-bold');
         if (headerNameEl && !headerNameEl.textContent.includes('Plataforma')) {
             headerNameEl.textContent = nombre;
         }
 
-        // Buscar el elemento del rol/estatus en la esquina superior derecha
         const headerRoleEl = document.querySelector('#admin-user-role, .user-role-display, header span.text-xs');
         if (headerRoleEl) {
-            if (rol === 'supervisor') {
+            if (rol.includes('supervisor')) {
                 headerRoleEl.textContent = `Supervisor (${zona})`;
                 headerRoleEl.className = 'text-amber-400 font-semibold text-xs';
-            } else if (rol === 'caja' || rol === 'vendedor') {
+            } else if (rol.includes('caja') || rol.includes('vendedor')) {
                 headerRoleEl.textContent = 'Banca / Vendedor POS';
                 headerRoleEl.className = 'text-cyan-400 font-semibold text-xs';
             } else {
@@ -57,18 +63,18 @@ window.aplicarPermisosGlobales = function() {
                 headerRoleEl.className = 'text-emerald-400 font-semibold text-xs';
             }
         }
-    }, 350);
+    }, 300);
 
-    // 2. Ocultar menús y secciones según el rol
+    // 2. Restricciones de Menú y Funciones según el rol
     setTimeout(() => {
         const linksMenu = document.querySelectorAll('aside nav a, nav a, .sidebar a');
         
         linksMenu.forEach(link => {
-            const texto = link.textContent.toLowerCase();
+            const texto = link.textContent.toLowerCase().trim();
             const href = link.getAttribute('href') || '';
 
-            if (rol === 'supervisor') {
-                // Supervisores NO pueden ver POS, Gestión de Usuarios, Bancas, Loterías, Riesgo, etc.
+            if (rol.includes('supervisor')) {
+                // SUPERVISOR: Fuera POS, Gestión de Usuarios, Bancas, Loterías, Riesgo
                 if (
                     texto.includes('punto de venta') || href.includes('pos') ||
                     texto.includes('gestión de usuarios') || texto.includes('gestion de usuarios') ||
@@ -81,8 +87,8 @@ window.aplicarPermisosGlobales = function() {
                     const contenedor = link.closest('li') || link.closest('div') || link;
                     if (contenedor) contenedor.style.display = 'none';
                 }
-            } else if (rol === 'caja' || rol === 'vendedor') {
-                // Vendedores solo ven POS e Historial
+            } else if (rol.includes('caja') || rol.includes('vendedor')) {
+                // VENDEDOR: Solo POS e Historial
                 if (!texto.includes('pos') && !texto.includes('punto de venta') && !texto.includes('historial')) {
                     const contenedor = link.closest('li') || link.closest('div') || link;
                     if (contenedor) contenedor.style.display = 'none';
@@ -90,8 +96,22 @@ window.aplicarPermisosGlobales = function() {
             }
         });
 
-        // Ocultar botones de administración si no es admin
-        if (rol !== 'admin' && rol !== 'administrador') {
+        // 3. Bloquear acciones de escritura en Escrutinio para Supervisores
+        if (rol.includes('supervisor')) {
+            const formEscrutinio = document.getElementById('form-registrar-resultados');
+            if (formEscrutinio) {
+                formEscrutinio.style.display = 'none'; // Oculta el formulario de ingresar resultados
+            }
+            // Ocultar botones de guardar escrutinio
+            document.querySelectorAll('.btn-guardar-escrutinio, button[type="submit"]').forEach(btn => {
+                if (btn.textContent.toLowerCase().includes('escrutinio') || btn.textContent.toLowerCase().includes('registrar')) {
+                    btn.style.display = 'none';
+                }
+            });
+        }
+
+        // Ocultar botones de administración flotantes si no es admin
+        if (!rol.includes('admin') && !rol.includes('administrador')) {
             document.querySelectorAll('.admin-only, #btn-open-usuario-modal, #btn-open-banca-modal, #btn-open-loteria-modal').forEach(el => {
                 el.style.display = 'none';
             });
@@ -99,6 +119,5 @@ window.aplicarPermisosGlobales = function() {
     }, 250);
 };
 
-// Ejecutar automáticamente al cargar la página y al cambiar de sección
 document.addEventListener('DOMContentLoaded', window.aplicarPermisosGlobales);
 window.addEventListener('hashchange', window.aplicarPermisosGlobales);

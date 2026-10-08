@@ -151,6 +151,7 @@ window.guardarUsuarioSistema = async function(e) {
 };
 
 export async function cargarUsuariosSistema() {
+    // DECLARACIÓN OBLIGATORIA DE tbody
     const tbody = document.getElementById('users-table-body') || document.getElementById('usuarios-table-body');
     if (!tbody) return;
 
@@ -179,9 +180,16 @@ export async function cargarUsuariosSistema() {
                     <td class="p-3 text-amber-400 font-semibold">${user.zona || 'Zona General'}</td>
                     <td class="p-3"><span class="${badge} border px-2.5 py-1 rounded-full text-[10px] font-bold capitalize">${estatusVal}</span></td>
                     <td class="p-3 text-center">
-                        <div class="flex items-center justify-center gap-2">
-                            <button onclick="window.abrirModalUsuario('${user.id}')" class="bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 px-2.5 py-1.5 rounded flex items-center gap-1" title="Editar"><i class="fa-solid fa-pen-to-square"></i> Editar</button>
-                            <button onclick="window.eliminarUsuarioSistema('${user.id}')" class="bg-rose-500/10 hover:bg-rose-500 text-rose-300 hover:text-white px-2.5 py-1.5 rounded flex items-center gap-1" title="Eliminar"><i class="fa-solid fa-trash-can"></i> Eliminar</button>
+                        <div class="flex items-center justify-center gap-1.5">
+                            <button onclick="window.cambiarPasswordUsuario('${user.id}', '${user.nombre}')" class="bg-blue-500/10 hover:bg-blue-500 text-blue-300 hover:text-white px-2 py-1.5 rounded transition flex items-center gap-1" title="Cambiar Contraseña">
+                                <i class="fa-solid fa-key"></i> Pass
+                            </button>
+                            <button onclick="window.abrirModalUsuario('${user.id}')" class="bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 px-2 py-1.5 rounded transition flex items-center gap-1" title="Editar">
+                                <i class="fa-solid fa-pen-to-square"></i> Editar
+                            </button>
+                            <button onclick="window.eliminarUsuarioSistema('${user.id}')" class="bg-rose-500/10 hover:bg-rose-500 text-rose-300 hover:text-white px-2 py-1.5 rounded transition flex items-center gap-1" title="Eliminar">
+                                <i class="fa-solid fa-trash-can"></i> Eliminar
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -306,6 +314,7 @@ window.guardarBancaSistema = async function(e) {
 };
 
 export async function cargarBancasSistema() {
+    // DECLARACIÓN OBLIGATORIA DE tbody
     const tbody = document.getElementById('bancas-table-body') || document.getElementById('tabla-bancas-body');
     if (!tbody) return;
 
@@ -327,8 +336,6 @@ export async function cargarBancasSistema() {
         tbody.innerHTML = bancas.map(b => {
             const nombre = b.nombre_banca || b.nombre || 'Banca Principal';
             const operador = b.vendedor_nombre || b.operador || 'Sin Asignar';
-            
-            // LECTURA 100% DINÁMICA DE COMISIÓN
             const comisionReal = (b.comision !== undefined && b.comision !== null && !isNaN(b.comision)) ? b.comision : 0;
             const limite = (b.limite_credito !== undefined && !isNaN(b.limite_credito)) ? b.limite_credito : 300;
             const zonaStr = b.zona || 'Zona General';

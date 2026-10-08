@@ -1,5 +1,6 @@
 // ==========================================================
-// MÓDULO DE AUTENTICACIÓN (auth.js)
+// MÓDULO DE AUTENTICACIÓN HÍBRIDO (auth.js)
+// Soporta Supabase Auth (admin@buxiloto.com) y Tablas Personalizadas (Bancas/Usuarios)
 // ==========================================================
 
 const SUPABASE_URL = 'https://ruruabsbkvfbudnqkjby.supabase.co';
@@ -15,21 +16,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         const sesionGuardada = localStorage.getItem('usuario_sesion');
         if (sesionGuardada) {
             const user = JSON.parse(sesionGuardada);
-            if (user && user.id) {
-                console.log("🟢 Sesión activa detectada en localStorage.");
-                const loginWrapper = document.getElementById('auth-login-wrapper');
-                const mainContainer = document.getElementById('main-app-container');
+            if (user && (user.id || user.email || user.username)) {
+                console.log("🟢 Sesión activa detectada.");
+                aplicarAccesoYMostrarSistema(user);
+                return;
+            }
+        }
 
-                if (loginWrapper) loginWrapper.classList.add('hidden');
-                if (mainContainer) mainContainer.classList.remove('hidden');
+        // Verificar sesión activa nativa de Supabase Auth
+        const client = window.supabase;
+        if (client && client.auth) {
+            const { data: { session } } = await client.auth.getSession();
+            if (session && session.user) {
+                const { data: profile } = await client
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', session.user.id)
+                    .maybeSingle();
 
-                if (typeof window.iniciarAplicacionPrincipal === 'function') {
-                    window.iniciarAplicacionPrincipal();
-                }
+                const usuarioMaster = profile || { 
+                    id: session.user.id, 
+                    nombre: 'Administrador Maestro', 
+                    username: 'admin', 
+                    rol: 'admin',
+                    email: session.user.email 
+                };
+
+                localStorage.setItem('usuario_sesion', JSON.stringify(usuarioMaster));
+                aplicarAccesoYMostrarSistema(usuarioMaster);
             }
         }
     } catch (err) {
-        console.error("Error al comprobar la sesión inicial:", err);
+        console.error("Error al comprobar sesión inicial:", err);
     }
 });
 
@@ -38,8 +56,7 @@ const loginForm = document.getElementById('login-form');
 if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        // Ignorar el símbolo '@' si el usuario lo llega a colocar por error
-        const usernameIngresado = document.getElementById('login-usuario').value.trim().replace(/^@/, '');
+        const inputIngresado = document.getElementById('login-usuario').value.trim();
         const passwordInput = document.getElementById('login-password').value;
         const submitBtn = document.getElementById('btn-login-submit');
 
@@ -54,27 +71,62 @@ if (loginForm) {
 
             let cuentaUsuario = null;
 
-            // Paso A: Buscar en la tabla 'bancas' (Vendedores y Bancas)
-            const { data: bancaData, error: bancaErr } = await client
-                .from('bancas')
-                .select('*')
-                .eq('username', usernameIngresado)
-                .eq('password', passwordInput)
-                .maybeSingle();
+            // CASO A: Si ingresó un correo (ej. admin@buxiloto.com), intentar Supabase Auth
+            if (inputIngresado.includes('@')) {
+                const { data: authData, error: authError } = await client.auth.signInWithPassword({
+                    email: inputIngresado,
+                    password: passwordInput
+                });
 
-            if (bancaData) {
-                cuentaUsuario = bancaData;
-            } else {
-                // Paso B: Si no está en bancas, buscar en la tabla 'usuarios' (Admins y Supervisores)
-                const { data: usuarioData, error: usuarioErr } = await client
+                if (!authError && authData.user) {
+                    const { data: profileData } = await client
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', authData.user.id)
+                        .maybeSingle();
+
+                    cuentaUsuario = profileData || {
+                        id: authData.user.id,
+                        nombre: 'Administrador Maestro',
+                        username: 'admin',
+                        rol: 'admin',
+                        email: authData.user.email,
+                        estatus: 'activo'
+                    };
+                }
+            }
+
+            // CASO B: Si no es correo o falló Supabase Auth, buscar por username en la tabla 'usuarios'
+            if (!cuentaUsuario) {
+                const usernameLimpio = inputIngresado.replace(/^@/, '');
+                const { data: usuarioData } = await client
                     .from('usuarios')
                     .select('*')
-                    .eq('username', usernameIngresado)
+                    .eq('username', usernameLimpio)
                     .eq('password', passwordInput)
                     .maybeSingle();
 
                 if (usuarioData) {
                     cuentaUsuario = usuarioData;
+                }
+            }
+
+            // CASO C: Si aún no se encuentra, buscar por username en la tabla 'bancas' (Vendedores)
+            if (!cuentaUsuario) {
+                const usernameLimpio = inputIngresado.replace(/^@/, '');
+                const { data: bancaData } = await client
+                    .from('bancas')
+                    .select('*')
+                    .eq('username', usernameLimpio)
+                    .eq('password', passwordInput)
+                    .maybeSingle();
+
+                if (bancaData) {
+                    cuentaUsuario = {
+                        ...bancaData,
+                        rol: 'caja',
+                        nombre: bancaData.nombre_banca || bancaData.nombre || 'Banca'
+                    };
                 }
             }
 
@@ -84,7 +136,7 @@ if (loginForm) {
                 return;
             }
 
-            // Verificar estatus activo
+            // Verificar estatus
             const estatus = String(cuentaUsuario.estatus || cuentaUsuario.estado || 'activo').toLowerCase();
             if (estatus !== 'activo') {
                 alert(`⚠️ Esta cuenta se encuentra ${estatus}. Contacte al administrador.`);
@@ -92,21 +144,9 @@ if (loginForm) {
                 return;
             }
 
-            // Guardar sesión en localStorage
+            // Guardar sesión y mostrar sistema
             localStorage.setItem('usuario_sesion', JSON.stringify(cuentaUsuario));
-
-            // Ocultar login y mostrar el contenedor principal del sistema
-            const loginWrapper = document.getElementById('auth-login-wrapper');
-            const mainContainer = document.getElementById('main-app-container');
-
-            if (loginWrapper) loginWrapper.classList.add('hidden');
-            if (mainContainer) mainContainer.classList.remove('hidden');
-
-            if (typeof window.iniciarAplicacionPrincipal === 'function') {
-                window.iniciarAplicacionPrincipal();
-            } else {
-                window.location.reload();
-            }
+            aplicarAccesoYMostrarSistema(cuentaUsuario);
 
         } catch (err) {
             console.error('Error en el login:', err);
@@ -114,6 +154,18 @@ if (loginForm) {
             resetBtn();
         }
     });
+}
+
+function aplicarAccesoYMostrarSistema(usuario) {
+    const loginWrapper = document.getElementById('auth-login-wrapper');
+    const mainContainer = document.getElementById('main-app-container');
+
+    if (loginWrapper) loginWrapper.classList.add('hidden');
+    if (mainContainer) mainContainer.classList.remove('hidden');
+
+    if (typeof window.iniciarAplicacionPrincipal === 'function') {
+        window.iniciarAplicacionPrincipal();
+    }
 }
 
 function resetBtn() {

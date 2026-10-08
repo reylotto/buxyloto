@@ -327,7 +327,9 @@ export async function cargarBancasSistema() {
         tbody.innerHTML = bancas.map(b => {
             const nombre = b.nombre_banca || b.nombre || 'Banca Principal';
             const operador = b.vendedor_nombre || b.operador || 'Sin Asignar';
-            const comision = (b.comision !== undefined && !isNaN(b.comision)) ? b.comision : 15;
+            
+            // LECTURA 100% DINÁMICA DE COMISIÓN
+            const comisionReal = (b.comision !== undefined && b.comision !== null && !isNaN(b.comision)) ? b.comision : 0;
             const limite = (b.limite_credito !== undefined && !isNaN(b.limite_credito)) ? b.limite_credito : 300;
             const zonaStr = b.zona || 'Zona General';
 
@@ -338,7 +340,9 @@ export async function cargarBancasSistema() {
             }
 
             const estatusVal = String(b.estatus || 'activo').toLowerCase();
-            const badge = estatusVal === 'activo' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+            const badge = estatusVal === 'activo' 
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                : 'bg-rose-500/10 text-rose-400 border-rose-500/20';
 
             return `
                 <tr class="hover:bg-slate-800/60 transition border-b border-slate-700/40 text-xs">
@@ -346,9 +350,9 @@ export async function cargarBancasSistema() {
                     <td class="p-3 text-cyan-400 font-medium">${operador}</td>
                     <td class="p-3 text-amber-400 font-medium">${zonaStr}</td>
                     <td class="p-3 text-slate-300">${supervisorNombre}</td>
-                    <td class="p-3 font-mono text-emerald-400 font-bold">${comision}%</td>
-                    <td class="p-3 font-mono text-white font-semibold">$${Number(limite).toFixed(2)}</td>
-                    <td class="p-3"><span class="${badge} border px-2.5 py-1 rounded-full text-[10px] font-bold capitalize">${estatusVal}</span></td>
+                    <td class="p-3 font-mono text-emerald-400 font-bold text-center">${comisionReal}%</td>
+                    <td class="p-3 font-mono text-white font-semibold text-center">$${Number(limite).toFixed(2)}</td>
+                    <td class="p-3 text-center"><span class="${badge} border px-2.5 py-1 rounded-full text-[10px] font-bold capitalize">${estatusVal}</span></td>
                     <td class="p-3 text-center">
                         <div class="flex items-center justify-center gap-1.5">
                             <button onclick="window.cambiarPasswordBanca('${b.id}', '${nombre}')" class="bg-blue-500/10 hover:bg-blue-500 text-blue-300 hover:text-white px-2 py-1.5 rounded transition flex items-center gap-1" title="Cambiar Contraseña"><i class="fa-solid fa-key"></i> Pass</button>
@@ -391,5 +395,17 @@ window.eliminarBancaSistema = async function(id) {
     if (supabase) {
         await supabase.from('bancas').delete().eq('id', id);
         cargarBancasSistema();
+    }
+};
+window.cambiarPasswordUsuario = async function(id, nombre) {
+    const nueva = prompt(`Ingrese la nueva contraseña para el usuario/supervisor "${nombre}":`);
+    if (!nueva || nueva.trim().length < 6) {
+        return alert("⚠️ La contraseña debe tener al menos 6 caracteres.");
+    }
+    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+    if (supabase) {
+        const { error } = await supabase.from('usuarios').update({ password: nueva.trim() }).eq('id', id);
+        if (error) return alert("Error al actualizar contraseña: " + error.message);
+        alert("✅ Contraseña actualizada con éxito en Supabase.");
     }
 };

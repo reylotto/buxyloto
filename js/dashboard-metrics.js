@@ -3,6 +3,10 @@
 // Archivo independiente: dashboard-metrics.js
 // ==========================================
 
+function getSupabaseClientMetrics() {
+  return window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // Inicializar componentes al cargar
   cargarResumenVentasHoy();
@@ -21,6 +25,9 @@ function configurarFormularioPerfil() {
 
   formPerfil.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    const supabase = getSupabaseClientMetrics();
+    if (!supabase || !supabase.auth) return alert("Error: Cliente Supabase no disponible.");
 
     const nuevoNombre = document.getElementById('inputNombreAdmin')?.value.trim();
     const nuevaPassword = document.getElementById('inputPasswordAdmin')?.value.trim();
@@ -78,15 +85,17 @@ function configurarCierreSesion() {
 
 async function cerrarSesionSincronizada() {
   try {
-    // Cerrar sesión en Supabase
-    await supabase.auth.signOut();
+    const supabase = getSupabaseClientMetrics();
+    if (supabase && supabase.auth) {
+      await supabase.auth.signOut();
+    }
   } catch (err) {
     console.error('Error al cerrar sesión en Supabase:', err);
   } finally {
     // Limpiar almacenamiento local y redirigir
     localStorage.clear();
     sessionStorage.clear();
-    window.location.href = 'login.html'; // Cambia por tu ruta exacta de login (ej: /login, login.html)
+    window.location.href = 'login.html';
   }
 }
 
@@ -95,6 +104,9 @@ async function cerrarSesionSincronizada() {
 // ------------------------------------------
 async function cargarResumenVentasHoy() {
   try {
+    const supabase = getSupabaseClientMetrics();
+    if (!supabase) return;
+
     const inicioHoy = new Date();
     inicioHoy.setHours(0, 0, 0, 0);
 
@@ -107,8 +119,8 @@ async function cargarResumenVentasHoy() {
 
     if (error) throw error;
 
-    const totalVentas = tickets.reduce((acc, t) => acc + (parseFloat(t.monto_total) || 0), 0);
-    const totalTickets = tickets.length;
+    const totalVentas = (tickets || []).reduce((acc, t) => acc + (parseFloat(t.monto_total) || 0), 0);
+    const totalTickets = (tickets || []).length;
 
     // Actualizar elementos DOM del resumen
     const elemVentas = document.getElementById('resumenVentasHoy');
@@ -128,6 +140,9 @@ async function cargarGraficoVentasPorVendedor() {
   if (!canvas) return;
 
   try {
+    const supabase = getSupabaseClientMetrics();
+    if (!supabase) return;
+
     const inicioHoy = new Date();
     inicioHoy.setHours(0,0,0,0);
 
@@ -141,7 +156,7 @@ async function cargarGraficoVentasPorVendedor() {
 
     // Agrupar ventas por vendedor
     const ventasMap = {};
-    data.forEach(t => {
+    (data || []).forEach(t => {
       const vendedor = t.vendedor_nombre || 'Sin nombre';
       ventasMap[vendedor] = (ventasMap[vendedor] || 0) + parseFloat(t.monto_total || 0);
     });
@@ -154,19 +169,20 @@ async function cargarGraficoVentasPorVendedor() {
       window.chartVendedoresInstance.destroy();
     }
 
-    // Renderizar gráfico con Chart.js
-    window.chartVendedoresInstance = new Chart(canvas, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Ventas por Vendedor ($)',
-          data: valores,
-          backgroundColor: '#3b82f6'
-        }]
-      },
-      options: { responsive: true, maintainAspectRatio: false }
-    });
+    if (typeof Chart !== 'undefined') {
+      window.chartVendedoresInstance = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Ventas por Vendedor ($)',
+            data: valores,
+            backgroundColor: '#3b82f6'
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }
 
   } catch (err) {
     console.error('Error cargando gráfico de vendedores:', err);
@@ -179,6 +195,9 @@ async function cargarGraficoDistribucionSorteos() {
   if (!canvas) return;
 
   try {
+    const supabase = getSupabaseClientMetrics();
+    if (!supabase) return;
+
     const inicioHoy = new Date();
     inicioHoy.setHours(0,0,0,0);
 
@@ -192,7 +211,7 @@ async function cargarGraficoDistribucionSorteos() {
 
     // Agrupar por sorteo
     const sorteosMap = {};
-    data.forEach(t => {
+    (data || []).forEach(t => {
       const sorteo = t.sorteo_nombre || 'General';
       sorteosMap[sorteo] = (sorteosMap[sorteo] || 0) + parseFloat(t.monto_total || 0);
     });
@@ -204,17 +223,19 @@ async function cargarGraficoDistribucionSorteos() {
       window.chartSorteosInstance.destroy();
     }
 
-    window.chartSorteosInstance = new Chart(canvas, {
-      type: 'pie',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: valores,
-          backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
-        }]
-      },
-      options: { responsive: true, maintainAspectRatio: false }
-    });
+    if (typeof Chart !== 'undefined') {
+      window.chartSorteosInstance = new Chart(canvas, {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: valores,
+            backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }
 
   } catch (err) {
     console.error('Error cargando gráfico de sorteos:', err);

@@ -23,7 +23,9 @@ export function initDashboardModule() {
     cargarBancas();
     cargarHistorialTickets();
     initPerfilAdmin();
+    cargarResumenOperacionesHoy();
 }
+window.initDashboardModule = initDashboardModule;
 
 // 1. Reloj del sistema
 function initSystemClock() {
@@ -78,8 +80,6 @@ async function guardarPerfilAdmin() {
         return alert("Error: No se encontraron los campos del formulario en el modal.");
     }
 
-    // Leemos los inputs en el orden del formulario:
-    // Index 0: Nombre Completo | Index 1: Usuario/ID | Index 2: Nueva Contraseña | Index 3: Confirmar Contraseña
     const nuevoNombre = inputs[0] ? inputs[0].value.trim() : '';
     const nuevoUsuario = inputs[1] ? inputs[1].value.trim() : '';
     const nuevaPassword = inputs[2] ? inputs[2].value.trim() : '';
@@ -730,8 +730,9 @@ async function cargarHistorialTickets() {
                         sorteoCerrado = true;
                     }
 
-                    if (sorteoAsociado.hora_cierre) {
-                        const [h, m] = sorteoAsociado.hora_cierre.split(':');
+                    const horaCierreStr = sorteoAsociado.hora_cierre || sorteoAsociado.horario_cierre;
+                    if (horaCierreStr) {
+                        const [h, m] = horaCierreStr.split(':');
                         const fechaCierre = new Date();
                         fechaCierre.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
                         if (ahora >= fechaCierre) {
@@ -817,6 +818,7 @@ window.eliminarTicketHistorial = async function(ticketId) {
         alert('❌ Error al anular el ticket: ' + err.message);
     }
 };
+
 // Navegación de secciones
 function cambiarSeccion(seccionId) {
     document.querySelectorAll('.content-section').forEach(sec => sec.classList.add('hidden'));
@@ -1145,6 +1147,52 @@ function renderizarGraficoSorteos(tickets = []) {
 }
 window.renderizarGraficoSorteos = renderizarGraficoSorteos;
 
+// ==========================================================
+// EVALUACIÓN DINÁMICA DE ESTATUS (HORA DE PANAMÁ)
+// ==========================================================
+export function evaluarEstatusDinamicoSorteo(sorteo) {
+    if (!sorteo) return { texto: 'CERRADO', esActivo: false, claseBadge: 'bg-rose-500/20 text-rose-400 border border-rose-500/30' };
+
+    const estatusDB = String(sorteo.estatus || sorteo.estado || 'ACTIVO').toUpperCase().trim();
+    if (['PAUSADO', 'INACTIVO', 'PAUSA', 'DESACTIVADO'].includes(estatusDB)) {
+        return { 
+            texto: 'PAUSADO', 
+            esActivo: false, 
+            claseBadge: 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
+        };
+    }
+
+    const ahoraPanama = new Date().toLocaleTimeString('en-GB', { 
+        timeZone: 'America/Panama', 
+        hour12: false 
+    });
+
+    const normHora = (hStr, def) => {
+        if (!hStr || hStr === '00:00' || hStr === '00:00:00') return def;
+        let s = String(hStr).trim();
+        if (s.length === 5) s += ':00';
+        return s.length === 8 ? s : def;
+    };
+
+    const horaApertura = normHora(sorteo.hora_apertura || sorteo.horario_apertura, '06:00:00');
+    const horaCierre = normHora(sorteo.hora_cierre || sorteo.horario_cierre || sorteo.hora, '23:59:00');
+
+    if (ahoraPanama < horaApertura || ahoraPanama >= horaCierre) {
+        return { 
+            texto: 'CERRADO', 
+            esActivo: false, 
+            claseBadge: 'bg-rose-500/20 text-rose-400 border border-rose-500/30' 
+        };
+    }
+
+    return { 
+        texto: 'ACTIVO', 
+        esActivo: true, 
+        claseBadge: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+    };
+}
+window.evaluarEstatusDinamicoSorteo = evaluarEstatusDinamicoSorteo;
+
 // Grilla dinámica de sorteos en vivo
 async function cargarGridSorteosEnVivo() {
     try {
@@ -1166,8 +1214,8 @@ async function cargarGridSorteosEnVivo() {
 
         sorteos.forEach(sorteo => {
             const nombre = sorteo.nombre || sorteo.descripcion || `Sorteo #${sorteo.id}`;
-            const hora = sorteo.hora || sorteo.hora_cierre || '23:59';
-            const estatus = String(sorteo.estatus || sorteo.estado || 'activo').toLowerCase();
+            const hora = sorteo.hora_cierre || sorteo.horario_cierre || sorteo.hora || '23:59';
+            const estatusInfo = evaluarEstatusDinamicoSorteo(sorteo);
 
             const card = document.createElement('div');
             card.className = "bg-slate-900/60 border border-slate-700/60 p-3.5 rounded-xl flex flex-col justify-between space-y-3";
@@ -1175,9 +1223,7 @@ async function cargarGridSorteosEnVivo() {
             card.innerHTML = `
                 <div class="flex items-center justify-between">
                     <span class="font-bold text-white text-xs truncate">${nombre}</span>
-                    <span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                        estatus === 'activo' || estatus === 'abierto' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
-                    }">${estatus}</span>
+                    <span id="badge-sorteo-${sorteo.id}" class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${estatusInfo.claseBadge}">${estatusInfo.texto}</span>
                 </div>
                 <div class="flex items-center justify-between text-xs text-slate-400">
                     <span>Cierre: <strong class="text-slate-200">${hora}</strong></span>
@@ -1198,16 +1244,26 @@ async function cargarGridSorteosEnVivo() {
 
             sorteos.forEach(sorteo => {
                 const timerElem = document.getElementById(`timer-sorteo-${sorteo.id}`);
+                const badgeElem = document.getElementById(`badge-sorteo-${sorteo.id}`);
+
+                const estatusInfo = evaluarEstatusDinamicoSorteo(sorteo);
+
+                if (badgeElem) {
+                    badgeElem.textContent = estatusInfo.texto;
+                    badgeElem.className = `text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${estatusInfo.claseBadge}`;
+                }
+
                 if (!timerElem) return;
 
-                const estatus = String(sorteo.estatus || sorteo.estado || 'activo').toLowerCase();
-                if (estatus !== 'activo' && estatus !== 'abierto') {
-                    timerElem.textContent = "CERRADO";
-                    timerElem.className = "font-mono font-bold text-rose-400";
+                if (!estatusInfo.esActivo) {
+                    timerElem.textContent = estatusInfo.texto;
+                    timerElem.className = estatusInfo.texto === 'PAUSADO' 
+                        ? "font-mono font-bold text-amber-400" 
+                        : "font-mono font-bold text-rose-400";
                     return;
                 }
 
-                const horaStr = sorteo.hora || sorteo.hora_cierre || '23:59:00';
+                const horaStr = sorteo.hora_cierre || sorteo.horario_cierre || sorteo.hora || '23:59:00';
                 const [h, m, s] = horaStr.split(':');
                 const fechaCierre = new Date();
                 fechaCierre.setHours(parseInt(h || '23', 10), parseInt(m || '59', 10), parseInt(s || '0', 10), 0);
@@ -1223,6 +1279,7 @@ async function cargarGridSorteosEnVivo() {
                     const segs = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
 
                     timerElem.textContent = `${hrs}:${mins}:${segs}`;
+                    timerElem.className = "font-mono font-bold text-amber-400";
 
                     if (diff < 900000) { 
                         if (!window._sorteosSilenciados.has(sorteo.id)) {

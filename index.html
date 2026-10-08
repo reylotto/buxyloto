@@ -1025,17 +1025,24 @@
                 </div>
             </div>
 
-            <!-- Botones de Acción -->
-            <div class="pt-3 flex gap-2">
-                <button type="button" onclick="cerrarModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition btn-close-user-modal">
-                    Cancelar
-                </button>
-                <button type="submit" id="btn-guardar-usuario" class="w-1/2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition">
-                    <i class="fa-solid fa-floppy-disk"></i> Guardar en Supabase
-                </button>
-            </div>
-        </form>
-    </div>
+            <!-- ... (otros campos como nombre, contraseña, rol) ... -->
+
+        <!-- CAMPO DE ZONA NUEVO QUE VAS A PEGAR -->
+        <div class="mt-4 mb-4">
+            <label for="crear-zona" class="block text-xs font-semibold text-slate-400 mb-1">Zona Asignada (Solo Supervisores)</label>
+            <input type="text" id="crear-zona" placeholder="Ej: Zona Norte" value="Zona General" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 transition" />
+        </div>
+
+        <!-- Botones de Acción (ESTO YA LO TIENES) -->
+        <div class="pt-3 flex gap-2">
+            <button type="button" onclick="cerrarModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition btn-close-user-modal">
+                Cancelar
+            </button>
+            <button type="submit" id="btn-guardar-usuario" class="w-1/2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition">
+                <i class="fa-solid fa-floppy-disk"></i> Guardar en Supabase
+            </button>
+        </div>
+    </form>
 </div>
             <!-- SECCIÓN: GESTIÓN DE LOTERÍAS & SORTEOS -->
 <section id="section-loterias" class="content-section space-y-6 hidden admin-only">

@@ -23,7 +23,7 @@ window.obtenerFiltroZonaSupervisor = function() {
     if (rol.includes('supervisor') && user.zona) {
         return String(user.zona).trim();
     }
-    return null; // Admin ve todo
+    return null;
 };
 
 window.aplicarPermisosGlobales = function() {
@@ -34,12 +34,11 @@ window.aplicarPermisosGlobales = function() {
 
     console.log(`🛡️ [SEGURIDAD] Aplicando permisos estrictos -> [Rol: ${rol}] [Zona: ${zona}]`);
 
-    // 1. Actualizar indicador superior derecho (Nombre y Rol Real) y OCULTAR SIMULADOR DE ROLES
     setTimeout(() => {
-        // Ocultar el selector de "CAMBIAR ROL / SIMULACIÓN" para que nadie pueda alterar el rol visualmente
-        const contenedorSimulacion = document.querySelector('.cambiar-rol-container, select[id*="rol"], div:has(> label:contains("CAMBIAR ROL"))');
-        document.querySelectorAll('div, label, select').forEach(el => {
-            if (el.textContent.includes('CAMBIAR ROL') || el.textContent.includes('SIMULACIÓN')) {
+        // Búsqueda segura por texto en lugar de usar selectores CSS inválidos (:contains)
+        document.querySelectorAll('div, label, select, span').forEach(el => {
+            const txt = (el.textContent || '').toUpperCase();
+            if (txt.includes('CAMBIAR ROL') || txt.includes('SIMULACIÓN')) {
                 const padre = el.closest('div.relative') || el.closest('div') || el;
                 if (padre) padre.style.display = 'none';
             }
@@ -65,7 +64,6 @@ window.aplicarPermisosGlobales = function() {
         }
     }, 300);
 
-    // 2. Restricciones de Menú y Funciones según el rol
     setTimeout(() => {
         const linksMenu = document.querySelectorAll('aside nav a, nav a, .sidebar a');
         
@@ -74,7 +72,6 @@ window.aplicarPermisosGlobales = function() {
             const href = link.getAttribute('href') || '';
 
             if (rol.includes('supervisor')) {
-                // SUPERVISOR: Fuera POS, Gestión de Usuarios, Bancas, Loterías, Riesgo
                 if (
                     texto.includes('punto de venta') || href.includes('pos') ||
                     texto.includes('gestión de usuarios') || texto.includes('gestion de usuarios') ||
@@ -88,7 +85,6 @@ window.aplicarPermisosGlobales = function() {
                     if (contenedor) contenedor.style.display = 'none';
                 }
             } else if (rol.includes('caja') || rol.includes('vendedor')) {
-                // VENDEDOR: Solo POS e Historial
                 if (!texto.includes('pos') && !texto.includes('punto de venta') && !texto.includes('historial')) {
                     const contenedor = link.closest('li') || link.closest('div') || link;
                     if (contenedor) contenedor.style.display = 'none';
@@ -96,13 +92,11 @@ window.aplicarPermisosGlobales = function() {
             }
         });
 
-        // 3. Bloquear acciones de escritura en Escrutinio para Supervisores
         if (rol.includes('supervisor')) {
             const formEscrutinio = document.getElementById('form-registrar-resultados');
             if (formEscrutinio) {
-                formEscrutinio.style.display = 'none'; // Oculta el formulario de ingresar resultados
+                formEscrutinio.style.display = 'none';
             }
-            // Ocultar botones de guardar escrutinio
             document.querySelectorAll('.btn-guardar-escrutinio, button[type="submit"]').forEach(btn => {
                 if (btn.textContent.toLowerCase().includes('escrutinio') || btn.textContent.toLowerCase().includes('registrar')) {
                     btn.style.display = 'none';
@@ -110,7 +104,6 @@ window.aplicarPermisosGlobales = function() {
             });
         }
 
-        // Ocultar botones de administración flotantes si no es admin
         if (!rol.includes('admin') && !rol.includes('administrador')) {
             document.querySelectorAll('.admin-only, #btn-open-usuario-modal, #btn-open-banca-modal, #btn-open-loteria-modal').forEach(el => {
                 el.style.display = 'none';

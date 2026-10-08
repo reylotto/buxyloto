@@ -101,12 +101,17 @@ window.abrirModalUsuario = function(id = null) {
 
         const user = (window._usuariosCache || []).find(u => String(u.id) === String(id));
         if (user) {
-            document.getElementById('crear-nombre').value = user.nombre || '';
-            document.getElementById('crear-username').value = user.username || '';
-            document.getElementById('crear-rol').value = user.rol || 'supervisor';
-            document.getElementById('crear-estatus').value = user.estatus || 'activo';
-            const inputZona = document.getElementById('crear-zona');
-            if (inputZona) inputZona.value = user.zona || 'Zona General';
+            // Asignación Segura
+            const setValorSeguro = (elementId, valor) => {
+                const el = document.getElementById(elementId);
+                if (el) el.value = valor;
+            };
+
+            setValorSeguro('crear-nombre', user.nombre || '');
+            setValorSeguro('crear-username', user.username || '');
+            setValorSeguro('crear-rol', user.rol || 'supervisor');
+            setValorSeguro('crear-estatus', user.estatus || 'activo');
+            setValorSeguro('crear-zona', user.zona || 'Zona General');
         }
     } else {
         if(titulo) titulo.innerHTML = `<i class="fa-solid fa-user-plus"></i> Registrar Usuario / Supervisor`;
@@ -114,7 +119,10 @@ window.abrirModalUsuario = function(id = null) {
         if(pwdInput) pwdInput.required = true;
     }
 
-    if (modal) modal.classList.remove('hidden');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+    }
 };
 
 window.guardarUsuarioSistema = async function(e) {
@@ -227,11 +235,11 @@ window.eliminarUsuarioSistema = async function(id) {
 // ==========================================================
 window.abrirModalBanca = function(id = null) {
     window.cerrarTodosLosModales();
-    const modal = document.getElementById('modal-banca');
-    const form = document.getElementById('form-banca');
-    const titulo = document.getElementById('modal-titulo-banca');
-    const pwdContainer = document.getElementById('container-pwd-banca');
-    const pwdInput = document.getElementById('banca-password');
+    const modal = document.getElementById('modal-banca') || document.getElementById('modal-crear-banca');
+    const form = document.getElementById('form-banca') || document.getElementById('form-crear-banca');
+    const titulo = document.getElementById('modal-titulo-banca') || document.getElementById('modal-titulo');
+    const pwdContainer = document.getElementById('container-pwd-banca') || document.getElementById('container-password-banca');
+    const pwdInput = document.getElementById('banca-password') || document.getElementById('crear-password');
     const selectSupervisor = document.getElementById('banca-supervisor');
 
     if (form) form.reset();
@@ -265,26 +273,24 @@ window.abrirModalBanca = function(id = null) {
 
         const banca = (window._bancasCache || []).find(b => String(b.id) === String(id));
         if (banca) {
-            document.getElementById('banca-nombre').value = banca.nombre_banca || banca.nombre || '';
-            document.getElementById('banca-operador').value = banca.vendedor_nombre || banca.operador || '';
-            document.getElementById('banca-usuario').value = banca.username || banca.usuario || '';
+            // Asignación Segura
+            const setValorSeguro = (elementId, valor) => {
+                const el = document.getElementById(elementId);
+                if (el) el.value = valor;
+            };
+
+            setValorSeguro('banca-nombre', banca.nombre_banca || banca.nombre || '');
+            setValorSeguro('banca-operador', banca.vendedor_nombre || banca.operador || '');
+            setValorSeguro('banca-usuario', banca.username || banca.usuario || '');
+            setValorSeguro('banca-comision', banca.comision !== undefined ? banca.comision : 15);
+            setValorSeguro('banca-limite', banca.limite_credito !== undefined ? banca.limite_credito : 300);
+            setValorSeguro('banca-max-jugada', banca.monto_max_jugada !== undefined ? banca.monto_max_jugada : 100);
+            setValorSeguro('banca-estatus', banca.estatus || 'activo');
+            setValorSeguro('banca-zona', banca.zona || 'Zona General');
             
-            const comisionInput = document.getElementById('banca-comision');
-            if(comisionInput) comisionInput.value = banca.comision !== undefined ? banca.comision : 15;
-            
-            const limiteInput = document.getElementById('banca-limite');
-            if(limiteInput) limiteInput.value = banca.limite_credito !== undefined ? banca.limite_credito : 300;
-            
-            const maxJugadaInput = document.getElementById('banca-max-jugada');
-            if(maxJugadaInput) maxJugadaInput.value = banca.monto_max_jugada !== undefined ? banca.monto_max_jugada : 100;
-            
-            const estatusInput = document.getElementById('banca-estatus');
-            if(estatusInput) estatusInput.value = banca.estatus || 'activo';
-            
-            if (selectSupervisor && banca.supervisor_id) selectSupervisor.value = banca.supervisor_id;
-            
-            const inputZona = document.getElementById('banca-zona');
-            if (inputZona) inputZona.value = banca.zona || 'Zona General';
+            if (selectSupervisor && banca.supervisor_id) {
+                selectSupervisor.value = banca.supervisor_id;
+            }
         }
     } else {
         if (titulo) titulo.innerHTML = `<i class="fa-solid fa-store text-cyan-400"></i> <span>Registrar Nueva Banca / Vendedor POS</span>`;
@@ -292,7 +298,10 @@ window.abrirModalBanca = function(id = null) {
         if (pwdInput) pwdInput.required = true;
     }
 
-    if (modal) modal.classList.remove('hidden');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+    }
 };
 
 window.guardarBancaSistema = async function(e) {

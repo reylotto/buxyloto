@@ -184,7 +184,7 @@ window.eliminarUsuarioSistema = async function(id) {
 };
 
 // ==========================================================
-// 2. GESTIÓN DE BANCAS Y VENDEDORES CON FILTRO DE ZONA POR SUPERVISOR
+// 2. GESTIÓN DE BANCAS Y VENDEDORES CON FILTRO SEGURO POR ZONA
 // ==========================================================
 window.abrirModalBanca = function(id = null) {
     window.cerrarTodosLosModales();
@@ -309,13 +309,28 @@ export async function cargarBancasSistema() {
         const esAdmin = rol === 'admin' || rol === 'administrador';
         const zonaUsuario = sesion.zona || 'Zona General';
 
-        // Llamada directa a la función segura en SQL de Supabase
-        const { data: bancas, error } = await supabase.rpc('obtener_bancas_por_zona', {
-            p_zona: zonaUsuario,
-            p_es_admin: esAdmin
-        });
+        let bancas = [];
 
-        if (error) throw error;
+        try {
+            const resRpc = await supabase.rpc('obtener_bancas_por_zona', {
+                p_zona: zonaUsuario,
+                p_es_admin: esAdmin
+            });
+            if (!resRpc.error && resRpc.data) {
+                bancas = resRpc.data;
+            } else {
+                throw new Error("RPC no disponible");
+            }
+        } catch (e) {
+            let query = supabase.from('bancas').select('*');
+            if (!esAdmin && zonaUsuario) {
+                query = query.eq('zona', zonaUsuario);
+            }
+            const resDirect = await query.order('created_at', { ascending: false });
+            if (resDirect.error) throw resDirect.error;
+            bancas = resDirect.data || [];
+        }
+
         window._bancasCache = bancas || [];
 
         if (!bancas || bancas.length === 0) {
@@ -323,8 +338,6 @@ export async function cargarBancasSistema() {
             return;
         }
 
-        // Renderizado de tabla...
-        // (El resto de tu lógica de filas se mantiene intacta)
         const usuariosCache = window._usuariosCache || [];
 
         tbody.innerHTML = bancas.map(b => {

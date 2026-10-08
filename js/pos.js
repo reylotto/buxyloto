@@ -20,14 +20,23 @@ window.ultimoMontoIngresado = window.ultimoMontoIngresado || null;
 // Exponer la función globalmente para su uso desde cualquier parte del flujo del POS
 window.anularTicketCancelado = anularTicketCancelado;
 
+// Timer global para refresco en tiempo real
+let timerRefrescoPOS = null;
+
 // ----------------------------------------------------------
 // 1. INICIALIZACIÓN DEL MÓDULO POS
 // ----------------------------------------------------------
 export function initPOSModule() {
-    console.log("🚀 Módulo POS Inicializado correctamente.");
+    console.log("🚀 Módulo POS Inicializado correctamente con Validación Dinámica.");
     ejecutarCargaConReintento();
     cargarSorteosPOS();
     activarEventosPOS();
+
+    // Refresco automático en vivo cada 30 segundos para abrir/cerrar sorteos sin recargar F5
+    if (timerRefrescoPOS) clearInterval(timerRefrescoPOS);
+    timerRefrescoPOS = setInterval(() => {
+        cargarSorteosPOS();
+    }, 30000);
 }
 window.initPOSModule = initPOSModule;
 
@@ -94,7 +103,7 @@ export async function cargarListaVendedores() {
     if (!selectVendedor) return false;
 
     try {
-        const supabase = window.supabase;
+        const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
         if (!supabase) return false;
 
         const { data: bancasActivas, error } = await supabase
@@ -149,17 +158,71 @@ export function obtenerNombreBancaActual() {
 window.obtenerNombreBancaActual = obtenerNombreBancaActual;
 
 // ----------------------------------------------------------
-// 4. CARGA DE SORTEOS EN POS
+// 4. VALIDACIÓN DINÁMICA DE HORARIOS EN PANAMÁ
+// ----------------------------------------------------------
+export function esSorteoAbiertoParaVenta(sorteo) {
+    if (!sorteo) return false;
+
+    // 1. Interruptor administrativo maestro
+    const est = String(sorteo.estatus || sorteo.estado || '').toUpperCase().trim();
+    if (['PAUSADO', 'INACTIVO', 'CERRADO', 'FINALIZADO', 'ESCRUTADO', 'DESACTIVADO', 'PAUSA'].includes(est)) {
+        return false;
+    }
+
+    // 2. Obtener hora actual exacta en Panamá (Formato 24h HH:MM:SS)
+    const ahoraPanama = new Date().toLocaleTimeString('en-GB', { 
+        timeZone: 'America/Panama', 
+        hour12: false 
+    });
+
+    // 3. Verificación de días de juego
+    const diasJuego = sorteo.dias_juego || sorteo.dias || '';
+    if (diasJuego && String(diasJuego).trim() !== '') {
+        const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+        const fechaPanamaObj = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Panama' }));
+        const diaHoyStr = diasSemana[fechaPanamaObj.getDay()];
+
+        const diasNorm = String(diasJuego).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const diaHoyNorm = diaHoyStr.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+        if (!diasNorm.includes(diaHoyNorm)) {
+            return false;
+        }
+    }
+
+    // 4. Normalización de horas de apertura y cierre
+    const normalizarHora = (hStr, defecto) => {
+        if (!hStr) return defecto;
+        let s = String(hStr).trim();
+        if (s.length === 5) s += ':00';
+        if (s.length === 8) return s;
+        return defecto;
+    };
+
+    const horaApertura = normalizarHora(sorteo.horario_apertura || sorteo.hora_apertura, '06:00:00');
+    const horaCierre = normalizarHora(sorteo.horario_cierre || sorteo.hora_cierre, '23:59:00');
+
+    // 5. Comparación estricta de ventana horaria
+    if (ahoraPanama < horaApertura || ahoraPanama >= horaCierre) {
+        return false;
+    }
+
+    return true;
+}
+window.esSorteoAbiertoParaVenta = esSorteoAbiertoParaVenta;
+
+// ----------------------------------------------------------
+// 5. CARGA DINÁMICA DE SORTEOS EN POS
 // ----------------------------------------------------------
 export async function cargarSorteosPOS() {
     try {
-        const supabase = window.supabase;
+        const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
         if (!supabase) return;
 
         const { data: sorteos, error } = await supabase
             .from('sorteos')
             .select('*')
-            .order('hora_cierre', { ascending: true });
+            .order('id', { ascending: true });
 
         const contCheckboxes = document.getElementById('pos-loterias-checkboxes');
         if (!contCheckboxes) return;
@@ -168,36 +231,30 @@ export async function cargarSorteosPOS() {
 
         if (error || !sorteos || sorteos.length === 0) {
             contCheckboxes.innerHTML = '<p class="text-slate-400 text-xs p-2 col-span-full">No hay sorteos creados.</p>';
+            actualizarResumenSorteos();
             return;
         }
 
-        const ahora = new Date();
-        const sorteosDisponibles = sorteos.filter(s => {
-            const estatus = String(s.estatus || s.estado || '').toLowerCase();
-            if (estatus === 'cerrado' || estatus === 'finalizado' || estatus === 'escrutado') return false;
-
-            if (s.hora_cierre) {
-                const [horas, minutos] = s.hora_cierre.split(':');
-                const fechaCierre = new Date();
-                fechaCierre.setHours(parseInt(horas, 10), parseInt(minutos, 10), 0, 0);
-                if (ahora >= fechaCierre) return false;
-            }
-            return true;
-        });
+        // Filtrado dinámico estricto por horario Panamá
+        const sorteosDisponibles = sorteos.filter(s => esSorteoAbiertoParaVenta(s));
 
         if (sorteosDisponibles.length === 0) {
-            contCheckboxes.innerHTML = '<p class="text-slate-400 text-xs p-2 col-span-full">No hay sorteos activos disponibles.</p>';
+            contCheckboxes.innerHTML = '<p class="text-amber-400/90 text-xs font-semibold p-3 col-span-full text-center bg-amber-950/20 border border-amber-800/30 rounded-lg">🕒 No hay sorteos disponibles para venta en este momento (fuera de horario o cerrados).</p>';
+            actualizarResumenSorteos();
             return;
         }
 
         sorteosDisponibles.forEach(s => {
+            const horaAp = s.horario_apertura || s.hora_apertura || '06:00';
+            const horaCi = s.horario_cierre || s.hora_cierre || '--';
+
             const label = document.createElement('label');
             label.className = 'flex items-center gap-2 bg-slate-800 p-2.5 rounded-lg border border-slate-700 cursor-pointer hover:border-emerald-500 transition-colors select-none';
             label.innerHTML = `
                 <input type="checkbox" name="pos-sorteos-selected" value="${s.id}" data-nombre="${s.nombre}" class="w-4 h-4 text-emerald-500 rounded border-slate-600 focus:ring-emerald-500">
                 <div class="flex flex-col">
                     <span class="text-xs font-bold text-white">${s.nombre}</span>
-                    <span class="text-[10px] text-slate-400">🕒 ${s.hora_apertura || '--'} - ${s.hora_cierre || '--'}</span>
+                    <span class="text-[10px] text-slate-400">🕒 ${horaAp} - ${horaCi}</span>
                 </div>
             `;
             contCheckboxes.appendChild(label);
@@ -205,6 +262,7 @@ export async function cargarSorteosPOS() {
 
         contCheckboxes.removeEventListener('change', actualizarResumenSorteos);
         contCheckboxes.addEventListener('change', actualizarResumenSorteos);
+        actualizarResumenSorteos();
 
     } catch (err) {
         console.error("❌ Error al cargar sorteos en POS:", err.message);
@@ -230,7 +288,7 @@ function actualizarResumenSorteos() {
 window.actualizarResumenSorteos = actualizarResumenSorteos;
 
 // ----------------------------------------------------------
-// 5. AGREGAR JUGADA Y RENDERIZAR EN TIEMPO REAL
+// 6. AGREGAR JUGADA Y RENDERIZAR EN TIEMPO REAL
 // ----------------------------------------------------------
 export function agregarJugadaAlCarrito() {
     const inputNum = document.getElementById('pos-input-numbers') || document.querySelector('input[placeholder*="Número"]');
@@ -246,7 +304,7 @@ export function agregarJugadaAlCarrito() {
 
     const checkboxesCheck = document.querySelectorAll('input[name="pos-sorteos-selected"]:checked');
     if (checkboxesCheck.length === 0) {
-        alert("⚠️ Seleccione al menos un sorteo antes de agregar la jugada.");
+        alert("⚠️ Seleccione al menos un sorteo disponible antes de agregar la jugada.");
         return;
     }
 
@@ -292,14 +350,10 @@ export function agregarJugadaAlCarrito() {
 }
 window.agregarJugadaAlCarrito = agregarJugadaAlCarrito;
 
-// ==========================================================
-// 5. AGREGAR JUGADA Y RENDERIZAR EN TIEMPO REAL (DIRECCIONADO POR ID)
-// ==========================================================
 export function renderizarCarrito() {
     let totalMonto = 0;
     const cantidadJugadas = window.jugadasActuales ? window.jugadasActuales.length : 0;
 
-    // 1. Contenedor de la lista de jugadas en el carrito POS
     const areaLista = document.getElementById('ticket-actual-list') || 
                       document.querySelector('.ticket-actual-list') ||
                       document.querySelector('#section-pos .space-y-2');
@@ -354,17 +408,11 @@ export function renderizarCarrito() {
         window.jugadasActuales.forEach(j => totalMonto += parseFloat(j.monto || 0));
     }
 
-    // 2. Actualizar el Total a Pagar SOLO en el ID específico del POS
     const elTotal = document.getElementById('lbl-total-pagar');
-    if (elTotal) {
-        elTotal.textContent = `$${totalMonto.toFixed(2)}`;
-    }
+    if (elTotal) elTotal.textContent = `$${totalMonto.toFixed(2)}`;
 
-    // 3. Actualizar la Cantidad de Apuestas SOLO en el ID específico del POS
     const elCantidad = document.getElementById('lbl-cantidad-jugadas');
-    if (elCantidad) {
-        elCantidad.textContent = cantidadJugadas;
-    }
+    if (elCantidad) elCantidad.textContent = cantidadJugadas;
 }
 window.renderizarCarrito = renderizarCarrito;
 
@@ -390,10 +438,10 @@ export function vaciarCarrito() {
 window.vaciarCarrito = vaciarCarrito;
 
 // ----------------------------------------------------------
-// 6. REGISTRO Y EMISIÓN DE TICKET EN SUPABASE
+// 7. REGISTRO Y EMISIÓN DE TICKET EN SUPABASE
 // ----------------------------------------------------------
 export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
-    const supabase = window.supabase;
+    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
     if (!supabase) {
         alert("❌ Error: Supabase no está conectado.");
         return;
@@ -438,7 +486,6 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             bancaId = sesion.banca_id || null;
         } catch (e) {}
 
-        // Payload de Ticket
         const payloadTicket = {
             codigo_ticket: codigoTicket,
             sorteo_id: sorteosIdsUnicos.length === 1 ? sorteosIdsUnicos[0] : null,
@@ -469,9 +516,9 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             throw new Error("No se obtuvo el ID del ticket generado.");
         }
 
-        // 2. Mapear e insertar en la tabla jugadas manteniendo el tipo de dato nativo del ID
+        // 2. Mapear e insertar en la tabla jugadas
         const registrosJugadas = listaJugadas.map(j => ({
-            ticket_id: ticketCreado.id, // Mantiene la referencia nativa (UUID o INT) sin forzar parseInt
+            ticket_id: ticketCreado.id,
             numero: String(j.numero).trim(),
             monto: parseFloat(j.monto) || 0,
             tipo: String(j.tipo || 'directo').toLowerCase(),
@@ -485,8 +532,6 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         if (jugadasError) {
             console.error("❌ Error al insertar en tabla 'jugadas':", jugadasError);
             alert(`⚠️ El ticket fue guardado, pero ocurrió un error registrando las jugadas individuales: ${jugadasError.message}`);
-        } else {
-            console.log("✅ Jugadas sincronizadas con éxito en la tabla 'jugadas'.");
         }
 
         // Limpiar estado
@@ -519,7 +564,7 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
 window.guardarTicketEnSupabase = guardarTicketEnSupabase;
 
 // ----------------------------------------------------------
-// 7. EVENTOS E INTERACCIONES DE INTERFAZ
+// 8. EVENTOS E INTERACCIONES DE INTERFAZ
 // ----------------------------------------------------------
 export function activarEventosPOS() {
     const btnAdd = document.getElementById('btn-pos-add-item') || document.getElementById('btn-pos-add') || document.getElementById('btn-agregar-jugada') || document.querySelector('.btn-add-jugada');
@@ -590,7 +635,7 @@ export function activarEventosPOS() {
 window.activarEventosPOS = activarEventosPOS;
 
 // ----------------------------------------------------------
-// 8. TECLADO NUMÉRICO TÁCTIL
+// 9. TECLADO NUMÉRICO TÁCTIL
 // ----------------------------------------------------------
 let ultimoToqueTeclado = 0;
 

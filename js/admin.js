@@ -4,11 +4,11 @@
 
 export function initAdminModule() {
     console.log("🚀 Módulo Admin Inicializado con Gestión de Zonas y Supervisores.");
-    
     ejecutarCargaSeguraAdmin();
     window.addEventListener('hashchange', ejecutarCargaSeguraAdmin);
     observarContenedorTablas();
 }
+window.initAdminModule = initAdminModule;
 
 function ejecutarCargaSeguraAdmin() {
     limpiarEventosDuplicados();
@@ -150,8 +150,21 @@ window.guardarUsuarioSistema = async function(e) {
     }
 };
 
+window.cambiarPasswordUsuario = async function(id, nombre) {
+    const nueva = prompt(`Ingrese la nueva contraseña para el usuario "${nombre}":`);
+    if (!nueva || nueva.trim().length < 6) {
+        return alert("⚠️ La contraseña debe tener al menos 6 caracteres.");
+    }
+    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+    if (supabase) {
+        const { error } = await supabase.from('usuarios').update({ password: nueva.trim() }).eq('id', id);
+        if (error) return alert("❌ Error al actualizar contraseña: " + error.message);
+        alert("✅ Contraseña actualizada con éxito en Supabase.");
+        await cargarUsuariosSistema();
+    }
+};
+
 export async function cargarUsuariosSistema() {
-    // DECLARACIÓN OBLIGATORIA DE tbody
     const tbody = document.getElementById('users-table-body') || document.getElementById('usuarios-table-body');
     if (!tbody) return;
 
@@ -225,7 +238,6 @@ window.abrirModalBanca = function(id = null) {
     const editIdInput = document.getElementById('edit-banca-id');
     if (editIdInput) editIdInput.value = id || '';
 
-    // Llenar selector dinámico de supervisores
     if (selectSupervisor) {
         selectSupervisor.innerHTML = '<option value="">-- Sin Supervisor Asignado (Admin Central) --</option>';
         const supervisores = (window._usuariosCache || []).filter(u => String(u.rol).toLowerCase() === 'supervisor');
@@ -256,11 +268,21 @@ window.abrirModalBanca = function(id = null) {
             document.getElementById('banca-nombre').value = banca.nombre_banca || banca.nombre || '';
             document.getElementById('banca-operador').value = banca.vendedor_nombre || banca.operador || '';
             document.getElementById('banca-usuario').value = banca.username || banca.usuario || '';
-            document.getElementById('banca-comision').value = banca.comision !== undefined ? banca.comision : 15;
-            document.getElementById('banca-limite').value = banca.limite_credito !== undefined ? banca.limite_credito : 300;
-            document.getElementById('banca-max-jugada').value = banca.monto_max_jugada !== undefined ? banca.monto_max_jugada : 100;
-            document.getElementById('banca-estatus').value = banca.estatus || 'activo';
+            
+            const comisionInput = document.getElementById('banca-comision');
+            if(comisionInput) comisionInput.value = banca.comision !== undefined ? banca.comision : 15;
+            
+            const limiteInput = document.getElementById('banca-limite');
+            if(limiteInput) limiteInput.value = banca.limite_credito !== undefined ? banca.limite_credito : 300;
+            
+            const maxJugadaInput = document.getElementById('banca-max-jugada');
+            if(maxJugadaInput) maxJugadaInput.value = banca.monto_max_jugada !== undefined ? banca.monto_max_jugada : 100;
+            
+            const estatusInput = document.getElementById('banca-estatus');
+            if(estatusInput) estatusInput.value = banca.estatus || 'activo';
+            
             if (selectSupervisor && banca.supervisor_id) selectSupervisor.value = banca.supervisor_id;
+            
             const inputZona = document.getElementById('banca-zona');
             if (inputZona) inputZona.value = banca.zona || 'Zona General';
         }
@@ -314,7 +336,6 @@ window.guardarBancaSistema = async function(e) {
 };
 
 export async function cargarBancasSistema() {
-    // DECLARACIÓN OBLIGATORIA DE tbody
     const tbody = document.getElementById('bancas-table-body') || document.getElementById('tabla-bancas-body');
     if (!tbody) return;
 
@@ -404,46 +425,3 @@ window.eliminarBancaSistema = async function(id) {
         cargarBancasSistema();
     }
 };
-// Función para cambiar contraseña de Usuarios/Supervisores/Admins
-window.cambiarPasswordUsuario = async function(id, nombre) {
-    const nueva = prompt(`Ingrese la nueva contraseña para el usuario "${nombre}":`);
-    if (!nueva || nueva.trim().length < 6) {
-        return alert("⚠️ La contraseña debe tener al menos 6 caracteres.");
-    }
-    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-    if (supabase) {
-        const { error } = await supabase.from('usuarios').update({ password: nueva.trim() }).eq('id', id);
-        if (error) return alert("❌ Error al actualizar contraseña: " + error.message);
-        alert("✅ Contraseña actualizada con éxito en Supabase.");
-        await cargarUsuariosSistema();
-    }
-};
-
-// Renderizado de las filas en la tabla de Usuarios con el botón de Contraseña:
-tbody.innerHTML = usuarios.map(user => {
-    const estatusVal = String(user.estatus || 'activo').toLowerCase();
-    const badge = estatusVal === 'activo' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20';
-
-    return `
-        <tr class="hover:bg-slate-800/60 transition border-b border-slate-700/40 text-xs">
-            <td class="p-3 font-semibold text-white">${user.nombre || 'Sin nombre'}</td>
-            <td class="p-3 text-cyan-400 font-mono">@${user.username || 'sin-usuario'}</td>
-            <td class="p-3 text-slate-300 font-bold uppercase">${user.rol || 'supervisor'}</td>
-            <td class="p-3 text-amber-400 font-semibold">${user.zona || 'Zona General'}</td>
-            <td class="p-3"><span class="${badge} border px-2.5 py-1 rounded-full text-[10px] font-bold capitalize">${estatusVal}</span></td>
-            <td class="p-3 text-center">
-                <div class="flex items-center justify-center gap-1.5">
-                    <button onclick="window.cambiarPasswordUsuario('${user.id}', '${user.nombre}')" class="bg-blue-500/10 hover:bg-blue-500 text-blue-300 hover:text-white px-2 py-1.5 rounded transition flex items-center gap-1" title="Cambiar Contraseña">
-                        <i class="fa-solid fa-key"></i> Pass
-                    </button>
-                    <button onclick="window.abrirModalUsuario('${user.id}')" class="bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 px-2 py-1.5 rounded transition flex items-center gap-1" title="Editar">
-                        <i class="fa-solid fa-pen-to-square"></i> Editar
-                    </button>
-                    <button onclick="window.eliminarUsuarioSistema('${user.id}')" class="bg-rose-500/10 hover:bg-rose-500 text-rose-300 hover:text-white px-2 py-1.5 rounded transition flex items-center gap-1" title="Eliminar">
-                        <i class="fa-solid fa-trash-can"></i> Eliminar
-                    </button>
-                </div>
-            </td>
-        </tr>
-    `;
-}).join('');

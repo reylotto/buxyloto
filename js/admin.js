@@ -72,19 +72,19 @@ function limpiarEventosDuplicados() {
 }
 
 // -------------------------------------------------------------------
-// 🔥 CORRECCIÓN CRÍTICA: CIERRE DE MODALES A PRUEBA DE FALLOS
+// 🔥 CORRECCIÓN: CIERRE Y APERTURA DE MODALES CON FLEXBOX PARA CENTRAR
 // -------------------------------------------------------------------
 window.cerrarTodosLosModales = function() {
     document.querySelectorAll('.fixed').forEach(modal => {
-        // Eliminar inline styles (como display: flex) que bloquean Tailwind
-        modal.style.display = ''; 
-        // Restaurar la clase hidden
-        modal.classList.add('hidden');
+        if(modal.id && modal.id.includes('modal')) {
+            modal.classList.add('hidden'); // Oculta
+            modal.classList.remove('flex'); // Quita el flex para evitar bugs
+            modal.style.display = ''; // Limpia estilos forzados
+        }
     });
 };
 window.cerrarModalUsuario = window.cerrarTodosLosModales;
 window.cerrarModalBanca = window.cerrarTodosLosModales;
-// Esta línea global permite que el botón "Cancelar" o "Cerrar" de HTML funcione
 window.cerrarModal = window.cerrarTodosLosModales; 
 
 // ==========================================================
@@ -94,7 +94,7 @@ window.abrirModalUsuario = function(id = null) {
     window.cerrarTodosLosModales();
     const modal = document.getElementById('modal-crear-usuario') || document.getElementById('modal-usuario');
     const form = document.getElementById('form-crear-usuario') || document.getElementById('form-usuario');
-    const titulo = document.getElementById('modal-titulo') || document.getElementById('modal-titulo-usuario');
+    const titulo = document.getElementById('modal-titulo-usuario') || document.getElementById('modal-titulo');
     const pwdContainer = document.getElementById('container-password');
     const pwdInput = document.getElementById('crear-password') || document.getElementById('usuario-password');
 
@@ -103,7 +103,7 @@ window.abrirModalUsuario = function(id = null) {
     if (editIdInput) editIdInput.value = id || '';
 
     if (id) {
-        if(titulo) titulo.innerHTML = `<i class="fa-solid fa-user-pen"></i> Editar Usuario`;
+        if(titulo) titulo.innerHTML = `<i class="fa-solid fa-user-pen text-cyan-400"></i> Editar Usuario`;
         if(pwdContainer) pwdContainer.style.display = 'none';
         if(pwdInput) pwdInput.required = false;
 
@@ -121,14 +121,14 @@ window.abrirModalUsuario = function(id = null) {
             setValorSeguro('crear-zona', user.zona || 'Zona General');
         }
     } else {
-        if(titulo) titulo.innerHTML = `<i class="fa-solid fa-user-plus"></i> Registrar Usuario / Supervisor`;
+        if(titulo) titulo.innerHTML = `<i class="fa-solid fa-user-plus text-cyan-400"></i> Registrar Usuario / Supervisor`;
         if(pwdContainer) pwdContainer.style.display = 'block';
         if(pwdInput) pwdInput.required = true;
     }
 
     if (modal) {
-        // Se usa SOLO tailwind. Nada de style.display = 'flex'
-        modal.classList.remove('hidden');
+        modal.classList.remove('hidden'); // Hace visible
+        modal.classList.add('flex'); // Activa Flexbox para centrar en pantalla
     }
 };
 
@@ -274,7 +274,7 @@ window.abrirModalBanca = function(id = null) {
     }
 
     if (id) {
-        if (titulo) titulo.innerHTML = `<i class="fa-solid fa-pen"></i> <span>Editar Banca / Vendedor</span>`;
+        if (titulo) titulo.innerHTML = `<i class="fa-solid fa-pen text-emerald-400"></i> <span>Editar Banca / Vendedor</span>`;
         if (pwdContainer) pwdContainer.style.display = 'none'; 
         if (pwdInput) pwdInput.required = false;
 
@@ -299,14 +299,14 @@ window.abrirModalBanca = function(id = null) {
             }
         }
     } else {
-        if (titulo) titulo.innerHTML = `<i class="fa-solid fa-store text-cyan-400"></i> <span>Registrar Nueva Banca / Vendedor POS</span>`;
+        if (titulo) titulo.innerHTML = `<i class="fa-solid fa-store text-emerald-400"></i> <span>Registrar Nueva Banca / Vendedor</span>`;
         if (pwdContainer) pwdContainer.style.display = 'block';
         if (pwdInput) pwdInput.required = true;
     }
 
     if (modal) {
-        // Se usa SOLO tailwind. Nada de style.display = 'flex'
-        modal.classList.remove('hidden');
+        modal.classList.remove('hidden'); // Hace visible
+        modal.classList.add('flex'); // Activa Flexbox para centrar en pantalla
     }
 };
 

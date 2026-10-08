@@ -54,10 +54,10 @@ window.abrirModalUsuario = function(id = null) {
                 if (el) el.value = valor;
             };
 
-            setValorSeguro('crear-nombre', user.nombre || '');
-            setValorSeguro('crear-username', user.username || '');
+            setValorSeguro('crear-nombre', user.nombre || user.nombre_completo || '');
+            setValorSeguro('crear-username', user.username || user.nombre_usuario || '');
             setValorSeguro('crear-rol', user.rol || 'supervisor');
-            setValorSeguro('crear-estatus', user.estatus || 'activo');
+            setValorSeguro('crear-estatus', user.estatus || user.estado || 'activo');
             setValorSeguro('crear-zona', user.zona || 'Zona General');
         }
     } else {
@@ -120,8 +120,9 @@ window.cambiarPasswordUsuario = async function(id, nombre) {
 };
 
 export async function cargarUsuariosSistema() {
-    // Sincronizado para buscar ambos IDs posibles en el HTML
-    const tbody = document.getElementById('usuarios-table-body') || document.getElementById('users-table-body');
+    const tbody = document.getElementById('usuarios-table-body') || 
+                  document.getElementById('users-table-body') || 
+                  document.querySelector('#section-usuarios tbody');
     if (!tbody) return;
 
     const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
@@ -138,19 +139,23 @@ export async function cargarUsuariosSistema() {
         }
 
         tbody.innerHTML = usuarios.map(user => {
-            const estatusVal = String(user.estatus || 'activo').toLowerCase();
+            const nombre = user.nombre || user.nombre_completo || 'Sin nombre';
+            const username = user.username || user.nombre_usuario || 'sin-usuario';
+            const rol = user.rol || 'supervisor';
+            const zona = user.zona || 'Zona General';
+            const estatusVal = String(user.estatus || user.estado || 'activo').toLowerCase();
             const badge = estatusVal === 'activo' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20';
 
             return `
                 <tr class="hover:bg-slate-800/60 transition border-b border-slate-700/40 text-xs">
-                    <td class="p-3 font-semibold text-white">${user.nombre || 'Sin nombre'}</td>
-                    <td class="p-3 text-cyan-400 font-mono">@${user.username || 'sin-usuario'}</td>
-                    <td class="p-3 text-slate-300 font-bold uppercase">${user.rol || 'supervisor'}</td>
-                    <td class="p-3 text-amber-400 font-semibold">${user.zona || 'Zona General'}</td>
+                    <td class="p-3 font-semibold text-white">${nombre}</td>
+                    <td class="p-3 text-cyan-400 font-mono">@${username}</td>
+                    <td class="p-3 text-slate-300 font-bold uppercase">${rol}</td>
+                    <td class="p-3 text-amber-400 font-semibold">${zona}</td>
                     <td class="p-3"><span class="${badge} border px-2.5 py-1 rounded-full text-[10px] font-bold capitalize">${estatusVal}</span></td>
                     <td class="p-3 text-center">
                         <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="window.cambiarPasswordUsuario('${user.id}', '${user.nombre}')" class="bg-blue-500/10 hover:bg-blue-500 text-blue-300 hover:text-white px-2 py-1.5 rounded transition flex items-center gap-1" title="Cambiar Contraseña">
+                            <button onclick="window.cambiarPasswordUsuario('${user.id}', '${nombre}')" class="bg-blue-500/10 hover:bg-blue-500 text-blue-300 hover:text-white px-2 py-1.5 rounded transition flex items-center gap-1" title="Cambiar Contraseña">
                                 <i class="fa-solid fa-key"></i> Pass
                             </button>
                             <button onclick="window.abrirModalUsuario('${user.id}')" class="bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 px-2 py-1.5 rounded transition flex items-center gap-1" title="Editar">
@@ -201,7 +206,7 @@ window.abrirModalBanca = function(id = null) {
             const opt = document.createElement('option');
             opt.value = sup.id;
             opt.dataset.zona = sup.zona || 'Zona General';
-            opt.textContent = `🛡️ ${sup.nombre} (${sup.zona || 'Zona General'})`;
+            opt.textContent = `🛡️ ${sup.nombre || sup.nombre_completo} (${sup.zona || 'Zona General'})`;
             selectSupervisor.appendChild(opt);
         });
 
@@ -226,13 +231,13 @@ window.abrirModalBanca = function(id = null) {
                 if (el) el.value = valor;
             };
 
-            setValorSeguro('banca-nombre', banca.nombre_banca || banca.nombre || '');
-            setValorSeguro('banca-operador', banca.vendedor_nombre || banca.operador || '');
+            setValorSeguro('banca-nombre', banca.nombre_banca || banca.nombre || banca.name || '');
+            setValorSeguro('banca-operador', banca.vendedor_nombre || banca.operador || banca.encargado || '');
             setValorSeguro('banca-usuario', banca.username || banca.usuario || '');
             setValorSeguro('banca-comision', banca.comision !== undefined ? banca.comision : 15);
             setValorSeguro('banca-limite', banca.limite_credito !== undefined ? banca.limite_credito : 300);
             setValorSeguro('banca-max-jugada', banca.monto_max_jugada !== undefined ? banca.monto_max_jugada : 100);
-            setValorSeguro('banca-estatus', banca.estatus || 'activo');
+            setValorSeguro('banca-estatus', banca.estatus || banca.estado || 'activo');
             setValorSeguro('banca-zona', banca.zona || 'Zona General');
             
             if (selectSupervisor && banca.supervisor_id) {
@@ -292,8 +297,9 @@ window.guardarBancaSistema = async function(e) {
 };
 
 export async function cargarBancasSistema() {
-    // Sincronizado para buscar ambos IDs posibles en el HTML
-    const tbody = document.getElementById('bancas-table-body') || document.getElementById('tabla-bancas-body');
+    const tbody = document.getElementById('bancas-table-body') || 
+                  document.getElementById('tabla-bancas-body') || 
+                  document.querySelector('#section-bancas tbody');
     if (!tbody) return;
 
     const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
@@ -312,24 +318,24 @@ export async function cargarBancasSistema() {
         const usuariosCache = window._usuariosCache || [];
 
         tbody.innerHTML = bancas.map(b => {
-            const nombre = b.nombre_banca || b.nombre || 'Banca Principal';
-            const operador = b.vendedor_nombre || b.operador || 'Sin Asignar';
+            const nombre = b.nombre_banca || b.nombre || b.name || 'Banca Principal';
+            const operador = b.vendedor_nombre || b.operador || b.encargado || 'Sin Asignar';
+            const zonaStr = b.zona || 'Zona General';
             const comisionReal = (b.comision !== undefined && b.comision !== null && !isNaN(b.comision)) ? b.comision : 0;
             const limite = (b.limite_credito !== undefined && !isNaN(b.limite_credito)) ? b.limite_credito : 300;
-            const zonaStr = b.zona || 'Zona General';
 
             let supervisorNombre = 'Admin Central';
             if (b.supervisor_id) {
                 const supObj = usuariosCache.find(u => String(u.id) === String(b.supervisor_id));
-                if (supObj) supervisorNombre = supObj.nombre;
+                if (supObj) supervisorNombre = supObj.nombre || supObj.nombre_completo;
             }
 
-            const estatusVal = String(b.estatus || 'activo').toLowerCase();
+            const estatusVal = String(b.estatus || b.estado || 'activo').toLowerCase();
             const badge = estatusVal === 'activo' 
                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
                 : 'bg-rose-500/10 text-rose-400 border-rose-500/20';
 
-            // ORDEN EXACTO DE 8 COLUMNAS COINCIDENTES CON LOS HEADERS DE LA TABLA
+            // 8 COLUMNAS EXACTAS COINCIDENTES CON LOS HEADERS
             return `
                 <tr class="hover:bg-slate-800/60 transition border-b border-slate-700/40 text-xs">
                     <td class="p-3 font-semibold text-white">${nombre}</td>

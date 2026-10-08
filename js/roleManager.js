@@ -12,10 +12,9 @@
     }
 
     window.aplicarBlindajeSupervisor = function() {
-        // 🛑 CRÍTICO: Si la pantalla de login está visible, NO HACER NADA para no bloquear el acceso
         const loginWrapper = document.getElementById('auth-login-wrapper');
         if (loginWrapper && !loginWrapper.classList.contains('hidden')) {
-            return;
+            return; // Si estamos en el login, no hacemos nada
         }
 
         const sesion = obtenerSesionSegura();
@@ -23,21 +22,7 @@
         const zona = sesion.zona || 'Zona General';
         const nombre = sesion.nombre || sesion.username || 'Usuario';
 
-        console.warn(`🔒 [BLINDAJE ACTIVO] Rol detectado: ${rol} | Zona: ${zona}`);
-
-        // 1. DESTRUIR EL SELECTOR DE SIMULACIÓN DE ROLES EN EL DOM (Solo cuando ya está dentro del sistema)
-        document.querySelectorAll('*').forEach(el => {
-            const txt = (el.textContent || '').toLowerCase();
-            if (txt.includes('cambiar rol') || txt.includes('simulación') || txt.includes('simulacion')) {
-                const contenedorPadre = el.closest('div.relative') || el.closest('div.dropdown') || el.closest('div');
-                if (contenedorPadre) {
-                    contenedorPadre.style.display = 'none';
-                    contenedorPadre.remove();
-                }
-            }
-        });
-
-        // 2. ACTUALIZAR LA CABECERA SUPERIOR DERECHA CON EL ROL REAL
+        // 1. ACTUALIZAR LA CABECERA SUPERIOR DERECHA
         const nameEl = document.querySelector('#admin-user-name, .user-name-display, header div.font-bold');
         if (nameEl && !nameEl.textContent.includes('Plataforma')) {
             nameEl.textContent = nombre;
@@ -57,21 +42,30 @@
             }
         }
 
-        // 3. BLOQUEO ABSOLUTO PARA SUPERVISORES (CSS + DOM Mutation)
+        // 2. OCULTAR SIMULADOR DE ROLES DE FORMA SEGURA (Sin borrar el dashboard)
+        const etiquetas = document.querySelectorAll('label, span, p');
+        etiquetas.forEach(el => {
+            const txt = (el.textContent || '').toUpperCase();
+            if (txt.includes('CAMBIAR ROL') || txt.includes('SIMULACIÓN')) {
+                // Solo borramos el div pequeñito que envuelve al select
+                const contenedor = el.closest('.relative') || el.parentElement;
+                if (contenedor) contenedor.style.display = 'none';
+            }
+        });
+
+        // 3. BLOQUEO ABSOLUTO PARA SUPERVISORES
         if (rol.includes('supervisor')) {
             if (!document.getElementById('css-blindaje-supervisor')) {
                 const style = document.createElement('style');
                 style.id = 'css-blindaje-supervisor';
                 style.innerHTML = `
-                    /* Ocultar elementos prohibidos para supervisor */
                     a[href*="pos"], [data-target="pos"], .nav-item-pos,
                     a[href*="usuarios"], [data-target="usuarios"],
                     a[href*="bancas"], [data-target="bancas"],
                     a[href*="loterias"], [data-target="loterias"],
                     a[href*="riesgo"], [data-target="riesgo"],
                     a[href*="personalizar"], a[href*="geolocalizacion"],
-                    #form-registrar-resultados, .btn-guardar-escrutinio,
-                    select[id*="rol"], .cambiar-rol-container {
+                    #form-registrar-resultados, .btn-guardar-escrutinio {
                         display: none !important;
                     }
                 `;

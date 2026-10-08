@@ -1,5 +1,5 @@
 // ==========================================================
-// MÓDULO DE AUTENTICACIÓN HÍBRIDO CON GESTIÓN DE ROLES Y ZONAS (auth.js)
+// MÓDULO DE AUTENTICACIÓN Y CONTROL ESTRICTO DE ROLES (auth.js)
 // ==========================================================
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
@@ -10,70 +10,73 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 window.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// 1. APLICAR RESTRICCIONES VISUALES Y FILTROS SEGÚN EL ROL
+// 1. RESTRICCIÓN Y OCULTAMIENTO DE MENÚS POR ROL (SUPERVISOR VS ADMIN)
 function aplicarRestriccionesPorRol(usuario) {
     const rol = String(usuario.rol || 'admin').toLowerCase().trim();
     const zona = usuario.zona || 'Zona General';
     const nombre = usuario.nombre || usuario.nombre_completo || 'Usuario';
 
-    console.log(`🛡️ Aplicando permisos para [Rol: ${rol}] [Zona: ${zona}] [Nombre: ${nombre}]`);
+    console.log(`🛡️ Aplicando permisos estrictos -> [Rol: ${rol}] [Zona: ${zona}]`);
     window.currentUserProfile = usuario;
 
-    // Actualizar el nombre y rol en la esquina superior derecha
+    // Actualizar nombre y rol en la cabecera superior derecha
     setTimeout(() => {
-        const headerNameEl = document.querySelector('#admin-user-name, .user-name-display, [data-user-name]');
-        if (headerNameEl) headerNameEl.textContent = nombre;
-
-        const headerRoleEl = document.querySelector('#admin-user-role, .user-role-display, [data-user-role]');
+        const headerNameEl = document.querySelector('header .font-bold, #admin-user-name, .user-name-display');
+        if (headerNameEl && !headerNameEl.textContent.includes('Plataforma')) {
+            headerNameEl.textContent = nombre;
+        }
+        const headerRoleEl = document.querySelector('header span.text-xs, #admin-user-role');
         if (headerRoleEl) {
-            headerRoleEl.textContent = rol === 'supervisor' ? `Supervisor (${zona})` : (rol === 'caja' ? 'Banca / Vendedor' : 'Administrador Central');
+            headerRoleEl.textContent = rol === 'supervisor' ? `Supervisor (${zona})` : (rol === 'caja' ? 'Caja / Vendedor' : 'Administrador');
         }
     }, 400);
 
-    const ocultarPorSelector = (selectores) => {
-        selectores.forEach(selector => {
-            document.querySelectorAll(selector).forEach(el => {
+    // Ocultar elementos del menú lateral basándonos en el texto visible del enlace
+    setTimeout(() => {
+        const linksMenu = document.querySelectorAll('aside nav a, nav a, .sidebar a, [class*="nav"] a');
+        
+        linksMenu.forEach(link => {
+            const texto = link.textContent.toLowerCase();
+
+            if (rol === 'supervisor') {
+                // El supervisor NO debe ver POS, Gestión de Usuarios, Bancas, Loterías, Control de Riesgo
+                if (
+                    texto.includes('punto de venta') || 
+                    texto.includes('pos') || 
+                    texto.includes('gestión de usuarios') || 
+                    texto.includes('gestion de usuarios') || 
+                    texto.includes('bancas') || 
+                    texto.includes('vendedores') || 
+                    texto.includes('loterías') || 
+                    texto.includes('loterias') || 
+                    texto.includes('control de riesgo') || 
+                    texto.includes('riesgo') || 
+                    texto.includes('personalizar ticket') || 
+                    texto.includes('geolocalización') || 
+                    texto.includes('geolocalizacion')
+                ) {
+                    const contenedor = link.closest('li') || link.closest('div') || link;
+                    if (contenedor) contenedor.style.display = 'none';
+                }
+            } else if (rol === 'caja' || rol === 'vendedor') {
+                // El vendedor solo ve POS e Historial de Tickets
+                if (!texto.includes('pos') && !texto.includes('punto de venta') && !texto.includes('historial')) {
+                    const contenedor = link.closest('li') || link.closest('div') || link;
+                    if (contenedor) contenedor.style.display = 'none';
+                }
+            }
+        });
+
+        // Ocultar botones flotantes de creación/edición de admin si no es admin
+        if (rol !== 'admin') {
+            document.querySelectorAll('.admin-only, #btn-open-usuario-modal, #btn-open-banca-modal, #btn-open-loteria-modal, .btn-nueva-banca, .btn-nuevo-usuario').forEach(el => {
                 el.style.display = 'none';
             });
-        });
-    };
-
-    if (rol === 'supervisor') {
-        // Ocultar POS (no pueden emitir apuestas) y menús exclusivos de administrador central
-        ocultarPorSelector([
-            '[href="#pos"]', '[data-target="pos"]', '.nav-item-pos',
-            '[href="#usuarios"]', '[data-target="usuarios"]', '.nav-item-usuarios',
-            '[href="#bancas"]', '[data-target="bancas"]', '.nav-item-bancas',
-            '[href="#loterias"]', '[data-target="loterias"]', '.nav-item-loterias',
-            '[href="#riesgo"]', '[data-target="riesgo"]', '.nav-item-riesgo',
-            '[href="#ticket"]', '[data-target="ticket"]', '.nav-item-ticket'
-        ]);
-
-        setTimeout(() => {
-            document.querySelectorAll('.btn-guardar-escrutinio, .btn-editar-resultado, .admin-only-btn').forEach(btn => {
-                btn.style.display = 'none';
-            });
-        }, 1000);
-
-    } else if (rol === 'caja' || rol === 'vendedor') {
-        ocultarPorSelector([
-            'nav a:not([href*="pos"]):not([href*="historial"])',
-            '.admin-only', '.supervisor-only'
-        ]);
-    }
+        }
+    }, 300);
 }
 
-// Filtro global de zona para que las consultas a Supabase traigan solo las bancas del supervisor
-window.obtenerFiltroZonaSupervisor = function() {
-    const user = window.currentUserProfile || JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
-    const rol = String(user.rol || '').toLowerCase();
-    if (rol === 'supervisor' && user.zona) {
-        return { zona: user.zona, supervisor_id: user.id };
-    }
-    return null; // Admin ve todo
-};
-
-// 2. VERIFICAR SESIÓN ACTIVA AL CARGAR LA PÁGINA
+// 2. VERIFICACIÓN DE SESIÓN ACTIVA AL CARGAR
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const sesionGuardada = localStorage.getItem('usuario_sesion');
@@ -94,34 +97,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
         }
-
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (!error && session) {
-            const userId = session.user.id;
-            const { data: profileData } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', userId)
-                .maybeSingle();
-
-            const profileUser = profileData || { id: userId, email: session.user.email, rol: 'admin', nombre: 'Administrador Maestro' };
-            localStorage.setItem('usuario_sesion', JSON.stringify(profileUser));
-            aplicarRestriccionesPorRol(profileUser);
-
-            const loginWrapper = document.getElementById('auth-login-wrapper');
-            const mainContainer = document.getElementById('main-app-container');
-
-            if (loginWrapper) loginWrapper.classList.add('hidden');
-            if (mainContainer) mainContainer.classList.remove('hidden');
-
-            iniciarAplicacionPrincipal();
-        }
     } catch (err) {
-        console.error("Error al comprobar la sesión inicial:", err);
+        console.error("Error al comprobar sesión:", err);
     }
 });
 
-// 3. EVENTO DE INICIO DE SESIÓN
+// 3. INICIO DE SESIÓN
 const loginForm = document.getElementById('login-form');
 if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
@@ -168,7 +149,7 @@ if (loginForm) {
                     .select('*')
                     .eq('username', userInput)
                     .eq('password', passwordInput)
-                .maybeSingle();
+                    .maybeSingle();
 
                 if (!errUsu && usuarioData) {
                     cuentaUsuario = usuarioData;
@@ -205,6 +186,7 @@ if (loginForm) {
                 return;
             }
 
+            window.currentUserProfile = cuentaUsuario;
             localStorage.setItem('usuario_sesion', JSON.stringify(cuentaUsuario));
             aplicarRestriccionesPorRol(cuentaUsuario);
 

@@ -5,9 +5,6 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-/**
- * Normaliza nombres de sorteos para comparación flexible (elimina puntuación y espacios extras)
- */
 function normalizarNombre(nombre) {
     if (!nombre) return '';
     return nombre
@@ -17,9 +14,6 @@ function normalizarNombre(nombre) {
         .trim();
 }
 
-/**
- * Mapeo flexible de reglas y patrones para vincular sorteos de la BD con el sitio web.
- */
 const REGLAS_SORTEOS = [
     {
         pattern: /PRIMERA.*11|PRIMERA.*MEDIODIA/i,
@@ -99,24 +93,35 @@ function obtenerConfigSorteo(nombreSorteo) {
 
 function buscarResultadoEnHtml(html, keywords) {
     if (!html) return null;
-    
-    // Limpieza de código JS, CSS y etiquetas HTML para evitar falsos positivos con atributos
-    const htmlLimpio = html
+
+    let htmlLimpio = html
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
-        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
-        .replace(/<[^>]+>/g, ' ');
+        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ');
 
     const htmlLower = htmlLimpio.toLowerCase();
 
     for (const kw of keywords) {
         const pos = htmlLower.indexOf(kw.toLowerCase());
         if (pos !== -1) {
-            const fragmento = htmlLimpio.substring(pos, pos + 300);
+            let fragmento = htmlLimpio.substring(pos, pos + 400);
+
+            // Depurar horas (ej: 08:00 PM, 8:45, 8pm, 12:30am)
+            fragmento = fragmento.replace(/\b\d{1,2}:\d{2}\s*(am|pm)?\b/gi, ' ');
+            fragmento = fragmento.replace(/\b\d{1,2}\s*(am|pm)\b/gi, ' ');
+
+            // Depurar fechas (ej: 08/10/2026, 2026-10-08)
+            fragmento = fragmento.replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/gi, ' ');
+            fragmento = fragmento.replace(/\b\d{4}-\d{2}-\d{2}\b/gi, ' ');
+
+            // Depurar etiquetas HTML
+            fragmento = fragmento.replace(/<[^>]+>/g, ' ');
+
+            // Extraer jugadas reales de 2 dígitos
             const numeros = fragmento.match(/\b\d{2}\b/g);
 
             if (numeros && numeros.length >= 1) {
                 return {
-                    p1: numeros[0],
+                    p1: numeros[0] || '',
                     p2: numeros[1] || '',
                     p3: numeros[2] || ''
                 };
@@ -167,7 +172,7 @@ export default async function handler(req, res) {
 
             const resultadoEncontrado = buscarResultadoEnHtml(htmlCompleto, config.keywords);
 
-            if (resultadoEncontrado) {
+            if (resultadoEncontrado && resultadoEncontrado.p1) {
                 resultadosAInsertar.push({
                     sorteo_id: sorteo.id,
                     fecha: fechaProcesar,
@@ -196,14 +201,14 @@ export default async function handler(req, res) {
             });
         }
 
-        // 1. Guardar o actualizar en la tabla 'resultados'
+        // 1. Guardar en tabla 'resultados'
         const { error: upsertError } = await supabase
             .from('resultados')
             .upsert(resultadosAInsertar, { onConflict: 'sorteo_id,fecha' });
 
         if (upsertError) throw upsertError;
 
-        // 2. Cerrar el sorteo en la tabla 'sorteos' y ejecutar la evaluación de tickets
+        // 2. Cerrar sorteo y ejecutar escrutinio
         for (const item of sorteosAActualizar) {
             await supabase
                 .from('sorteos')

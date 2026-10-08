@@ -3,83 +3,23 @@
 // ==========================================================
 
 export function initAdminModule() {
-    console.log("🚀 Módulo Admin Inicializado con Gestión de Zonas y Supervisores.");
+    console.log("🚀 Módulo Admin Inicializado.");
     ejecutarCargaSeguraAdmin();
     window.addEventListener('hashchange', ejecutarCargaSeguraAdmin);
-    observarContenedorTablas();
 }
 window.initAdminModule = initAdminModule;
 
 function ejecutarCargaSeguraAdmin() {
-    limpiarEventosDuplicados();
     cargarUsuariosSistema();
     cargarBancasSistema();
 }
 
-function observarContenedorTablas() {
-    const contenedorBancas = document.getElementById('bancas-table-body') || document.getElementById('tabla-bancas-body');
-    const contenedorUsuarios = document.getElementById('users-table-body') || document.getElementById('usuarios-table-body');
-
-    const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            if (mutation.type === 'childList') {
-                if (contenedorBancas && (contenedorBancas.innerHTML.trim() === '' || contenedorBancas.innerHTML.includes('Sin Nombre'))) {
-                    cargarBancasSistema();
-                }
-                if (contenedorUsuarios && contenedorUsuarios.innerHTML.trim() === '') {
-                    cargarUsuariosSistema();
-                }
-            }
-        });
-    });
-
-    if (contenedorBancas && contenedorBancas.parentNode) {
-        observer.observe(contenedorBancas.parentNode, { childList: true, subtree: true });
-    }
-    if (contenedorUsuarios && contenedorUsuarios.parentNode) {
-        observer.observe(contenedorUsuarios.parentNode, { childList: true, subtree: true });
-    }
-}
-
-function limpiarEventosDuplicados() {
-    const formUser = document.getElementById('form-crear-usuario') || document.getElementById('form-usuario');
-    if (formUser) {
-        const clone = formUser.cloneNode(true);
-        formUser.parentNode.replaceChild(clone, formUser);
-        clone.addEventListener('submit', window.guardarUsuarioSistema);
-    }
-
-    const formBanca = document.getElementById('form-banca') || document.getElementById('form-crear-banca');
-    if (formBanca) {
-        const clone = formBanca.cloneNode(true);
-        formBanca.parentNode.replaceChild(clone, formBanca);
-        clone.addEventListener('submit', window.guardarBancaSistema);
-    }
-
-    const btnUser = document.getElementById('btn-open-usuario-modal') || document.getElementById('btn-open-user-modal');
-    if (btnUser) {
-        const clone = btnUser.cloneNode(true);
-        btnUser.parentNode.replaceChild(clone, btnUser);
-        clone.addEventListener('click', (e) => { e.preventDefault(); window.abrirModalUsuario(); });
-    }
-
-    const btnBanca = document.getElementById('btn-open-banca-modal') || document.getElementById('btn-open-bank-modal');
-    if (btnBanca) {
-        const clone = btnBanca.cloneNode(true);
-        btnBanca.parentNode.replaceChild(clone, btnBanca);
-        clone.addEventListener('click', (e) => { e.preventDefault(); window.abrirModalBanca(); });
-    }
-}
-
-// -------------------------------------------------------------------
-// 🔥 CORRECCIÓN: CIERRE Y APERTURA DE MODALES CON FLEXBOX PARA CENTRAR
-// -------------------------------------------------------------------
 window.cerrarTodosLosModales = function() {
     document.querySelectorAll('.fixed').forEach(modal => {
         if(modal.id && modal.id.includes('modal')) {
-            modal.classList.add('hidden'); // Oculta
-            modal.classList.remove('flex'); // Quita el flex para evitar bugs
-            modal.style.display = ''; // Limpia estilos forzados
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            modal.style.display = '';
         }
     });
 };
@@ -92,11 +32,11 @@ window.cerrarModal = window.cerrarTodosLosModales;
 // ==========================================================
 window.abrirModalUsuario = function(id = null) {
     window.cerrarTodosLosModales();
-    const modal = document.getElementById('modal-crear-usuario') || document.getElementById('modal-usuario');
-    const form = document.getElementById('form-crear-usuario') || document.getElementById('form-usuario');
-    const titulo = document.getElementById('modal-titulo-usuario') || document.getElementById('modal-titulo');
+    const modal = document.getElementById('modal-crear-usuario');
+    const form = document.getElementById('form-crear-usuario');
+    const titulo = document.getElementById('modal-titulo-usuario');
     const pwdContainer = document.getElementById('container-password');
-    const pwdInput = document.getElementById('crear-password') || document.getElementById('usuario-password');
+    const pwdInput = document.getElementById('crear-password');
 
     if (form) form.reset();
     const editIdInput = document.getElementById('edit-usuario-id');
@@ -127,8 +67,8 @@ window.abrirModalUsuario = function(id = null) {
     }
 
     if (modal) {
-        modal.classList.remove('hidden'); // Hace visible
-        modal.classList.add('flex'); // Activa Flexbox para centrar en pantalla
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
     }
 };
 
@@ -180,7 +120,8 @@ window.cambiarPasswordUsuario = async function(id, nombre) {
 };
 
 export async function cargarUsuariosSistema() {
-    const tbody = document.getElementById('users-table-body') || document.getElementById('usuarios-table-body');
+    // Sincronizado para buscar ambos IDs posibles en el HTML
+    const tbody = document.getElementById('usuarios-table-body') || document.getElementById('users-table-body');
     if (!tbody) return;
 
     const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
@@ -242,11 +183,11 @@ window.eliminarUsuarioSistema = async function(id) {
 // ==========================================================
 window.abrirModalBanca = function(id = null) {
     window.cerrarTodosLosModales();
-    const modal = document.getElementById('modal-banca') || document.getElementById('modal-crear-banca');
-    const form = document.getElementById('form-banca') || document.getElementById('form-crear-banca');
-    const titulo = document.getElementById('modal-titulo-banca') || document.getElementById('modal-titulo');
-    const pwdContainer = document.getElementById('container-pwd-banca') || document.getElementById('container-password-banca');
-    const pwdInput = document.getElementById('banca-password') || document.getElementById('crear-password');
+    const modal = document.getElementById('modal-banca');
+    const form = document.getElementById('form-banca');
+    const titulo = document.getElementById('modal-titulo-banca');
+    const pwdContainer = document.getElementById('container-pwd-banca');
+    const pwdInput = document.getElementById('banca-password');
     const selectSupervisor = document.getElementById('banca-supervisor');
 
     if (form) form.reset();
@@ -305,8 +246,8 @@ window.abrirModalBanca = function(id = null) {
     }
 
     if (modal) {
-        modal.classList.remove('hidden'); // Hace visible
-        modal.classList.add('flex'); // Activa Flexbox para centrar en pantalla
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
     }
 };
 
@@ -338,7 +279,7 @@ window.guardarBancaSistema = async function(e) {
             if (error) throw error;
             alert("✅ Banca/Vendedor actualizada con éxito.");
         } else {
-            payload.password = document.getElementById('banca-password')?.value || document.getElementById('crear-password')?.value;
+            payload.password = document.getElementById('banca-password')?.value;
             const { error } = await supabase.from('bancas').insert([payload]);
             if (error) throw error;
             alert("✅ Nueva banca/vendedor registrada con éxito.");
@@ -351,6 +292,7 @@ window.guardarBancaSistema = async function(e) {
 };
 
 export async function cargarBancasSistema() {
+    // Sincronizado para buscar ambos IDs posibles en el HTML
     const tbody = document.getElementById('bancas-table-body') || document.getElementById('tabla-bancas-body');
     if (!tbody) return;
 
@@ -387,6 +329,7 @@ export async function cargarBancasSistema() {
                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
                 : 'bg-rose-500/10 text-rose-400 border-rose-500/20';
 
+            // ORDEN EXACTO DE 8 COLUMNAS COINCIDENTES CON LOS HEADERS DE LA TABLA
             return `
                 <tr class="hover:bg-slate-800/60 transition border-b border-slate-700/40 text-xs">
                     <td class="p-3 font-semibold text-white">${nombre}</td>

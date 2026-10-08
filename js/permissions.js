@@ -35,7 +35,7 @@ window.aplicarPermisosGlobales = function() {
     console.log(`🛡️ [SEGURIDAD] Aplicando permisos estrictos -> [Rol: ${rol}] [Zona: ${zona}]`);
 
     setTimeout(() => {
-        // Búsqueda segura por texto en lugar de usar selectores CSS inválidos (:contains)
+        // Búsqueda segura por texto iterativo (sin selectores CSS inválidos)
         document.querySelectorAll('div, label, select, span').forEach(el => {
             const txt = (el.textContent || '').toUpperCase();
             if (txt.includes('CAMBIAR ROL') || txt.includes('SIMULACIÓN')) {

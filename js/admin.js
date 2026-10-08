@@ -7,6 +7,15 @@ export function initAdminModule() {
     ejecutarCargaSeguraAdmin();
     window.addEventListener('hashchange', ejecutarCargaSeguraAdmin);
     observarContenedorTablas();
+
+    // 🔗 Listener para forzar la carga al hacer clic en el menú de Usuarios
+    document.querySelectorAll('[href="#usuarios"], #nav-usuarios, .nav-item-usuarios, [data-target="usuarios"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (typeof window.cargarUsuariosSistema === 'function') {
+                window.cargarUsuariosSistema();
+            }
+        });
+    });
 }
 window.initAdminModule = initAdminModule;
 

@@ -1,57 +1,45 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-import { iniciarAplicacionPrincipal } from './main.js';
-
-const supabase = createClient('https://ruruabsbkvfbudnqkjby.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1cnVhYnNia3ZmYnVkbnFramJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5NTc0MzEsImV4cCI6MjEwNTUzMzQzMX0.7w3de1uogpGtHFUIyh6sO3U0Ad9BU_7CMDVfOy50cxU');
-
-window.supabase = supabase;
-
 // ==========================================================
-// 1. VERIFICAR SESIÓN ACTIVA AL CARGAR LA PÁGINA (Anti-cierre con F5)
+// MÓDULO DE AUTENTICACIÓN (auth.js)
 // ==========================================================
+
+const SUPABASE_URL = 'https://ruruabsbkvfbudnqkjby.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1cnVhYnNia3ZmYnVkbnFramJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5NTc0MzEsImV4cCI6MjEwNTUzMzQzMX0.7w3de1uogpGtHFUIyh6sO3U0Ad9BU_7CMDVfOy50cxU';
+
+if (typeof supabase !== 'undefined' && !window.supabase) {
+    window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+// 1. Verificar sesión activa al cargar (Anti-cierre con F5)
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) throw error;
+        const sesionGuardada = localStorage.getItem('usuario_sesion');
+        if (sesionGuardada) {
+            const user = JSON.parse(sesionGuardada);
+            if (user && user.id) {
+                console.log("🟢 Sesión activa detectada en localStorage.");
+                const loginWrapper = document.getElementById('auth-login-wrapper');
+                const mainContainer = document.getElementById('main-app-container');
 
-        if (session) {
-            console.log("🟢 Sesión activa detectada en el almacenamiento local.");
-            const userId = session.user.id;
+                if (loginWrapper) loginWrapper.classList.add('hidden');
+                if (mainContainer) mainContainer.classList.remove('hidden');
 
-            // Obtener perfil asociado
-            const { data: profileData } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', userId)
-                .single();
-
-            window.currentUserProfile = profileData || { email: session.user.email };
-
-            // Mostrar el sistema y ocultar el login
-            const loginWrapper = document.getElementById('auth-login-wrapper');
-            const mainContainer = document.getElementById('main-app-container');
-
-            if (loginWrapper) loginWrapper.classList.add('hidden');
-            if (mainContainer) mainContainer.classList.remove('hidden');
-
-            // Iniciar la app
-            iniciarAplicacionPrincipal();
-        } else {
-            console.log("🔒 No hay sesión activa. Se requiere inicio de sesión.");
+                if (typeof window.iniciarAplicacionPrincipal === 'function') {
+                    window.iniciarAplicacionPrincipal();
+                }
+            }
         }
     } catch (err) {
         console.error("Error al comprobar la sesión inicial:", err);
     }
 });
 
-// ==========================================================
-// 2. EVENTO DE INICIO DE SESIÓN DESDE EL FORMULARIO
-// ==========================================================
+// 2. Evento de inicio de sesión desde el formulario
 const loginForm = document.getElementById('login-form');
 if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const correoIngresado = document.getElementById('login-usuario').value.trim();
+        // Ignorar el símbolo '@' si el usuario lo llega a colocar por error
+        const usernameIngresado = document.getElementById('login-usuario').value.trim().replace(/^@/, '');
         const passwordInput = document.getElementById('login-password').value;
         const submitBtn = document.getElementById('btn-login-submit');
 
@@ -61,41 +49,68 @@ if (loginForm) {
         }
 
         try {
-            // Inicio de sesión directo con Supabase Auth
-            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-                email: correoIngresado,
-                password: passwordInput
-            });
+            const client = window.supabase;
+            if (!client) throw new Error("Cliente Supabase no disponible.");
 
-            if (authError) {
-                alert('Correo o contraseña incorrectos.');
+            let cuentaUsuario = null;
+
+            // Paso A: Buscar en la tabla 'bancas' (Vendedores y Bancas)
+            const { data: bancaData, error: bancaErr } = await client
+                .from('bancas')
+                .select('*')
+                .eq('username', usernameIngresado)
+                .eq('password', passwordInput)
+                .maybeSingle();
+
+            if (bancaData) {
+                cuentaUsuario = bancaData;
+            } else {
+                // Paso B: Si no está en bancas, buscar en la tabla 'usuarios' (Admins y Supervisores)
+                const { data: usuarioData, error: usuarioErr } = await client
+                    .from('usuarios')
+                    .select('*')
+                    .eq('username', usernameIngresado)
+                    .eq('password', passwordInput)
+                    .maybeSingle();
+
+                if (usuarioData) {
+                    cuentaUsuario = usuarioData;
+                }
+            }
+
+            if (!cuentaUsuario) {
+                alert('❌ Usuario o contraseña incorrectos.');
                 resetBtn();
                 return;
             }
 
-            // Obtenemos el perfil de la tabla 'profiles'
-            const userId = authData.user.id;
-            const { data: profileData } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', userId)
-                .single();
+            // Verificar estatus activo
+            const estatus = String(cuentaUsuario.estatus || cuentaUsuario.estado || 'activo').toLowerCase();
+            if (estatus !== 'activo') {
+                alert(`⚠️ Esta cuenta se encuentra ${estatus}. Contacte al administrador.`);
+                resetBtn();
+                return;
+            }
 
-            window.currentUserProfile = profileData || { email: correoIngresado };
+            // Guardar sesión en localStorage
+            localStorage.setItem('usuario_sesion', JSON.stringify(cuentaUsuario));
 
-            // Ocultamos la pantalla de login y mostramos el sistema
+            // Ocultar login y mostrar el contenedor principal del sistema
             const loginWrapper = document.getElementById('auth-login-wrapper');
             const mainContainer = document.getElementById('main-app-container');
 
             if (loginWrapper) loginWrapper.classList.add('hidden');
             if (mainContainer) mainContainer.classList.remove('hidden');
 
-            // Activamos todos los módulos conectados
-            iniciarAplicacionPrincipal();
+            if (typeof window.iniciarAplicacionPrincipal === 'function') {
+                window.iniciarAplicacionPrincipal();
+            } else {
+                window.location.reload();
+            }
 
         } catch (err) {
             console.error('Error en el login:', err);
-            alert('Ocurrió un error inesperado.');
+            alert('Ocurrió un error inesperado al iniciar sesión.');
             resetBtn();
         }
     });

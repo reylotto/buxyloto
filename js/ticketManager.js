@@ -369,16 +369,16 @@ export function mostrarOpcionesExportacionTicket(ticketData) {
     const codigo = ticketData.codigo_ticket || ticketData.codigo || '000000';
 
     const modalHTML = `
-        <div id="modal-export-ticket" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 99999;">
-            <div style="background: #1e293b; color: #fff; border-radius: 12px; padding: 24px; width: 90%; max-width: 380px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center;">
-                <h3 style="margin-top: 0; color: #10b981;">🎟 Ticket #${codigo}</h3>
-                <p style="font-size: 14px; color: #94a3b8; margin-bottom: 20px;">Seleccione cómo desea emitir el ticket:</p>
+        <div id="modal-export-ticket" style="position: fixed; inset: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.75); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 99999; padding: 16px;">
+            <div style="background: #1e293b; color: #fff; border: 1px solid #334155; border-radius: 16px; padding: 24px; width: 100%; max-width: 380px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); text-align: center;">
+                <h3 style="margin-top: 0; color: #10b981; font-size: 16px; font-weight: bold;">🎟 Ticket #${codigo}</h3>
+                <p style="font-size: 13px; color: #94a3b8; margin-bottom: 20px;">Seleccione cómo desea emitir el ticket:</p>
 
                 <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <button id="btn-print-thermal" style="background: #10b981; color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;">🖨 Imprimir Ticket (Térmica POS)</button>
-                    <button id="btn-share-wapp" style="background: #25d366; color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;">🖼 Enviar Imagen por WhatsApp</button>
-                    <button id="btn-download-img" style="background: #3b82f6; color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;">📥 Descargar Imagen (PNG)</button>
-                    <button id="btn-close-modal-export" style="background: #475569; color: #fff; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px;">Cerrar</button>
+                    <button id="btn-print-thermal" style="background: #10b981; color: #fff; border: none; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 12px; transition: background 0.2s;">🖨 Imprimir Ticket (Térmica POS)</button>
+                    <button id="btn-share-wapp" style="background: #25d366; color: #fff; border: none; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 12px;">🖼 Enviar Imagen por WhatsApp</button>
+                    <button id="btn-download-img" style="background: #3b82f6; color: #fff; border: none; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 12px;">📥 Descargar Imagen (PNG)</button>
+                    <button id="btn-close-modal-export" style="background: #475569; color: #fff; border: none; padding: 10px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 5px; font-size: 12px;">Cerrar</button>
                 </div>
             </div>
         </div>

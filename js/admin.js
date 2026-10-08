@@ -1,9 +1,7 @@
-// ==========================================================
-// MÓDULO ADMINISTRACIÓN DE USUARIOS, BANCAS Y LOTERÍAS (js/admin.js)
-// ==========================================================
+// --- MÓDULO ADMINISTRACIÓN DE USUARIOS Y BANCAS (BLINDAMIENTO TOTAL DOBLE) ---
 
 export function initAdminModule() {
-    console.log("🚀 Módulo Admin Inicializado con Gestión Integral (Usuarios, Bancas y Loterías).");
+    console.log("Módulo Admin Inicializado con Doble Blindaje.");
     
     // Iniciar carga inmediata
     ejecutarCargaSeguraAdmin();
@@ -11,7 +9,7 @@ export function initAdminModule() {
     // Blindaje contra recargas de otros módulos
     window.addEventListener('hashchange', ejecutarCargaSeguraAdmin);
     
-    // Observadores permanentes para las tablas de administración
+    // Observadores permanentes para ambas tablas
     observarContenedorTablas();
 }
 
@@ -19,13 +17,11 @@ function ejecutarCargaSeguraAdmin() {
     limpiarEventosDuplicados();
     cargarUsuariosSistema();
     cargarBancasSistema();
-    cargarSorteosSistema();
 }
 
 function observarContenedorTablas() {
     const contenedorBancas = document.getElementById('bancas-table-body') || document.getElementById('tabla-bancas-body');
     const contenedorUsuarios = document.getElementById('users-table-body') || document.getElementById('usuarios-table-body');
-    const contenedorSorteos = document.getElementById('sorteos-table-body') || document.getElementById('tabla-sorteos-body') || document.getElementById('loterias-table-body');
 
     const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
@@ -36,9 +32,6 @@ function observarContenedorTablas() {
                 if (contenedorUsuarios && contenedorUsuarios.innerHTML.trim() === '') {
                     cargarUsuariosSistema();
                 }
-                if (contenedorSorteos && contenedorSorteos.innerHTML.trim() === '') {
-                    cargarSorteosSistema();
-                }
             }
         });
     });
@@ -48,9 +41,6 @@ function observarContenedorTablas() {
     }
     if (contenedorUsuarios && contenedorUsuarios.parentNode) {
         observer.observe(contenedorUsuarios.parentNode, { childList: true, subtree: true });
-    }
-    if (contenedorSorteos && contenedorSorteos.parentNode) {
-        observer.observe(contenedorSorteos.parentNode, { childList: true, subtree: true });
     }
 }
 
@@ -67,13 +57,6 @@ function limpiarEventosDuplicados() {
         const clone = formBanca.cloneNode(true);
         formBanca.parentNode.replaceChild(clone, formBanca);
         clone.addEventListener('submit', window.guardarBancaSistema);
-    }
-
-    const formSorteo = document.getElementById('form-sorteo') || document.getElementById('form-crear-sorteo');
-    if (formSorteo) {
-        const clone = formSorteo.cloneNode(true);
-        formSorteo.parentNode.replaceChild(clone, formSorteo);
-        clone.addEventListener('submit', window.guardarSorteoSistema);
     }
 
     const btnUser = document.getElementById('btn-open-usuario-modal') || document.getElementById('btn-open-user-modal');
@@ -98,7 +81,6 @@ window.cerrarTodosLosModales = function() {
 };
 window.cerrarModalUsuario = window.cerrarTodosLosModales;
 window.cerrarModalBanca = window.cerrarTodosLosModales;
-window.cerrarModalSorteo = window.cerrarTodosLosModales;
 
 // ==========================================================
 // GESTIÓN DE USUARIOS
@@ -112,8 +94,7 @@ window.abrirModalUsuario = function(id = null) {
     const pwdInput = document.getElementById('crear-password') || document.getElementById('usuario-password');
 
     if (form) form.reset();
-    const inputEditId = document.getElementById('edit-usuario-id');
-    if (inputEditId) inputEditId.value = id || '';
+    document.getElementById('edit-usuario-id').value = id || '';
 
     if (id) {
         if(titulo) titulo.innerHTML = `<i class="fa-solid fa-user-pen"></i> Editar Usuario`;
@@ -138,14 +119,14 @@ window.abrirModalUsuario = function(id = null) {
 
 window.guardarUsuarioSistema = async function(e) {
     if(e) e.preventDefault();
-    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+    const supabase = window.supabase;
     if (!supabase) return;
 
-    const id = document.getElementById('edit-usuario-id')?.value;
-    const nombre = document.getElementById('crear-nombre')?.value.trim();
-    const username = document.getElementById('crear-username')?.value.trim();
-    const rol = document.getElementById('crear-rol')?.value;
-    const estatus = document.getElementById('crear-estatus')?.value;
+    const id = document.getElementById('edit-usuario-id').value;
+    const nombre = document.getElementById('crear-nombre').value.trim();
+    const username = document.getElementById('crear-username').value.trim();
+    const rol = document.getElementById('crear-rol').value;
+    const estatus = document.getElementById('crear-estatus').value;
     const passwordInput = document.getElementById('crear-password');
 
     try {
@@ -169,7 +150,7 @@ export async function cargarUsuariosSistema() {
     const tbody = document.getElementById('users-table-body') || document.getElementById('usuarios-table-body');
     if (!tbody) return;
 
-    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+    const supabase = window.supabase;
     if (!supabase) return;
 
     try {
@@ -209,11 +190,8 @@ export async function cargarUsuariosSistema() {
 
 window.eliminarUsuarioSistema = async function(id) {
     if (!confirm("¿Eliminar este usuario definitivamente?")) return;
-    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-    if (supabase) {
-        await supabase.from('usuarios').delete().eq('id', id);
-        cargarUsuariosSistema();
-    }
+    await window.supabase.from('usuarios').delete().eq('id', id);
+    cargarUsuariosSistema();
 };
 
 // ==========================================================
@@ -229,8 +207,7 @@ window.abrirModalBanca = function(id = null) {
     const inputOperador = document.getElementById('banca-operador');
 
     if (form) form.reset();
-    const inputEditId = document.getElementById('edit-banca-id');
-    if (inputEditId) inputEditId.value = id || '';
+    document.getElementById('edit-banca-id').value = id || '';
 
     if (id) {
         if (titulo) titulo.innerHTML = `<i class="fa-solid fa-pen"></i> <span>Editar Configuración de Banca</span>`;
@@ -260,20 +237,20 @@ window.abrirModalBanca = function(id = null) {
 
 window.guardarBancaSistema = async function(e) {
     if(e) e.preventDefault();
-    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+    const supabase = window.supabase;
     if (!supabase) return;
 
-    const id = document.getElementById('edit-banca-id')?.value;
-    const nombreOperador = document.getElementById('banca-operador')?.value.trim() || '';
+    const id = document.getElementById('edit-banca-id').value;
+    const nombreOperador = document.getElementById('banca-operador').value.trim();
     
     const payload = {
-        nombre_banca: document.getElementById('banca-nombre')?.value.trim(),
+        nombre_banca: document.getElementById('banca-nombre').value.trim(),
         vendedor_nombre: nombreOperador !== '' ? nombreOperador : 'Sin asignar',
-        username: document.getElementById('banca-usuario')?.value.trim(),
-        comision: parseFloat(document.getElementById('banca-comision')?.value) || 0,
-        limite_credito: parseFloat(document.getElementById('banca-limite')?.value) || 0,
-        monto_max_jugada: parseFloat(document.getElementById('banca-max-jugada')?.value) || 100,
-        estatus: document.getElementById('banca-estatus')?.value
+        username: document.getElementById('banca-usuario').value.trim(),
+        comision: parseFloat(document.getElementById('banca-comision').value) || 0,
+        limite_credito: parseFloat(document.getElementById('banca-limite').value) || 0,
+        monto_max_jugada: parseFloat(document.getElementById('banca-max-jugada').value) || 100,
+        estatus: document.getElementById('banca-estatus').value
     };
 
     try {
@@ -282,7 +259,7 @@ window.guardarBancaSistema = async function(e) {
             if (error) throw error;
             alert("✅ Banca actualizada con éxito.");
         } else {
-            payload.password = document.getElementById('banca-password')?.value;
+            payload.password = document.getElementById('banca-password').value;
             const { error } = await supabase.from('bancas').insert([payload]);
             if (error) throw error;
             alert("✅ Nueva banca registrada con éxito.");
@@ -298,7 +275,7 @@ export async function cargarBancasSistema() {
     const tbody = document.getElementById('bancas-table-body') || document.getElementById('tabla-bancas-body');
     if (!tbody) return;
 
-    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+    const supabase = window.supabase;
     if (!supabase) return;
 
     try {
@@ -348,222 +325,19 @@ export async function cargarBancasSistema() {
 window.cambiarPasswordBanca = async function(id, nombre) {
     const nueva = prompt(`Ingrese la nueva contraseña para ${nombre}:`);
     if (!nueva || nueva.trim() === '') return;
-    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-    if (supabase) {
-        await supabase.from('bancas').update({ password: nueva.trim() }).eq('id', id);
-        alert("✅ Contraseña actualizada.");
-    }
+    await window.supabase.from('bancas').update({ password: nueva.trim() }).eq('id', id);
+    alert("✅ Contraseña actualizada.");
 };
 
 window.cambiarEstatusBanca = async function(id, estatusActual) {
     const nuevo = estatusActual === 'activo' ? 'inactivo' : 'activo';
     if (!confirm(`¿Cambiar estatus a '${nuevo}'?`)) return;
-    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-    if (supabase) {
-        await supabase.from('bancas').update({ estatus: nuevo }).eq('id', id);
-        cargarBancasSistema();
-    }
+    await window.supabase.from('bancas').update({ estatus: nuevo }).eq('id', id);
+    cargarBancasSistema();
 };
 
 window.eliminarBancaSistema = async function(id) {
     if (!confirm("¿Desea eliminar esta banca del sistema de forma permanente?")) return;
-    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-    if (supabase) {
-        await supabase.from('bancas').delete().eq('id', id);
-        cargarBancasSistema();
-    }
-};
-
-// ==========================================================
-// GESTIÓN DE LOTERÍAS & SORTEOS (EVALUACIÓN DE ESTADO VIVO PANAMÁ)
-// ==========================================================
-
-function calcularEstatusVisualSorteo(sorteo) {
-    const estatusDB = String(sorteo.estatus || sorteo.estado || 'ACTIVO').toUpperCase().trim();
-
-    if (['PAUSADO', 'INACTIVO', 'PAUSA', 'DESACTIVADO'].includes(estatusDB)) {
-        return {
-            texto: 'PAUSADO',
-            clase: 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-        };
-    }
-
-    const ahoraPanama = new Date().toLocaleTimeString('en-GB', { 
-        timeZone: 'America/Panama', 
-        hour12: false 
-    });
-
-    const normHora = (hStr, def) => {
-        if (!hStr) return def;
-        let s = String(hStr).trim();
-        if (s.length === 5) s += ':00';
-        return s.length === 8 ? s : def;
-    };
-
-    const horaApertura = normHora(sorteo.horario_apertura || sorteo.hora_apertura, '06:00:00');
-    const horaCierre = normHora(sorteo.horario_cierre || sorteo.hora_cierre, '23:59:00');
-
-    if (ahoraPanama < horaApertura || ahoraPanama >= horaCierre) {
-        return {
-            texto: 'CERRADO',
-            clase: 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-        };
-    }
-
-    return {
-        texto: 'ACTIVO',
-        clase: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-    };
-}
-
-export async function cargarSorteosSistema() {
-    const tbody = document.getElementById('sorteos-table-body') || 
-                  document.getElementById('tabla-sorteos-body') || 
-                  document.getElementById('loterias-table-body') ||
-                  document.getElementById('sorteos-list-body');
-    if (!tbody) return;
-
-    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-    if (!supabase) return;
-
-    try {
-        const { data: sorteos, error } = await supabase
-            .from('sorteos')
-            .select('*')
-            .order('id', { ascending: true });
-
-        if (error) throw error;
-        window._sorteosCache = sorteos || [];
-
-        if (!sorteos || sorteos.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400 text-xs">No hay sorteos configurados.</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = sorteos.map(s => {
-            const estatusInfo = calcularEstatusVisualSorteo(s);
-            const estatusRealDB = String(s.estatus || s.estado || 'ACTIVO').toUpperCase();
-            const esPausado = ['PAUSADO', 'INACTIVO'].includes(estatusRealDB);
-
-            const horaApertura = s.horario_apertura || s.hora_apertura || '06:00';
-            const horaCierre = s.horario_cierre || s.hora_cierre || '--';
-            const diasJuego = s.dias_juego || s.dias || 'Dom, Lun, Mar, Mié, Jue, Vie, Sáb';
-
-            return `
-                <tr class="hover:bg-slate-800/60 transition border-b border-slate-700/40 text-xs">
-                    <td class="p-3 font-bold text-white">${s.nombre}</td>
-                    <td class="p-3 font-mono text-slate-300">${horaApertura}</td>
-                    <td class="p-3 font-mono text-slate-300">${horaCierre}</td>
-                    <td class="p-3 text-slate-400 text-[11px]">${diasJuego}</td>
-                    <td class="p-3 text-slate-400 font-mono">x60</td>
-                    <td class="p-3 text-center">
-                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${estatusInfo.clase}">
-                            ${estatusInfo.texto}
-                        </span>
-                    </td>
-                    <td class="p-3 text-center">
-                        <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="window.abrirModalSorteo('${s.id}')" class="bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 px-2 py-1.5 rounded flex items-center gap-1" title="Editar"><i class="fa-solid fa-pen-to-square"></i> Editar</button>
-                            <button onclick="window.cambiarEstatusSorteo('${s.id}', '${estatusRealDB}')" class="${esPausado ? 'bg-emerald-500/10 hover:bg-emerald-500 text-emerald-300' : 'bg-amber-500/10 hover:bg-amber-500 text-amber-300'} hover:text-white px-2 py-1.5 rounded transition flex items-center gap-1" title="Pausar/Activar">
-                                <i class="fa-solid ${esPausado ? 'fa-play' : 'fa-pause'}"></i> ${esPausado ? 'Activar' : 'Pausar'}
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-    } catch (err) {
-        console.error("Error al cargar sorteos en admin:", err);
-    }
-}
-window.cargarSorteosSistema = cargarSorteosSistema;
-
-window.abrirModalSorteo = function(id = null) {
-    window.cerrarTodosLosModales();
-    const modal = document.getElementById('modal-sorteo') || document.getElementById('modal-crear-sorteo');
-    const form = document.getElementById('form-sorteo') || document.getElementById('form-crear-sorteo');
-
-    if (form) form.reset();
-    const editIdInput = document.getElementById('edit-sorteo-id');
-    if (editIdInput) editIdInput.value = id || '';
-
-    if (id) {
-        const sorteo = (window._sorteosCache || []).find(s => String(s.id) === String(id));
-        if (sorteo) {
-            const nomInput = document.getElementById('sorteo-nombre');
-            const apInput = document.getElementById('sorteo-apertura');
-            const ciInput = document.getElementById('sorteo-cierre');
-            const diasInput = document.getElementById('sorteo-dias');
-
-            if (nomInput) nomInput.value = sorteo.nombre || '';
-            if (apInput) apInput.value = sorteo.horario_apertura || sorteo.hora_apertura || '06:00';
-            if (ciInput) ciInput.value = sorteo.horario_cierre || sorteo.hora_cierre || '';
-            if (diasInput) diasInput.value = sorteo.dias_juego || sorteo.dias || '';
-        }
-    }
-
-    if (modal) modal.classList.remove('hidden');
-};
-
-window.guardarSorteoSistema = async function(e) {
-    if (e) e.preventDefault();
-    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-    if (!supabase) return;
-
-    const id = document.getElementById('edit-sorteo-id')?.value;
-    const nombre = document.getElementById('sorteo-nombre')?.value.trim();
-    const horaApertura = document.getElementById('sorteo-apertura')?.value || '06:00';
-    const horaCierre = document.getElementById('sorteo-cierre')?.value;
-    const diasJuego = document.getElementById('sorteo-dias')?.value || 'Dom, Lun, Mar, Mié, Jue, Vie, Sáb';
-
-    if (!nombre || !horaCierre) {
-        alert("Por favor complete nombre y hora de cierre.");
-        return;
-    }
-
-    const payload = {
-        nombre: nombre,
-        horario_apertura: horaApertura,
-        hora_apertura: horaApertura,
-        horario_cierre: horaCierre,
-        hora_cierre: horaCierre,
-        dias_juego: diasJuego
-    };
-
-    try {
-        if (id) {
-            const { error } = await supabase.from('sorteos').update(payload).eq('id', id);
-            if (error) throw error;
-            alert("✅ Sorteo actualizado correctamente.");
-        } else {
-            payload.estatus = 'ACTIVO';
-            payload.estado = 'ACTIVO';
-            const { error } = await supabase.from('sorteos').insert([payload]);
-            if (error) throw error;
-            alert("✅ Sorteo creado correctamente.");
-        }
-        window.cerrarTodosLosModales();
-        await cargarSorteosSistema();
-        if (typeof window.cargarSorteosPOS === 'function') {
-            await window.cargarSorteosPOS();
-        }
-    } catch (err) {
-        alert("Error al guardar sorteo: " + err.message);
-    }
-};
-
-window.cambiarEstatusSorteo = async function(id, estatusActual) {
-    const esPausado = ['PAUSADO', 'INACTIVO'].includes(String(estatusActual).toUpperCase());
-    const nuevoEstatus = esPausado ? 'ACTIVO' : 'PAUSADO';
-
-    if (!confirm(`¿Desea cambiar el estatus del sorteo a '${nuevoEstatus}'?`)) return;
-
-    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-    if (supabase) {
-        await supabase.from('sorteos').update({ estatus: nuevoEstatus, estado: nuevoEstatus }).eq('id', id);
-        await cargarSorteosSistema();
-        if (typeof window.cargarSorteosPOS === 'function') {
-            await window.cargarSorteosPOS();
-        }
-    }
+    await window.supabase.from('bancas').delete().eq('id', id);
+    cargarBancasSistema();
 };

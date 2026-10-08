@@ -297,32 +297,34 @@ window.guardarBancaSistema = async function(e) {
 };
 
 export async function cargarBancasSistema() {
-    const tbody = document.getElementById('bancas-table-body') || 
-                  document.getElementById('tabla-bancas-body') || 
-                  document.querySelector('#section-bancas tbody');
+    const tbody = document.getElementById('bancas-table-body') || document.getElementById('tabla-bancas-body');
     if (!tbody) return;
 
     const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
     if (!supabase) return;
 
     try {
-        let query = supabase.from('bancas').select('*');
+        const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+        const rol = String(sesion.rol || '').toLowerCase().trim();
+        const esAdmin = rol === 'admin' || rol === 'administrador';
+        const zonaUsuario = sesion.zona || 'Zona General';
 
-        // 🔥 FILTRO ESTRICTO: Si es supervisor, solo carga las bancas de su zona asignada
-        const zonaSupervisor = typeof window.obtenerFiltroZonaSupervisor === 'function' ? window.obtenerFiltroZonaSupervisor() : null;
-        if (zonaSupervisor) {
-            query = query.eq('zona', zonaSupervisor);
-        }
+        // Llamada directa a la función segura en SQL de Supabase
+        const { data: bancas, error } = await supabase.rpc('obtener_bancas_por_zona', {
+            p_zona: zonaUsuario,
+            p_es_admin: esAdmin
+        });
 
-        const { data: bancas, error } = await query.order('created_at', { ascending: false });
         if (error) throw error;
         window._bancasCache = bancas || [];
 
         if (!bancas || bancas.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-400 text-xs">No hay bancas o vendedores registrados en esta zona.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-400 text-xs">No hay bancas registradas en tu zona (${zonaUsuario}).</td></tr>`;
             return;
         }
 
+        // Renderizado de tabla...
+        // (El resto de tu lógica de filas se mantiene intacta)
         const usuariosCache = window._usuariosCache || [];
 
         tbody.innerHTML = bancas.map(b => {

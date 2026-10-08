@@ -1,15 +1,12 @@
-// --- MÓDULO ADMINISTRACIÓN DE USUARIOS Y BANCAS (BLINDAMIENTO TOTAL DOBLE) ---
+// ==========================================================
+// MÓDULO ADMINISTRACIÓN DE USUARIOS, BANCAS Y ZONAS (js/admin.js)
+// ==========================================================
 
 export function initAdminModule() {
-    console.log("Módulo Admin Inicializado con Doble Blindaje.");
+    console.log("🚀 Módulo Admin Inicializado con Gestión de Zonas y Supervisores.");
     
-    // Iniciar carga inmediata
     ejecutarCargaSeguraAdmin();
-
-    // Blindaje contra recargas de otros módulos
     window.addEventListener('hashchange', ejecutarCargaSeguraAdmin);
-    
-    // Observadores permanentes para ambas tablas
     observarContenedorTablas();
 }
 
@@ -83,7 +80,7 @@ window.cerrarModalUsuario = window.cerrarTodosLosModales;
 window.cerrarModalBanca = window.cerrarTodosLosModales;
 
 // ==========================================================
-// GESTIÓN DE USUARIOS
+// 1. GESTIÓN DE USUARIOS Y SUPERVISORES DE ZONA
 // ==========================================================
 window.abrirModalUsuario = function(id = null) {
     window.cerrarTodosLosModales();
@@ -94,7 +91,8 @@ window.abrirModalUsuario = function(id = null) {
     const pwdInput = document.getElementById('crear-password') || document.getElementById('usuario-password');
 
     if (form) form.reset();
-    document.getElementById('edit-usuario-id').value = id || '';
+    const editIdInput = document.getElementById('edit-usuario-id');
+    if (editIdInput) editIdInput.value = id || '';
 
     if (id) {
         if(titulo) titulo.innerHTML = `<i class="fa-solid fa-user-pen"></i> Editar Usuario`;
@@ -105,11 +103,13 @@ window.abrirModalUsuario = function(id = null) {
         if (user) {
             document.getElementById('crear-nombre').value = user.nombre || '';
             document.getElementById('crear-username').value = user.username || '';
-            document.getElementById('crear-rol').value = user.rol || 'admin';
+            document.getElementById('crear-rol').value = user.rol || 'supervisor';
             document.getElementById('crear-estatus').value = user.estatus || 'activo';
+            const inputZona = document.getElementById('crear-zona');
+            if (inputZona) inputZona.value = user.zona || 'Zona General';
         }
     } else {
-        if(titulo) titulo.innerHTML = `<i class="fa-solid fa-user-plus"></i> Registrar Nuevo Usuario`;
+        if(titulo) titulo.innerHTML = `<i class="fa-solid fa-user-plus"></i> Registrar Usuario / Supervisor`;
         if(pwdContainer) pwdContainer.style.display = 'block';
         if(pwdInput) pwdInput.required = true;
     }
@@ -119,23 +119,27 @@ window.abrirModalUsuario = function(id = null) {
 
 window.guardarUsuarioSistema = async function(e) {
     if(e) e.preventDefault();
-    const supabase = window.supabase;
+    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
     if (!supabase) return;
 
-    const id = document.getElementById('edit-usuario-id').value;
-    const nombre = document.getElementById('crear-nombre').value.trim();
-    const username = document.getElementById('crear-username').value.trim();
-    const rol = document.getElementById('crear-rol').value;
-    const estatus = document.getElementById('crear-estatus').value;
+    const id = document.getElementById('edit-usuario-id')?.value;
+    const nombre = document.getElementById('crear-nombre')?.value.trim();
+    const username = document.getElementById('crear-username')?.value.trim();
+    const rol = document.getElementById('crear-rol')?.value;
+    const estatus = document.getElementById('crear-estatus')?.value;
+    const zona = document.getElementById('crear-zona')?.value.trim() || 'Zona General';
     const passwordInput = document.getElementById('crear-password');
+
+    const payload = { nombre, username, rol, estatus, zona };
 
     try {
         if (id) {
-            const { error } = await supabase.from('usuarios').update({ nombre, username, rol, estatus }).eq('id', id);
+            const { error } = await supabase.from('usuarios').update(payload).eq('id', id);
             if (error) throw error;
-            alert("✅ Usuario actualizado correctamente.");
+            alert("✅ Usuario / Supervisor actualizado correctamente.");
         } else {
-            const { error } = await supabase.from('usuarios').insert([{ nombre, username, password: passwordInput.value, rol, estatus }]);
+            payload.password = passwordInput?.value;
+            const { error } = await supabase.from('usuarios').insert([payload]);
             if (error) throw error;
             alert("✅ Usuario registrado exitosamente.");
         }
@@ -150,7 +154,7 @@ export async function cargarUsuariosSistema() {
     const tbody = document.getElementById('users-table-body') || document.getElementById('usuarios-table-body');
     if (!tbody) return;
 
-    const supabase = window.supabase;
+    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
     if (!supabase) return;
 
     try {
@@ -171,8 +175,8 @@ export async function cargarUsuariosSistema() {
                 <tr class="hover:bg-slate-800/60 transition border-b border-slate-700/40 text-xs">
                     <td class="p-3 font-semibold text-white">${user.nombre || 'Sin nombre'}</td>
                     <td class="p-3 text-cyan-400 font-mono">@${user.username || 'sin-usuario'}</td>
-                    <td class="p-3 text-slate-300 font-bold uppercase">${user.rol || 'admin'}</td>
-                    <td class="p-3 text-slate-400">${user.banca_asignada || 'Global'}</td>
+                    <td class="p-3 text-slate-300 font-bold uppercase">${user.rol || 'supervisor'}</td>
+                    <td class="p-3 text-amber-400 font-semibold">${user.zona || 'Zona General'}</td>
                     <td class="p-3"><span class="${badge} border px-2.5 py-1 rounded-full text-[10px] font-bold capitalize">${estatusVal}</span></td>
                     <td class="p-3 text-center">
                         <div class="flex items-center justify-center gap-2">
@@ -190,12 +194,15 @@ export async function cargarUsuariosSistema() {
 
 window.eliminarUsuarioSistema = async function(id) {
     if (!confirm("¿Eliminar este usuario definitivamente?")) return;
-    await window.supabase.from('usuarios').delete().eq('id', id);
-    cargarUsuariosSistema();
+    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+    if (supabase) {
+        await supabase.from('usuarios').delete().eq('id', id);
+        cargarUsuariosSistema();
+    }
 };
 
 // ==========================================================
-// GESTIÓN DE BANCAS Y VENDEDORES
+// 2. GESTIÓN DE BANCAS Y VENDEDORES CON SUPERVISOR / ZONA
 // ==========================================================
 window.abrirModalBanca = function(id = null) {
     window.cerrarTodosLosModales();
@@ -204,32 +211,55 @@ window.abrirModalBanca = function(id = null) {
     const titulo = document.getElementById('modal-titulo-banca');
     const pwdContainer = document.getElementById('container-pwd-banca');
     const pwdInput = document.getElementById('banca-password');
-    const inputOperador = document.getElementById('banca-operador');
+    const selectSupervisor = document.getElementById('banca-supervisor');
 
     if (form) form.reset();
-    document.getElementById('edit-banca-id').value = id || '';
+    const editIdInput = document.getElementById('edit-banca-id');
+    if (editIdInput) editIdInput.value = id || '';
+
+    // Llenar selector dinámico de supervisores
+    if (selectSupervisor) {
+        selectSupervisor.innerHTML = '<option value="">-- Sin Supervisor Asignado (Admin Central) --</option>';
+        const supervisores = (window._usuariosCache || []).filter(u => String(u.rol).toLowerCase() === 'supervisor');
+        supervisores.forEach(sup => {
+            const opt = document.createElement('option');
+            opt.value = sup.id;
+            opt.dataset.zona = sup.zona || 'Zona General';
+            opt.textContent = `🛡️ ${sup.nombre} (${sup.zona || 'Zona General'})`;
+            selectSupervisor.appendChild(opt);
+        });
+
+        selectSupervisor.onchange = () => {
+            const optSel = selectSupervisor.options[selectSupervisor.selectedIndex];
+            const inputZona = document.getElementById('banca-zona');
+            if (inputZona && optSel && optSel.dataset.zona) {
+                inputZona.value = optSel.dataset.zona;
+            }
+        };
+    }
 
     if (id) {
-        if (titulo) titulo.innerHTML = `<i class="fa-solid fa-pen"></i> <span>Editar Configuración de Banca</span>`;
+        if (titulo) titulo.innerHTML = `<i class="fa-solid fa-pen"></i> <span>Editar Banca / Vendedor</span>`;
         if (pwdContainer) pwdContainer.style.display = 'none'; 
         if (pwdInput) pwdInput.required = false;
-        if (inputOperador) inputOperador.required = false;
 
         const banca = (window._bancasCache || []).find(b => String(b.id) === String(id));
         if (banca) {
             document.getElementById('banca-nombre').value = banca.nombre_banca || banca.nombre || '';
-            if (inputOperador) inputOperador.value = banca.vendedor_nombre || banca.operador || banca.vendedor || '';
+            document.getElementById('banca-operador').value = banca.vendedor_nombre || banca.operador || '';
             document.getElementById('banca-usuario').value = banca.username || banca.usuario || '';
             document.getElementById('banca-comision').value = banca.comision !== undefined ? banca.comision : 15;
             document.getElementById('banca-limite').value = banca.limite_credito !== undefined ? banca.limite_credito : 300;
             document.getElementById('banca-max-jugada').value = banca.monto_max_jugada !== undefined ? banca.monto_max_jugada : 100;
             document.getElementById('banca-estatus').value = banca.estatus || 'activo';
+            if (selectSupervisor && banca.supervisor_id) selectSupervisor.value = banca.supervisor_id;
+            const inputZona = document.getElementById('banca-zona');
+            if (inputZona) inputZona.value = banca.zona || 'Zona General';
         }
     } else {
         if (titulo) titulo.innerHTML = `<i class="fa-solid fa-store text-cyan-400"></i> <span>Registrar Nueva Banca / Vendedor POS</span>`;
         if (pwdContainer) pwdContainer.style.display = 'block';
         if (pwdInput) pwdInput.required = true;
-        if (inputOperador) inputOperador.required = true;
     }
 
     if (modal) modal.classList.remove('hidden');
@@ -237,32 +267,36 @@ window.abrirModalBanca = function(id = null) {
 
 window.guardarBancaSistema = async function(e) {
     if(e) e.preventDefault();
-    const supabase = window.supabase;
+    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
     if (!supabase) return;
 
-    const id = document.getElementById('edit-banca-id').value;
-    const nombreOperador = document.getElementById('banca-operador').value.trim();
-    
+    const id = document.getElementById('edit-banca-id')?.value;
+    const selectSup = document.getElementById('banca-supervisor');
+    const supervisorId = selectSup?.value || null;
+    const zonaVal = document.getElementById('banca-zona')?.value.trim() || 'Zona General';
+
     const payload = {
-        nombre_banca: document.getElementById('banca-nombre').value.trim(),
-        vendedor_nombre: nombreOperador !== '' ? nombreOperador : 'Sin asignar',
-        username: document.getElementById('banca-usuario').value.trim(),
-        comision: parseFloat(document.getElementById('banca-comision').value) || 0,
-        limite_credito: parseFloat(document.getElementById('banca-limite').value) || 0,
-        monto_max_jugada: parseFloat(document.getElementById('banca-max-jugada').value) || 100,
-        estatus: document.getElementById('banca-estatus').value
+        nombre_banca: document.getElementById('banca-nombre')?.value.trim(),
+        vendedor_nombre: document.getElementById('banca-operador')?.value.trim() || 'Sin Asignar',
+        username: document.getElementById('banca-usuario')?.value.trim(),
+        comision: parseFloat(document.getElementById('banca-comision')?.value) || 0,
+        limite_credito: parseFloat(document.getElementById('banca-limite')?.value) || 0,
+        monto_max_jugada: parseFloat(document.getElementById('banca-max-jugada')?.value) || 100,
+        estatus: document.getElementById('banca-estatus')?.value || 'activo',
+        supervisor_id: supervisorId,
+        zona: zonaVal
     };
 
     try {
         if (id) {
             const { error } = await supabase.from('bancas').update(payload).eq('id', id);
             if (error) throw error;
-            alert("✅ Banca actualizada con éxito.");
+            alert("✅ Banca/Vendedor actualizada con éxito.");
         } else {
-            payload.password = document.getElementById('banca-password').value;
+            payload.password = document.getElementById('banca-password')?.value;
             const { error } = await supabase.from('bancas').insert([payload]);
             if (error) throw error;
-            alert("✅ Nueva banca registrada con éxito.");
+            alert("✅ Nueva banca/vendedor registrada con éxito.");
         }
         window.cerrarTodosLosModales();
         await cargarBancasSistema();
@@ -275,7 +309,7 @@ export async function cargarBancasSistema() {
     const tbody = document.getElementById('bancas-table-body') || document.getElementById('tabla-bancas-body');
     if (!tbody) return;
 
-    const supabase = window.supabase;
+    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
     if (!supabase) return;
 
     try {
@@ -284,17 +318,25 @@ export async function cargarBancasSistema() {
         window._bancasCache = bancas || [];
 
         if (!bancas || bancas.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400 text-xs">No hay bancas o vendedores registrados.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-400 text-xs">No hay bancas o vendedores registrados.</td></tr>`;
             return;
         }
 
+        const usuariosCache = window._usuariosCache || [];
+
         tbody.innerHTML = bancas.map(b => {
             const nombre = b.nombre_banca || b.nombre || 'Banca Principal';
-            const operador = b.vendedor_nombre || b.operador || b.vendedor || 'Sin Asignar';
+            const operador = b.vendedor_nombre || b.operador || 'Sin Asignar';
             const comision = (b.comision !== undefined && !isNaN(b.comision)) ? b.comision : 15;
             const limite = (b.limite_credito !== undefined && !isNaN(b.limite_credito)) ? b.limite_credito : 300;
-            const maxJugada = (b.monto_max_jugada !== undefined && !isNaN(b.monto_max_jugada)) ? b.monto_max_jugada : 100;
-            
+            const zonaStr = b.zona || 'Zona General';
+
+            let supervisorNombre = 'Admin Central';
+            if (b.supervisor_id) {
+                const supObj = usuariosCache.find(u => String(u.id) === String(b.supervisor_id));
+                if (supObj) supervisorNombre = supObj.nombre;
+            }
+
             const estatusVal = String(b.estatus || 'activo').toLowerCase();
             const badge = estatusVal === 'activo' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20';
 
@@ -302,9 +344,10 @@ export async function cargarBancasSistema() {
                 <tr class="hover:bg-slate-800/60 transition border-b border-slate-700/40 text-xs">
                     <td class="p-3 font-semibold text-white">${nombre}</td>
                     <td class="p-3 text-cyan-400 font-medium">${operador}</td>
+                    <td class="p-3 text-amber-400 font-medium">${zonaStr}</td>
+                    <td class="p-3 text-slate-300">${supervisorNombre}</td>
                     <td class="p-3 font-mono text-emerald-400 font-bold">${comision}%</td>
                     <td class="p-3 font-mono text-white font-semibold">$${Number(limite).toFixed(2)}</td>
-                    <td class="p-3 text-slate-400 font-mono">Máx: $${maxJugada}</td>
                     <td class="p-3"><span class="${badge} border px-2.5 py-1 rounded-full text-[10px] font-bold capitalize">${estatusVal}</span></td>
                     <td class="p-3 text-center">
                         <div class="flex items-center justify-center gap-1.5">
@@ -325,19 +368,28 @@ export async function cargarBancasSistema() {
 window.cambiarPasswordBanca = async function(id, nombre) {
     const nueva = prompt(`Ingrese la nueva contraseña para ${nombre}:`);
     if (!nueva || nueva.trim() === '') return;
-    await window.supabase.from('bancas').update({ password: nueva.trim() }).eq('id', id);
-    alert("✅ Contraseña actualizada.");
+    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+    if (supabase) {
+        await supabase.from('bancas').update({ password: nueva.trim() }).eq('id', id);
+        alert("✅ Contraseña actualizada.");
+    }
 };
 
 window.cambiarEstatusBanca = async function(id, estatusActual) {
     const nuevo = estatusActual === 'activo' ? 'inactivo' : 'activo';
     if (!confirm(`¿Cambiar estatus a '${nuevo}'?`)) return;
-    await window.supabase.from('bancas').update({ estatus: nuevo }).eq('id', id);
-    cargarBancasSistema();
+    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+    if (supabase) {
+        await supabase.from('bancas').update({ estatus: nuevo }).eq('id', id);
+        cargarBancasSistema();
+    }
 };
 
 window.eliminarBancaSistema = async function(id) {
     if (!confirm("¿Desea eliminar esta banca del sistema de forma permanente?")) return;
-    await window.supabase.from('bancas').delete().eq('id', id);
-    cargarBancasSistema();
+    const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+    if (supabase) {
+        await supabase.from('bancas').delete().eq('id', id);
+        cargarBancasSistema();
+    }
 };

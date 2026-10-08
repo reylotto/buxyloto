@@ -1,5 +1,5 @@
 // ==========================================================
-// ESCUDO Y CONTROL ESTRICTO DE ROLES (js/roleManager.js)
+// ESCUDO Y CONTROL DE ROLES (js/roleManager.js) - VERSIÓN SEGURA
 // ==========================================================
 
 (function() {
@@ -12,7 +12,7 @@
     }
 
     window.aplicarBlindajeSupervisor = function() {
-        // 1. Evitar bloqueos en la pantalla de login
+        // No hacer nada si estamos en la pantalla de inicio de sesión
         const loginWrapper = document.getElementById('auth-login-wrapper');
         if (loginWrapper && !loginWrapper.classList.contains('hidden')) {
             return;
@@ -23,17 +23,17 @@
         const zona = sesion.zona || 'Zona General';
         const nombre = sesion.nombre || sesion.username || 'Usuario';
 
-        // 2. ACTUALIZAR CABECERA (Respetando tu botón de Cerrar Sesión)
-        const nameEl = document.querySelector('.user-name-display, #admin-user-name, header .font-bold');
+        // 1. Mostrar nombre y rol en la cabecera, respetando tu botón de cerrar sesión
+        const nameEl = document.querySelector('.user-name-display, #admin-user-name');
         if (nameEl && !nameEl.textContent.includes('Plataforma')) nameEl.textContent = nombre;
 
-        const roleEl = document.querySelector('.user-role-display, #admin-user-role, header span.text-xs');
+        const roleEl = document.querySelector('.user-role-display, #admin-user-role');
         if (roleEl) {
             if (rol.includes('supervisor')) {
                 roleEl.textContent = `Supervisor (${zona})`;
                 roleEl.className = 'text-amber-400 font-semibold text-xs';
             } else if (rol.includes('caja') || rol.includes('vendedor')) {
-                roleEl.textContent = 'Banca / Vendedor POS';
+                roleEl.textContent = 'Vendedor POS';
                 roleEl.className = 'text-cyan-400 font-semibold text-xs';
             } else {
                 roleEl.textContent = 'Administrador Central';
@@ -41,52 +41,32 @@
             }
         }
 
-        // 3. ELIMINAR EL SIMULADOR DE ROLES SOLO EN LA CABECERA (NO EN LOS FORMULARIOS)
-        // Buscamos específicamente dentro del "header" o la parte superior
-        const selectsHeader = document.querySelectorAll('header select, .top-0 select');
-        selectsHeader.forEach(select => {
-            select.style.display = 'none'; // Oculta solo la cajita de selección arriba
-            const label = select.previousElementSibling;
-            if (label && label.tagName === 'LABEL') {
-                label.style.display = 'none'; // Oculta el texto "CAMBIAR ROL"
-            }
-        });
+        // 2. Ocultar de forma segura el menú de cambio de rol sin borrar el DOM
+        const selectorDeRol = document.querySelector('select[id*="rol-simulacion"], .cambiar-rol-container');
+        if (selectorDeRol) {
+            selectorDeRol.style.display = 'none';
+        }
 
-        // 4. OCULTAR MENÚS Y POS PARA SUPERVISORES
+        // 3. INYECCIÓN CSS: Oculta secciones de administración SOLO si el usuario es supervisor
         if (rol.includes('supervisor')) {
-            const ocultarElementosProhibidos = () => {
-                const linksMenu = document.querySelectorAll('aside nav a, nav a, .sidebar a');
-                linksMenu.forEach(link => {
-                    const texto = (link.textContent || '').toLowerCase().trim();
-                    const href = link.getAttribute('href') || '';
-                    if (
-                        texto.includes('punto de venta') || href.includes('pos') ||
-                        texto.includes('gestión de usuarios') || texto.includes('gestion de usuarios') ||
-                        texto.includes('bancas') || texto.includes('vendedores') ||
-                        texto.includes('loterías') || texto.includes('loterias') ||
-                        texto.includes('control de riesgo') || texto.includes('riesgo') ||
-                        texto.includes('personalizar ticket') ||
-                        texto.includes('geolocalización') || texto.includes('geolocalizacion')
-                    ) {
-                        const contenedor = link.closest('li') || link;
-                        if (contenedor) contenedor.style.display = 'none';
+            if (!document.getElementById('css-blindaje-supervisor')) {
+                const style = document.createElement('style');
+                style.id = 'css-blindaje-supervisor';
+                style.innerHTML = `
+                    /* Oculta los enlaces de la barra lateral al supervisor */
+                    a[href*="pos"], [data-target="pos"], 
+                    a[href*="usuarios"], [data-target="usuarios"],
+                    a[href*="bancas"], [data-target="bancas"],
+                    a[href*="loterias"], [data-target="loterias"],
+                    a[href*="riesgo"], [data-target="riesgo"],
+                    a[href*="personalizar"], a[href*="geolocalizacion"],
+                    /* Oculta formularios de resultados y botones de guardar escrutinio */
+                    #form-registrar-resultados, .btn-guardar-escrutinio {
+                        display: none !important;
                     }
-                });
-
-                // Ocultar formulario de escrutinio
-                const formEscrutinio = document.getElementById('form-registrar-resultados');
-                if (formEscrutinio) formEscrutinio.style.display = 'none';
-
-                document.querySelectorAll('.btn-guardar-escrutinio, button[type="submit"]').forEach(btn => {
-                    const txt = (btn.textContent || '').toLowerCase();
-                    if (txt.includes('escrutinio') || txt.includes('registrar')) {
-                        btn.style.display = 'none';
-                    }
-                });
-            };
-
-            ocultarElementosProhibidos();
-            setTimeout(ocultarElementosProhibidos, 500); 
+                `;
+                document.head.appendChild(style);
+            }
         }
     };
 

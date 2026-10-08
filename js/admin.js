@@ -49,7 +49,7 @@ function limpiarEventosDuplicados() {
         clone.addEventListener('submit', window.guardarUsuarioSistema);
     }
 
-    const formBanca = document.getElementById('form-banca');
+    const formBanca = document.getElementById('form-banca') || document.getElementById('form-crear-banca');
     if (formBanca) {
         const clone = formBanca.cloneNode(true);
         formBanca.parentNode.replaceChild(clone, formBanca);
@@ -71,13 +71,21 @@ function limpiarEventosDuplicados() {
     }
 }
 
+// -------------------------------------------------------------------
+// 🔥 CORRECCIÓN CRÍTICA: CIERRE DE MODALES A PRUEBA DE FALLOS
+// -------------------------------------------------------------------
 window.cerrarTodosLosModales = function() {
     document.querySelectorAll('.fixed').forEach(modal => {
-        if(modal.id && modal.id.includes('modal')) modal.classList.add('hidden');
+        // Eliminar inline styles (como display: flex) que bloquean Tailwind
+        modal.style.display = ''; 
+        // Restaurar la clase hidden
+        modal.classList.add('hidden');
     });
 };
 window.cerrarModalUsuario = window.cerrarTodosLosModales;
 window.cerrarModalBanca = window.cerrarTodosLosModales;
+// Esta línea global permite que el botón "Cancelar" o "Cerrar" de HTML funcione
+window.cerrarModal = window.cerrarTodosLosModales; 
 
 // ==========================================================
 // 1. GESTIÓN DE USUARIOS Y SUPERVISORES DE ZONA
@@ -101,7 +109,6 @@ window.abrirModalUsuario = function(id = null) {
 
         const user = (window._usuariosCache || []).find(u => String(u.id) === String(id));
         if (user) {
-            // Asignación Segura
             const setValorSeguro = (elementId, valor) => {
                 const el = document.getElementById(elementId);
                 if (el) el.value = valor;
@@ -120,8 +127,8 @@ window.abrirModalUsuario = function(id = null) {
     }
 
     if (modal) {
+        // Se usa SOLO tailwind. Nada de style.display = 'flex'
         modal.classList.remove('hidden');
-        modal.style.display = 'flex';
     }
 };
 
@@ -247,7 +254,7 @@ window.abrirModalBanca = function(id = null) {
     if (editIdInput) editIdInput.value = id || '';
 
     if (selectSupervisor) {
-        selectSupervisor.innerHTML = '<option value="">-- Sin Supervisor Asignado (Admin Central) --</option>';
+        selectSupervisor.innerHTML = '<option value="">-- Sin Supervisor (Admin Central) --</option>';
         const supervisores = (window._usuariosCache || []).filter(u => String(u.rol).toLowerCase() === 'supervisor');
         supervisores.forEach(sup => {
             const opt = document.createElement('option');
@@ -273,7 +280,6 @@ window.abrirModalBanca = function(id = null) {
 
         const banca = (window._bancasCache || []).find(b => String(b.id) === String(id));
         if (banca) {
-            // Asignación Segura
             const setValorSeguro = (elementId, valor) => {
                 const el = document.getElementById(elementId);
                 if (el) el.value = valor;
@@ -299,8 +305,8 @@ window.abrirModalBanca = function(id = null) {
     }
 
     if (modal) {
+        // Se usa SOLO tailwind. Nada de style.display = 'flex'
         modal.classList.remove('hidden');
-        modal.style.display = 'flex';
     }
 };
 
@@ -332,7 +338,7 @@ window.guardarBancaSistema = async function(e) {
             if (error) throw error;
             alert("✅ Banca/Vendedor actualizada con éxito.");
         } else {
-            payload.password = document.getElementById('banca-password')?.value;
+            payload.password = document.getElementById('banca-password')?.value || document.getElementById('crear-password')?.value;
             const { error } = await supabase.from('bancas').insert([payload]);
             if (error) throw error;
             alert("✅ Nueva banca/vendedor registrada con éxito.");

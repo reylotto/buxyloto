@@ -1,5 +1,5 @@
 // ==========================================================
-// MÓDULO DE AUTENTICACIÓN Y CONTROL ESTRICTO DE ROLES (auth.js)
+// MÓDULO DE AUTENTICACIÓN Y GESTIÓN DE ROLES (auth.js)
 // ==========================================================
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
@@ -10,80 +10,90 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 window.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// 1. RESTRICCIÓN Y OCULTAMIENTO DE MENÚS POR ROL (SUPERVISOR VS ADMIN)
-function aplicarRestriccionesPorRol(usuario) {
+// Función segura para aplicar restricciones visuales según el rol
+function aplicarRestriccionesDeRol(usuario) {
     const rol = String(usuario.rol || 'admin').toLowerCase().trim();
     const zona = usuario.zona || 'Zona General';
-    const nombre = usuario.nombre || usuario.nombre_completo || 'Usuario';
+    const nombre = usuario.nombre || usuario.username || 'Usuario';
 
-    console.log(`🛡️ Aplicando permisos estrictos -> [Rol: ${rol}] [Zona: ${zona}]`);
+    console.log(`🛡️ Rol Activo en Sesión -> [Rol: ${rol}] [Zona: ${zona}] [Nombre: ${nombre}]`);
+
+    // 1. Guardar perfil globalmente
     window.currentUserProfile = usuario;
 
-    // Actualizar nombre y rol en la cabecera superior derecha
+    // 2. Actualizar la cabecera superior derecha de manera segura
     setTimeout(() => {
-        const headerNameEl = document.querySelector('header .font-bold, #admin-user-name, .user-name-display');
+        // Buscar el nombre del usuario en el header
+        const headerNameEl = document.querySelector('#admin-user-name, .user-name-display, header div.font-bold');
         if (headerNameEl && !headerNameEl.textContent.includes('Plataforma')) {
             headerNameEl.textContent = nombre;
         }
-        const headerRoleEl = document.querySelector('header span.text-xs, #admin-user-role');
+
+        // Buscar el rol en el header
+        const headerRoleEl = document.querySelector('#admin-user-role, .user-role-display, header span.text-xs');
         if (headerRoleEl) {
-            headerRoleEl.textContent = rol === 'supervisor' ? `Supervisor (${zona})` : (rol === 'caja' ? 'Caja / Vendedor' : 'Administrador');
+            if (rol.includes('supervisor')) {
+                headerRoleEl.textContent = `Supervisor (${zona})`;
+                headerRoleEl.className = 'text-amber-400 font-semibold text-xs';
+            } else if (rol.includes('caja') || rol.includes('vendedor')) {
+                headerRoleEl.textContent = 'Banca / Vendedor POS';
+                headerRoleEl.className = 'text-cyan-400 font-semibold text-xs';
+            } else {
+                headerRoleEl.textContent = 'Administrador Central';
+                headerRoleEl.className = 'text-emerald-400 font-semibold text-xs';
+            }
         }
-    }, 400);
 
-    // Ocultar elementos del menú lateral basándonos en el texto visible del enlace
-    setTimeout(() => {
-        const linksMenu = document.querySelectorAll('aside nav a, nav a, .sidebar a, [class*="nav"] a');
-        
-        linksMenu.forEach(link => {
-            const texto = link.textContent.toLowerCase();
-
-            if (rol === 'supervisor') {
-                // El supervisor NO debe ver POS, Gestión de Usuarios, Bancas, Loterías, Control de Riesgo
-                if (
-                    texto.includes('punto de venta') || 
-                    texto.includes('pos') || 
-                    texto.includes('gestión de usuarios') || 
-                    texto.includes('gestion de usuarios') || 
-                    texto.includes('bancas') || 
-                    texto.includes('vendedores') || 
-                    texto.includes('loterías') || 
-                    texto.includes('loterias') || 
-                    texto.includes('control de riesgo') || 
-                    texto.includes('riesgo') || 
-                    texto.includes('personalizar ticket') || 
-                    texto.includes('geolocalización') || 
-                    texto.includes('geolocalizacion')
-                ) {
-                    const contenedor = link.closest('li') || link.closest('div') || link;
-                    if (contenedor) contenedor.style.display = 'none';
-                }
-            } else if (rol === 'caja' || rol === 'vendedor') {
-                // El vendedor solo ve POS e Historial de Tickets
-                if (!texto.includes('pos') && !texto.includes('punto de venta') && !texto.includes('historial')) {
-                    const contenedor = link.closest('li') || link.closest('div') || link;
-                    if (contenedor) contenedor.style.display = 'none';
-                }
+        // Ocultar cualquier selector o menú de "Cambiar Rol / Simulación" en pantalla
+        document.querySelectorAll('div, span, button, select, label').forEach(el => {
+            if (el.textContent && (el.textContent.includes('CAMBIAR ROL') || el.textContent.includes('SIMULACIÓN') || el.textContent.includes('simulacion'))) {
+                const contenedor = el.closest('div.relative') || el.closest('div');
+                if (contenedor) contenedor.style.display = 'none';
             }
         });
+    }, 400);
 
-        // Ocultar botones flotantes de creación/edición de admin si no es admin
-        if (rol !== 'admin') {
-            document.querySelectorAll('.admin-only, #btn-open-usuario-modal, #btn-open-banca-modal, #btn-open-loteria-modal, .btn-nueva-banca, .btn-nuevo-usuario').forEach(el => {
-                el.style.display = 'none';
-            });
+    // 3. Inyectar reglas CSS estrictas si es Supervisor o Vendedor
+    if (rol.includes('supervisor')) {
+        const styleId = 'supervisor-security-style';
+        if (!document.getElementById(styleId)) {
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.innerHTML = `
+                /* Ocultar POS, Usuarios, Bancas, Loterías, Riesgo para Supervisor */
+                a[href*="pos"], [data-target="pos"], .nav-item-pos,
+                a[href*="usuarios"], [data-target="usuarios"],
+                a[href*="bancas"], [data-target="bancas"],
+                a[href*="loterias"], [data-target="loterias"],
+                a[href*="riesgo"], [data-target="riesgo"],
+                a[href*="personalizar"], a[href*="geolocalizacion"],
+                #form-registrar-resultados, .btn-guardar-escrutinio {
+                    display: none !important;
+                }
+            `;
+            document.head.appendChild(style);
         }
-    }, 300);
+    }
 }
 
-// 2. VERIFICACIÓN DE SESIÓN ACTIVA AL CARGAR
+// Función global para que las consultas de tablas filtren por la zona del supervisor
+window.obtenerFiltroZonaSupervisor = function() {
+    const user = window.currentUserProfile || JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+    const rol = String(user.rol || '').toLowerCase().trim();
+    if (rol.includes('supervisor') && user.zona) {
+        return String(user.zona).trim();
+    }
+    return null; // Si es admin, retorna null para ver todo
+};
+
+// 1. VERIFICAR SESIÓN ACTIVA AL CARGAR LA PÁGINA
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const sesionGuardada = localStorage.getItem('usuario_sesion');
         if (sesionGuardada) {
             const user = JSON.parse(sesionGuardada);
             if (user && user.id) {
-                aplicarRestriccionesPorRol(user);
+                aplicarRestriccionesDeRol(user);
                 
                 const loginWrapper = document.getElementById('auth-login-wrapper');
                 const mainContainer = document.getElementById('main-app-container');
@@ -98,11 +108,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
     } catch (err) {
-        console.error("Error al comprobar sesión:", err);
+        console.error("Error al comprobar la sesión inicial:", err);
     }
 });
 
-// 3. INICIO DE SESIÓN
+// 2. EVENTO DE INICIO DE SESIÓN DESDE EL FORMULARIO
 const loginForm = document.getElementById('login-form');
 if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
@@ -119,32 +129,29 @@ if (loginForm) {
         try {
             let cuentaUsuario = null;
 
+            // A. Si ingresa correo (Admin maestro por Supabase Auth)
             if (userInput.includes('@')) {
-                const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+                const { data: authData, error: authError } = await window.supabase.auth.signInWithPassword({
                     email: userInput,
                     password: passwordInput
                 });
 
                 if (!authError && authData.user) {
-                    const { data: profileData } = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('id', authData.user.id)
-                        .maybeSingle();
-
-                    cuentaUsuario = profileData || {
+                    cuentaUsuario = {
                         id: authData.user.id,
                         nombre: 'Administrador Maestro',
                         username: 'admin',
                         rol: 'admin',
                         email: authData.user.email,
-                        estatus: 'activo'
+                        estatus: 'activo',
+                        zona: 'Zona General'
                     };
                 }
             }
 
+            // B. Buscar en tabla 'public.usuarios' (Supervisores y Admins personalizados)
             if (!cuentaUsuario) {
-                const { data: usuarioData, error: errUsu } = await supabase
+                const { data: usuarioData, error: errUsu } = await window.supabase
                     .from('usuarios')
                     .select('*')
                     .eq('username', userInput)
@@ -156,8 +163,9 @@ if (loginForm) {
                 }
             }
 
+            // C. Buscar en tabla 'public.bancas' (Vendedores / Caja)
             if (!cuentaUsuario) {
-                const { data: bancaData, error: errBanca } = await supabase
+                const { data: bancaData, error: errBanca } = await window.supabase
                     .from('bancas')
                     .select('*')
                     .eq('username', userInput)
@@ -186,9 +194,9 @@ if (loginForm) {
                 return;
             }
 
-            window.currentUserProfile = cuentaUsuario;
+            // Guardar sesión y aplicar restricciones de rol
             localStorage.setItem('usuario_sesion', JSON.stringify(cuentaUsuario));
-            aplicarRestriccionesPorRol(cuentaUsuario);
+            aplicarRestriccionesDeRol(cuentaUsuario);
 
             const loginWrapper = document.getElementById('auth-login-wrapper');
             const mainContainer = document.getElementById('main-app-container');
@@ -196,7 +204,11 @@ if (loginForm) {
             if (loginWrapper) loginWrapper.classList.add('hidden');
             if (mainContainer) mainContainer.classList.remove('hidden');
 
-            iniciarAplicacionPrincipal();
+            if (typeof iniciarAplicacionPrincipal === 'function') {
+                iniciarAplicacionPrincipal();
+            } else {
+                window.location.reload();
+            }
 
         } catch (err) {
             console.error('Error en el login:', err);

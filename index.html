@@ -944,99 +944,165 @@
     </div>
 </section>
 
-           <!-- ========================================== -->
-<!-- MODAL UNIFICADO: REGISTRAR / EDITAR BANCA Y USUARIO (SIN CORREO) -->
+ <!-- ========================================== -->
+<!-- MODAL 1: REGISTRAR / EDITAR BANCA Y VENDEDOR -->
 <!-- ========================================== -->
-<div id="modal-crear-usuario" class="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center hidden z-50 p-4">
+<!-- AQUÍ ESTÁ LA CORRECCIÓN: id="modal-banca" -->
+<div id="modal-banca" class="fixed inset-0 bg-black/75 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
     <div class="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
         
         <!-- Encabezado del Modal -->
         <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
-            <h3 id="modal-titulo" class="text-sm font-bold text-white flex items-center gap-2">
-                <i class="fa-solid fa-user-plus text-emerald-400"></i>
-                <span id="modal-titulo-texto">Registrar Nueva Banca / Vendedor</span>
+            <h3 id="modal-titulo-banca" class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-store text-emerald-400"></i>
+                <span>Registrar Nueva Banca / Vendedor</span>
             </h3>
-            <button type="button" onclick="cerrarModal()" class="text-slate-400 hover:text-white text-lg transition btn-close-user-modal">
+            <button type="button" onclick="cerrarModalBanca()" class="text-slate-400 hover:text-white text-lg transition">
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
 
-        <!-- Formulario sin campo de Correo Electrónico -->
-       <!-- Formulario de Bancas / Vendedores -->
-<form id="form-banca" class="space-y-3">
-    <!-- Input Oculto indispensable para Edición -->
-    <input type="hidden" id="edit-banca-id" value="" />
+        <!-- Formulario de Bancas / Vendedores -->
+        <form id="form-banca" class="space-y-3">
+            <input type="hidden" id="edit-banca-id" value="" />
 
-    <div>
-        <label class="block text-[11px] font-bold text-slate-300 mb-1">Nombre Comercial de la Banca (Terminal):</label>
-        <input type="text" id="banca-nombre" required placeholder="Ej: Banca Norte" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 font-sans">
+            <div>
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">Nombre Comercial (Terminal):</label>
+                <input type="text" id="banca-nombre" required placeholder="Ej: Banca Norte" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 font-sans">
+            </div>
+
+            <div>
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">Encargado / Vendedor:</label>
+                <input type="text" id="banca-operador" required placeholder="Ej: Juan Pérez" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 font-sans">
+            </div>
+
+            <div>
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">Usuario de Acceso (Username):</label>
+                <input type="text" id="banca-usuario" required placeholder="Ej: juanperez01" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+            </div>
+
+            <div id="container-pwd-banca">
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">Contraseña de Acceso:</label>
+                <input type="password" id="banca-password" placeholder="••••••••" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+            </div>
+
+            <div class="grid grid-cols-3 gap-3">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-300 mb-1">Comisión (%):</label>
+                    <input type="number" step="0.01" id="banca-comision" value="0" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-300 mb-1">Límite ($):</label>
+                    <input type="number" step="0.01" id="banca-limite" value="0" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-300 mb-1">Max x Jugada:</label>
+                    <input type="number" step="0.01" id="banca-max-jugada" value="100" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-300 mb-1">Estatus:</label>
+                    <select id="banca-estatus" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 text-slate-200">
+                        <option value="activo">Activo</option>
+                        <option value="inactivo">Inactivo</option>
+                        <option value="bloqueado">Bloqueado</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-300 mb-1">Supervisor</label>
+                    <select id="banca-supervisor" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 transition">
+                        <option value="">-- Admin Central --</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-300 mb-1">Zona / Área</label>
+                    <input type="text" id="banca-zona" value="Zona General" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 transition" />
+                </div>
+            </div>
+
+            <div class="pt-3 flex gap-2">
+                <button type="button" onclick="cerrarModalBanca()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition">
+                    Cancelar
+                </button>
+                <button type="submit" id="btn-guardar-banca" class="w-1/2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition">
+                    <i class="fa-solid fa-floppy-disk"></i> Guardar Banca
+                </button>
+            </div>
+        </form>
     </div>
+</div>
 
-    <div>
-        <label class="block text-[11px] font-bold text-slate-300 mb-1">Nombre del Encargado / Vendedor:</label>
-        <input type="text" id="banca-operador" required placeholder="Ej: Juan Pérez" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 font-sans">
-    </div>
-
-    <div>
-        <label class="block text-[11px] font-bold text-slate-300 mb-1">Usuario de Acceso (Username):</label>
-        <input type="text" id="banca-usuario" required placeholder="Ej: juanperez01" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 font-mono">
-    </div>
-
-    <!-- Contraseña -->
-    <div id="container-pwd-banca">
-        <label class="block text-[11px] font-bold text-slate-300 mb-1">Contraseña de Acceso:</label>
-        <input type="password" id="banca-password" placeholder="••••••••" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 font-mono">
-    </div>
-
-    <!-- Comisión, Límite de Crédito y Max Jugada -->
-    <div class="grid grid-cols-3 gap-3">
-        <div>
-            <label class="block text-[11px] font-bold text-slate-300 mb-1">Comisión (%):</label>
-            <input type="number" step="0.01" id="banca-comision" value="0" placeholder="0.00" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 font-mono">
+<!-- ========================================== -->
+<!-- MODAL 2: CREAR / EDITAR USUARIO DEL SISTEMA -->
+<!-- ========================================== -->
+<div id="modal-crear-usuario" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 relative">
+        
+        <!-- Encabezado del Modal -->
+        <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+            <h3 id="modal-titulo-usuario" class="text-base font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-users-gear text-emerald-400"></i>
+                <span>Registrar Usuario del Sistema</span>
+            </h3>
+            <button type="button" onclick="cerrarModalUsuario()" class="text-slate-400 hover:text-white transition text-lg">&times;</button>
         </div>
-        <div>
-            <label class="block text-[11px] font-bold text-slate-300 mb-1">Límite ($):</label>
-            <input type="number" step="0.01" id="banca-limite" value="0" placeholder="0.00" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 font-mono">
-        </div>
-        <div>
-            <label class="block text-[11px] font-bold text-slate-300 mb-1">Max x Jugada:</label>
-            <input type="number" step="0.01" id="banca-max-jugada" value="100" placeholder="100.00" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 font-mono">
-        </div>
-    </div>
 
-    <!-- Estatus, Supervisor y Zona -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
-        <div>
-            <label class="block text-[11px] font-bold text-slate-300 mb-1">Estatus:</label>
-            <select id="banca-estatus" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 text-slate-200">
-                <option value="activo">Activo</option>
-                <option value="inactivo">Inactivo</option>
-                <option value="bloqueado">Bloqueado</option>
-            </select>
-        </div>
-        <div>
-            <label class="block text-[11px] font-bold text-slate-300 mb-1">Supervisor</label>
-            <select id="banca-supervisor" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 transition">
-                <option value="">-- Admin Central --</option>
-                <!-- Se llena dinámicamente -->
-            </select>
-        </div>
-        <div>
-            <label class="block text-[11px] font-bold text-slate-300 mb-1">Zona / Área</label>
-            <input type="text" id="banca-zona" value="Zona General" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500 transition" />
-        </div>
-    </div>
+        <!-- Formulario de Usuarios / Supervisores -->
+        <form id="form-crear-usuario" class="space-y-3">
+            <input type="hidden" id="edit-usuario-id" value="" />
 
-    <!-- Botones de Acción -->
-    <div class="pt-3 flex gap-2">
-        <button type="button" onclick="cerrarModalBanca()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition">
-            Cancelar
-        </button>
-        <button type="submit" id="btn-guardar-banca" class="w-1/2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition">
-            <i class="fa-solid fa-floppy-disk"></i> Guardar Banca
-        </button>
+            <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1">Nombre Completo del Usuario</label>
+                <input type="text" id="crear-nombre" required placeholder="Ej: Pedro Gómez" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1">Username (Acceso)</label>
+                <input type="text" id="crear-username" required placeholder="Ej: pgomez" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
+            </div>
+
+            <div id="container-password">
+                <label class="block text-xs font-medium text-slate-300 mb-1">Contraseña de Acceso</label>
+                <input type="password" id="crear-password" placeholder="Mínimo 6 caracteres" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Rol en el Sistema</label>
+                    <select id="crear-rol" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
+                        <option value="admin">👑 Administrador</option>
+                        <option value="supervisor">🛡️ Supervisor</option>
+                        <option value="caja">💵 Caja (Cobrador)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Estatus</label>
+                    <select id="crear-estatus" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
+                        <option value="activo">Activo</option>
+                        <option value="suspendido">Suspendido</option>
+                        <option value="bloqueado">Bloqueado</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mt-2 mb-2">
+                <label for="crear-zona" class="block text-xs font-semibold text-slate-400 mb-1">Zona Asignada (Solo Supervisores)</label>
+                <input type="text" id="crear-zona" placeholder="Ej: Zona Norte, Chiriquí" value="Zona General" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition" />
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-700">
+                <button type="button" onclick="cerrarModalUsuario()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-semibold transition">
+                    Cancelar
+                </button>
+                <button type="submit" id="btn-guardar-usuario" class="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                    <i class="fa-solid fa-floppy-disk"></i> Guardar Usuario
+                </button>
+            </div>
+        </form>
     </div>
-</form>
+</div>
             <!-- SECCIÓN: GESTIÓN DE LOTERÍAS & SORTEOS -->
 <section id="section-loterias" class="content-section space-y-6 hidden admin-only">
     <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-4">
@@ -3717,75 +3783,6 @@ const supabase = createClient('https://ruruabsbkvfbudnqkjby.supabase.co', 'eyJhb
     <script src="js/pos.js" type="module"></script>
     <script src="js/dashboard.js" type="module"></script>
     <script src="js/admin.js" type="module"></script>
-<!-- ========================================== -->
-        <!-- MODAL UNIFICADO: CREAR / EDITAR USUARIO DEL SISTEMA -->
-        <div id="modal-crear-usuario" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4">
-                
-                <!-- Título Dinámico -->
-                <div class="flex items-center justify-between border-b border-slate-700 pb-3">
-                    <h3 id="modal-titulo" class="text-base font-bold text-white flex items-center gap-2">
-                        <i class="fa-solid fa-users-gear text-emerald-400"></i>
-                        <span>Registrar Usuario del Sistema</span>
-                    </h3>
-                    <button type="button" onclick="cerrarModal()" class="text-slate-400 hover:text-white transition text-lg">&times;</button>
-                </div>
-
-                <!-- Formulario de Usuarios / Supervisores -->
-<form id="form-crear-usuario" class="space-y-3">
-    <!-- ID Oculto para identificar la edición -->
-    <input type="hidden" id="edit-usuario-id" value="" />
-
-    <div>
-        <label class="block text-xs font-medium text-slate-300 mb-1">Nombre Completo del Usuario</label>
-        <input type="text" id="crear-nombre" required placeholder="Ej: Pedro Gómez" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
-    </div>
-
-    <div>
-        <label class="block text-xs font-medium text-slate-300 mb-1">Nombre de Usuario (Username / Acceso)</label>
-        <input type="text" id="crear-username" required placeholder="Ej: pgomez" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
-    </div>
-
-    <!-- Contraseña (Se oculta automáticamente al editar) -->
-    <div id="container-password">
-        <label class="block text-xs font-medium text-slate-300 mb-1">Contraseña de Acceso</label>
-        <input type="password" id="crear-password" placeholder="Mínimo 6 caracteres" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
-    </div>
-
-    <div class="grid grid-cols-2 gap-3">
-        <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Rol en el Sistema</label>
-            <select id="crear-rol" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
-                <option value="admin">👑 Administrador</option>
-                <option value="supervisor">🛡️ Supervisor</option>
-                <option value="caja">💵 Caja (Cobrador)</option>
-            </select>
-        </div>
-        <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Estatus</label>
-            <select id="crear-estatus" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
-                <option value="activo">Activo</option>
-                <option value="suspendido">Suspendido</option>
-                <option value="bloqueado">Bloqueado</option>
-            </select>
-        </div>
-    </div>
-
-    <!-- CAMPO ZONA PARA SUPERVISORES -->
-    <div class="mt-2 mb-2">
-        <label for="crear-zona" class="block text-xs font-semibold text-slate-400 mb-1">Zona Asignada (Obligatorio para Supervisores)</label>
-        <input type="text" id="crear-zona" placeholder="Ej: Zona Norte, Chiriquí" value="Zona General" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition" />
-    </div>
-
-    <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-700">
-        <button type="button" onclick="cerrarModalUsuario()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-semibold transition">
-            Cancelar
-        </button>
-        <button type="submit" id="btn-guardar-usuario" class="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg text-xs font-bold transition flex items-center gap-1">
-            <i class="fa-solid fa-floppy-disk"></i> Guardar Usuario
-        </button>
-    </div>
-</form>
 
 
 

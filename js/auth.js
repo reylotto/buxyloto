@@ -1,3 +1,7 @@
+// ==========================================================
+// MÓDULO DE AUTENTICACIÓN Y GESTIÓN DE SESIÓN (js/auth.js)
+// ==========================================================
+
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 import { iniciarAplicacionPrincipal } from './main.js';
 
@@ -17,6 +21,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const mainContainer = document.getElementById('main-app-container');
                 if (loginWrapper) loginWrapper.classList.add('hidden');
                 if (mainContainer) mainContainer.classList.remove('hidden');
+
+                // Asegurar vista por defecto si no hay hash
+                if (!window.location.hash || window.location.hash === '#') {
+                    window.location.hash = '#dashboard';
+                }
+
                 if (typeof iniciarAplicacionPrincipal === 'function') {
                     iniciarAplicacionPrincipal();
                 }
@@ -112,6 +122,9 @@ if (loginForm) {
             const mainContainer = document.getElementById('main-app-container');
             if (loginWrapper) loginWrapper.classList.add('hidden');
             if (mainContainer) mainContainer.classList.remove('hidden');
+
+            // Forzar redirección al dashboard al iniciar sesión exitosamente
+            window.location.hash = '#dashboard';
 
             if (typeof iniciarAplicacionPrincipal === 'function') {
                 iniciarAplicacionPrincipal();

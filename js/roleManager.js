@@ -12,9 +12,10 @@
     }
 
     window.aplicarBlindajeSupervisor = function() {
+        // 1. Evitar bloqueos en la pantalla de login
         const loginWrapper = document.getElementById('auth-login-wrapper');
         if (loginWrapper && !loginWrapper.classList.contains('hidden')) {
-            return; // Si estamos en el login, no hacemos nada
+            return;
         }
 
         const sesion = obtenerSesionSegura();
@@ -22,13 +23,11 @@
         const zona = sesion.zona || 'Zona General';
         const nombre = sesion.nombre || sesion.username || 'Usuario';
 
-        // 1. ACTUALIZAR LA CABECERA SUPERIOR DERECHA
-        const nameEl = document.querySelector('#admin-user-name, .user-name-display, header div.font-bold');
-        if (nameEl && !nameEl.textContent.includes('Plataforma')) {
-            nameEl.textContent = nombre;
-        }
+        // 2. ACTUALIZAR CABECERA (Respetando tu botón de Cerrar Sesión)
+        const nameEl = document.querySelector('.user-name-display, #admin-user-name, header .font-bold');
+        if (nameEl && !nameEl.textContent.includes('Plataforma')) nameEl.textContent = nombre;
 
-        const roleEl = document.querySelector('#admin-user-role, .user-role-display, header span.text-xs');
+        const roleEl = document.querySelector('.user-role-display, #admin-user-role, header span.text-xs');
         if (roleEl) {
             if (rol.includes('supervisor')) {
                 roleEl.textContent = `Supervisor (${zona})`;
@@ -42,63 +41,57 @@
             }
         }
 
-        // 2. OCULTAR SIMULADOR DE ROLES DE FORMA SEGURA (Sin borrar el dashboard)
-        const etiquetas = document.querySelectorAll('label, span, p');
-        etiquetas.forEach(el => {
-            const txt = (el.textContent || '').toUpperCase();
-            if (txt.includes('CAMBIAR ROL') || txt.includes('SIMULACIÓN')) {
-                // Solo borramos el div pequeñito que envuelve al select
-                const contenedor = el.closest('.relative') || el.parentElement;
-                if (contenedor) contenedor.style.display = 'none';
+        // 3. ELIMINAR ÚNICAMENTE LA CAJITA DE SIMULACIÓN DE ROLES
+        const selects = document.querySelectorAll('select');
+        selects.forEach(select => {
+            if (select.textContent.includes('Administrador Central') || select.textContent.includes('Supervisor')) {
+                select.style.display = 'none'; // Oculta solo la cajita de selección
+                const label = select.previousElementSibling;
+                if (label && label.tagName === 'LABEL') {
+                    label.style.display = 'none'; // Oculta el texto "CAMBIAR ROL"
+                }
             }
         });
 
-        // 3. BLOQUEO ABSOLUTO PARA SUPERVISORES
+        // 4. OCULTAR MENÚS Y POS PARA SUPERVISORES
         if (rol.includes('supervisor')) {
-            if (!document.getElementById('css-blindaje-supervisor')) {
-                const style = document.createElement('style');
-                style.id = 'css-blindaje-supervisor';
-                style.innerHTML = `
-                    a[href*="pos"], [data-target="pos"], .nav-item-pos,
-                    a[href*="usuarios"], [data-target="usuarios"],
-                    a[href*="bancas"], [data-target="bancas"],
-                    a[href*="loterias"], [data-target="loterias"],
-                    a[href*="riesgo"], [data-target="riesgo"],
-                    a[href*="personalizar"], a[href*="geolocalizacion"],
-                    #form-registrar-resultados, .btn-guardar-escrutinio {
-                        display: none !important;
-                    }
-                `;
-                document.head.appendChild(style);
-            }
-
-            const observer = new MutationObserver(() => {
-                const loginW = document.getElementById('auth-login-wrapper');
-                if (loginW && !loginW.classList.contains('hidden')) return;
-
-                document.querySelectorAll('aside nav a, nav a, .sidebar a').forEach(link => {
-                    const t = (link.textContent || '').toLowerCase().trim();
-                    const h = link.getAttribute('href') || '';
+            const ocultarElementosProhibidos = () => {
+                const linksMenu = document.querySelectorAll('aside nav a, nav a, .sidebar a');
+                linksMenu.forEach(link => {
+                    const texto = (link.textContent || '').toLowerCase().trim();
+                    const href = link.getAttribute('href') || '';
                     if (
-                        t.includes('punto de venta') || h.includes('pos') ||
-                        t.includes('gestión de usuarios') || t.includes('gestion de usuarios') ||
-                        t.includes('bancas') || t.includes('vendedores') ||
-                        t.includes('loterías') || t.includes('loterias') ||
-                        t.includes('control de riesgo') || t.includes('riesgo') ||
-                        t.includes('personalizar ticket') ||
-                        t.includes('geolocalización') || t.includes('geolocalizacion')
+                        texto.includes('punto de venta') || href.includes('pos') ||
+                        texto.includes('gestión de usuarios') || texto.includes('gestion de usuarios') ||
+                        texto.includes('bancas') || texto.includes('vendedores') ||
+                        texto.includes('loterías') || texto.includes('loterias') ||
+                        texto.includes('control de riesgo') || texto.includes('riesgo') ||
+                        texto.includes('personalizar ticket') ||
+                        texto.includes('geolocalización') || texto.includes('geolocalizacion')
                     ) {
-                        const item = link.closest('li') || link.closest('div') || link;
-                        if (item) item.style.display = 'none';
+                        const contenedor = link.closest('li') || link;
+                        if (contenedor) contenedor.style.display = 'none';
                     }
                 });
-            });
 
-            observer.observe(document.body, { childList: true, subtree: true });
+                // Ocultar formulario de escrutinio
+                const formEscrutinio = document.getElementById('form-registrar-resultados');
+                if (formEscrutinio) formEscrutinio.style.display = 'none';
+
+                document.querySelectorAll('.btn-guardar-escrutinio, button[type="submit"]').forEach(btn => {
+                    const txt = (btn.textContent || '').toLowerCase();
+                    if (txt.includes('escrutinio') || txt.includes('registrar')) {
+                        btn.style.display = 'none';
+                    }
+                });
+            };
+
+            ocultarElementosProhibidos();
+            setTimeout(ocultarElementosProhibidos, 500); // Se ejecuta doble vez para asegurar
         }
     };
 
     document.addEventListener('DOMContentLoaded', window.aplicarBlindajeSupervisor);
     window.addEventListener('hashchange', window.aplicarBlindajeSupervisor);
-    window.addEventListener('load', window.aplicarBlindajeSupervisor);
+    setTimeout(window.aplicarBlindajeSupervisor, 800);
 })();

@@ -1,15 +1,36 @@
 // ==========================================================
-// MÓDULO DE AUTENTICACIÓN HÍBRIDO (auth.js)
+// MÓDULO DE AUTENTICACIÓN HÍBRIDO CON CONTROL DE ROLES (auth.js)
 // ==========================================================
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 import { iniciarAplicacionPrincipal } from './main.js';
 
-const supabase = createClient('https://ruruabsbkvfbudnqkjby.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1cnVhYnNia3ZmYnVkbnFramJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5NTc0MzEsImV4cCI6MjEwNTUzMzQzMX0.7w3de1uogpGtHFUIyh6sO3U0Ad9BU_7CMDVfOy50cxU');
+const SUPABASE_URL = 'https://ruruabsbkvfbudnqkjby.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1cnVhYnNia3ZmYnVkbnFramJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5NTc0MzEsImV4cCI6MjEwNTUzMzQzMX0.7w3de1uogpGtHFUIyh6sO3U0Ad9BU_7CMDVfOy50cxU';
 
-window.supabase = supabase;
+window.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// 1. VERIFICAR SESIÓN ACTIVA AL CARGAR LA PÁGINA (Anti-cierre con F5)
+// 1. APLICAR RESTRICCIONES VISUALES SEGÚN EL ROL
+function aplicarRestriccionesPorRol(usuario) {
+    const rol = String(usuario.rol || 'admin').toLowerCase().trim();
+    console.log("🛡️ Aplicando restricciones de interfaz para el rol:", rol);
+
+    const elementosAdmin = document.querySelectorAll('.admin-only');
+    
+    if (rol !== 'admin' && rol !== 'administrador') {
+        // Ocultar elementos exclusivos de administración para supervisores y cajeros
+        elementosAdmin.forEach(el => {
+            el.style.display = 'none';
+        });
+    } else {
+        // Mostrar todo si es administrador
+        elementosAdmin.forEach(el => {
+            el.style.display = '';
+        });
+    }
+}
+
+// 2. VERIFICAR SESIÓN ACTIVA AL CARGAR LA PÁGINA (Anti-cierre con F5)
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const sesionGuardada = localStorage.getItem('usuario_sesion');
@@ -24,6 +45,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (loginWrapper) loginWrapper.classList.add('hidden');
                 if (mainContainer) mainContainer.classList.remove('hidden');
+
+                aplicarRestriccionesPorRol(user);
 
                 if (typeof iniciarAplicacionPrincipal === 'function') {
                     iniciarAplicacionPrincipal();
@@ -42,7 +65,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .eq('id', userId)
                 .maybeSingle();
 
-            const profileUser = profileData || { email: session.user.email, rol: 'admin', nombre: 'Administrador Maestro' };
+            const profileUser = profileData || { id: userId, email: session.user.email, rol: 'admin', nombre: 'Administrador Maestro' };
             window.currentUserProfile = profileUser;
             localStorage.setItem('usuario_sesion', JSON.stringify(profileUser));
 
@@ -52,6 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (loginWrapper) loginWrapper.classList.add('hidden');
             if (mainContainer) mainContainer.classList.remove('hidden');
 
+            aplicarRestriccionesPorRol(profileUser);
             iniciarAplicacionPrincipal();
         }
     } catch (err) {
@@ -59,7 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// 2. EVENTO DE INICIO DE SESIÓN DESDE EL FORMULARIO
+// 3. EVENTO DE INICIO DE SESIÓN DESDE EL FORMULARIO
 const loginForm = document.getElementById('login-form');
 if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
@@ -158,6 +182,9 @@ if (loginForm) {
 
             if (loginWrapper) loginWrapper.classList.add('hidden');
             if (mainContainer) mainContainer.classList.remove('hidden');
+
+            // Aplicar restricciones visuales según el rol del usuario
+            aplicarRestriccionesPorRol(cuentaUsuario);
 
             iniciarAplicacionPrincipal();
 

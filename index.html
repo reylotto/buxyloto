@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BuxyLoto POS & Dashboard Admin Central</title>
     <link rel="icon" href="data:,">
-   <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles.css">
 
     <!-- Declaración preventiva de variables globales -->
     <script>
@@ -54,9 +54,14 @@
     <style>
         /* Corrección para visibilidad y capas del menú móvil */
         aside, #sidebar, .sidebar {
-            z-index: 99999 !important;
+            z-index: 40 !important;
             background-color: #0f172a !important;
             opacity: 1 !important;
+        }
+
+        /* Fuerza bruta para que los modales siempre estén al frente */
+        #modal-crear-usuario, #modal-banca {
+            z-index: 999999 !important;
         }
 
         aside a, #sidebar a, .sidebar a, aside span, #sidebar span, aside button, #sidebar button {
@@ -3756,29 +3761,33 @@ const supabase = createClient('https://ruruabsbkvfbudnqkjby.supabase.co', 'eyJhb
 <!-- jspdf para generar PDF con dimensiones personalizadas -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-<!-- 2. Motor de Escrutinio y Reglas de Premios -->
-<script src="js/escrutinio.js"></script>
-<script type="module" src="js/historialTickets.js"></script>
+<!-- 2. Motor de Escrutinio y Reglas de Premios (con actualización de caché v3) -->
+<script src="js/escrutinio.js?v=3"></script>
+<script type="module" src="js/historialTickets.js?v=3"></script>
 <!-- 3. Lógica Principal de la Aplicación -->
-<script src="js/app.js"></script>
+<script src="js/app.js?v=3"></script>
 <!-- Módulo de Geolocalización -->
-<script type="module" src="js/geolocalizacion.js"></script>
+<script type="module" src="js/geolocalizacion.js?v=3"></script>
 <!-- Módulo de Reportes Financieros y Cuadres -->
-<script type="module" src="js/reportes.js"></script>
+<script type="module" src="js/reportes.js?v=3"></script>
 <!-- Módulo de Navegación y Adaptabilidad Móvil -->
-<script type="module" src="js/mobile.js"></script>
+<script type="module" src="js/mobile.js?v=3"></script>
 <!-- Módulo independiente de Tickets -->
-<script type="module" src="./js/ticketManager.js"></script>
-<script type="module" src="js/sorteos.js"></script>
-<script type="module" src="js/permissions.js"></script>
-<script type="module" src="js/roleManager.js"></script>
+<script type="module" src="./js/ticketManager.js?v=3"></script>
+<script type="module" src="js/sorteos.js?v=3"></script>
+<script type="module" src="js/permissions.js?v=3"></script>
+<script type="module" src="js/roleManager.js?v=3"></script>
 
 <!-- 4. Lógica de Dashboard (cargada como módulo si usa export/import) -->
-<script type="module" src="js/dashboard.js"></script>
-<script src="js/resultados.js"></script>
+<script type="module" src="js/dashboard.js?v=3"></script>
+<script src="js/resultados.js?v=3"></script>
 
 <!-- Módulo Independiente de Métricas, Gráficos y Perfil Admin -->
-<script src="js/dashboard-metrics.js"></script>
+<script src="js/dashboard-metrics.js?v=3"></script>
+
+<!-- MÓDULOS VITALES QUE FALTABAN (Admin y Auth) -->
+<script src="js/admin.js?v=3" type="module"></script>
+<script src="js/auth.js?v=3" type="module"></script>
 
 <script>
   // Helper global para restringir campos de entrada a solo números
@@ -3790,8 +3799,8 @@ const supabase = createClient('https://ruruabsbkvfbudnqkjby.supabase.co', 'eyJhb
 
 <!-- 5. Event Listeners e Inicialización Global de Módulos (POS y Control de Riesgos) -->
 <script type="module">
-    import { initPOSModule } from './js/pos.js';
-    import { initRiesgoModule } from './js/riesgo.js';
+    import { initPOSModule } from './js/pos.js?v=3';
+    import { initRiesgoModule } from './js/riesgo.js?v=3';
 
     document.addEventListener('DOMContentLoaded', () => {
         console.log('✅ Sistema e interfaces inicializadas correctamente.');

@@ -22,9 +22,16 @@ export async function cargarHistorialTicketsCentral() {
             </tr>
         `;
 
+       // 1. Calcular la fecha exacta de hoy
+        const hoy = new Date();
+        const fechaHoyStr = hoy.toISOString().split('T')[0];
+
+        // 2. Ejecutar consulta filtrando solo los tickets de hoy
         const { data: tickets, error } = await supabase
             .from('tickets')
             .select('*, sorteos(nombre), bancas(nombre)')
+            .gte('created_at', `${fechaHoyStr}T00:00:00.000Z`)
+            .lte('created_at', `${fechaHoyStr}T23:59:59.999Z`)
             .order('created_at', { ascending: false });
 
         if (error) throw error;

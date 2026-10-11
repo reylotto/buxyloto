@@ -358,10 +358,10 @@ export async function cargarBancasSistema() {
                     <td class="p-3 text-center"><span class="${badge} border px-2.5 py-1 rounded-full text-[10px] font-bold capitalize">${estatusVal}</span></td>
                     <td class="p-3 text-center">
                         <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="window.cambiarPasswordBanca('${b.id}', '${nombre}')" class="bg-blue-500/10 hover:bg-blue-500 text-blue-300 hover:text-white px-2 py-1.5 rounded transition flex items-center gap-1" title="Cambiar Contraseña"><i class="fa-solid fa-key"></i> Pass</button>
-                            <button onclick="window.abrirModalBanca('${b.id}')" class="bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 px-2 py-1.5 rounded transition flex items-center gap-1" title="Editar"><i class="fa-solid fa-pen-to-square"></i> Editar</button>
-                            <button onclick="window.cambiarEstatusBanca('${b.id}', '${estatusVal}')" class="bg-rose-500/10 hover:bg-rose-500 text-rose-300 hover:text-white px-2 py-1.5 rounded transition flex items-center gap-1" title="Bloquear"><i class="fa-solid fa-ban"></i> ${estatusVal === 'activo' ? 'Bloquear' : 'Activar'}</button>
-                            <button onclick="window.eliminarBancaSistema('${b.id}')" class="bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white px-2 py-1.5 rounded transition flex items-center gap-1" title="Eliminar"><i class="fa-solid fa-trash-can"></i> Eliminar</button>
+                            <button onclick="window.cambiarPasswordBanca('${b.id}', '${nombre}')" class="bg-blue-500/10 hover:bg-blue-500 text-blue-300 hover:text-white px-2 py-1.5 rounded transition" title="Pass"><i class="fa-solid fa-key"></i></button>
+                            <button onclick="window.abrirModalBanca('${b.id}')" class="bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 px-2 py-1.5 rounded transition" title="Editar"><i class="fa-solid fa-pen-to-square"></i></button>
+                            <button onclick="window.cambiarEstatusBanca('${b.id}', '${estatusVal}')" class="bg-rose-500/10 hover:bg-rose-500 text-rose-300 hover:text-white px-2 py-1.5 rounded transition" title="Bloquear"><i class="fa-solid fa-ban"></i></button>
+                            <button onclick="window.eliminarBancaSistema('${b.id}')" class="bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white px-2 py-1.5 rounded transition" title="Eliminar"><i class="fa-solid fa-trash-can"></i></button>
                         </div>
                     </td>
                 </tr>

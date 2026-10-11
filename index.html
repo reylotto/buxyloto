@@ -921,10 +921,10 @@
                 </h3>
                 <p class="text-xs text-slate-400">Configura comisiones %, límites de crédito, estatus y supervisores por zona.</p>
             </div>
-            <button type="button" id="btn-open-banca-modal" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-lg shadow-emerald-500/20 flex items-center gap-2">
-                <i class="fa-solid fa-plus"></i>
-                <span>Nueva Banca</span>
-            </button>
+           <button type="button" onclick="window.abrirModalBanca()" id="btn-open-banca-modal" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-lg">
+    <i class="fa-solid fa-plus"></i>
+    <span>Nueva Banca</span>
+</button>
         </div>
 
         <div class="overflow-x-auto custom-scrollbar">
@@ -2900,19 +2900,11 @@ if (btnProcessEl) {
             }
 
             const btnOpenBanca = document.getElementById('btn-open-banca-modal');
-            if (btnOpenBanca) {
-                btnOpenBanca.addEventListener('click', () => {
-                    const title = document.getElementById('modal-banca-title');
-                    const editId = document.getElementById('banca-edit-id');
-                    const formBanca = document.getElementById('form-banca');
-                    const modalBanca = document.getElementById('modal-banca');
-
-                    if (title) title.textContent = 'Nueva Banca';
-                    if (editId) editId.value = '';
-                    if (formBanca) formBanca.reset();
-                    if (modalBanca) modalBanca.classList.remove('hidden');
-                });
-            }
+if (btnOpenBanca) {
+    btnOpenBanca.addEventListener('click', () => {
+        // ... un montón de código que abre el modal viejo ...
+    });
+}
 
             const formBanca = document.getElementById('form-banca');
             if (formBanca) {

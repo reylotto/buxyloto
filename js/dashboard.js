@@ -507,13 +507,27 @@ async function cargarResumenOperacionesHoy() {
             return est !== 'cancelado' && est !== 'anulado';
         });
 
+        // ----------------------------------------------------------------------
+        // 🚨 SOLUCIÓN: DESCARGAR LAS BANCAS ANTES DE HACER LA MATEMÁTICA
+        // ----------------------------------------------------------------------
+        if (typeof window.cargarBancasSistema === 'function' && (!window._bancasCache || window._bancasCache.length === 0)) {
+            try { await window.cargarBancasSistema(); } catch (e) { console.warn("Aviso pre-cargando bancas:", e); }
+        }
+        
+        let bancasCache = window._bancasCache || [];
+        if (bancasCache.length === 0) {
+            // Consulta de rescate por si admin.js no ha cargado aún
+            const { data: bancasDirectas } = await supabase.from('bancas').select('*');
+            bancasCache = bancasDirectas || [];
+            window._bancasCache = bancasCache; // Guardar en caché global
+        }
+        // ----------------------------------------------------------------------
+
         const totalTickets = tickets.length;
         let ventaTotal = 0;
         let comisionesTotal = 0;
         let premiosTotal = 0;
         let totalGanadores = 0;
-
-        const bancasCache = window._bancasCache || [];
 
         tickets.forEach(t => {
             const monto = parseFloat(t.total || t.monto || t.monto_total || 0);
@@ -525,6 +539,8 @@ async function cargarResumenOperacionesHoy() {
             } else {
                 const bancaIdStr = String(t.banca_id || t.usuario_id || '');
                 const bancaAsociada = bancasCache.find(b => String(b.id) === bancaIdStr);
+                
+                // Leemos la comisión real que viene de la base de datos
                 if (bancaAsociada && bancaAsociada.comision !== undefined && bancaAsociada.comision !== null) {
                     pctComision = parseFloat(bancaAsociada.comision);
                 }
@@ -579,11 +595,6 @@ async function cargarResumenOperacionesHoy() {
         if (elemGanancia) {
             elemGanancia.textContent = `$${gananciaNeta.toFixed(2)}`;
             elemGanancia.className = `text-2xl font-black mt-2 ${gananciaNeta >= 0 ? 'text-emerald-400' : 'text-rose-500'}`;
-        }
-
-        // LLAMADA CORREGIDA A ADMIN.JS
-        if (typeof window.cargarBancasSistema === 'function' && (!window._bancasCache || window._bancasCache.length === 0)) {
-            try { await window.cargarBancasSistema(); } catch (e) { console.warn("Aviso pre-cargando bancas:", e); }
         }
 
         renderizarGraficosCompletos(tickets);

@@ -210,3 +210,33 @@ document.addEventListener('DOMContentLoaded', () => {
         obs.observe(secBalances, { attributes: true });
     }
 });
+// Agrega esto al final de js/balancesCuadres.js
+window.mostrarTabFinanzas = function(tabName) {
+    // 1. Ocultar todos los contenidos
+    const tabs = ['auditoria', 'balances', 'cuadres'];
+    tabs.forEach(t => {
+        const el = document.getElementById('tab-content-' + t);
+        if (el) el.classList.add('hidden');
+        
+        // 2. Quitar el color verde de todos los botones
+        const btn = document.getElementById('tab-btn-' + t);
+        if (btn) {
+            btn.classList.remove('bg-emerald-600', 'text-white');
+            btn.classList.add('bg-transparent', 'text-slate-400');
+        }
+    });
+    
+    // 3. Mostrar el contenido seleccionado y pintar el botón de verde
+    const activeContent = document.getElementById('tab-content-' + tabName);
+    if (activeContent) activeContent.classList.remove('hidden');
+    
+    const activeBtn = document.getElementById('tab-btn-' + tabName);
+    if (activeBtn) {
+        activeBtn.classList.remove('bg-transparent', 'text-slate-400');
+        activeBtn.classList.add('bg-emerald-600', 'text-white');
+    }
+    
+    // 4. Disparar las consultas automáticamente al cambiar de pestaña
+    if (tabName === 'auditoria' && typeof window.generarReporte === 'function') window.generarReporte();
+    if (tabName === 'balances' && typeof window.consultarBalancesVendedores === 'function') window.consultarBalancesVendedores();
+};

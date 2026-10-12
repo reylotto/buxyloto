@@ -1309,110 +1309,140 @@
             </button>
         </div>
     </div>
-    <!-- ========================================================== -->
-<!-- SECCIÓN DE BALANCES Y CUADRES (id="section-reports") -->
+   <!-- ========================================================== -->
+<!-- INICIO SECCIÓN REPORTES (id="section-reports") -->
 <!-- ========================================================== -->
-<div id="section-reports" class="app-view hidden p-6 bg-slate-900 min-h-screen text-white">
-    <div class="max-w-7xl mx-auto space-y-6">
+<div id="section-reports" class="app-view hidden p-4 md:p-6 bg-slate-900 min-h-screen text-white space-y-6">
+    
+    <!-- Encabezado y Navegación de Pestañas -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-lg">
+        <div>
+            <h1 class="text-2xl font-black text-white flex items-center gap-2">
+                <i class="fa-solid fa-wallet text-emerald-400"></i> Reportes & Balances
+            </h1>
+            <p class="text-xs text-slate-400 mt-1">Control financiero, auditoría general y arqueos de caja.</p>
+        </div>
         
-        <!-- Encabezado -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-800 p-6 rounded-xl border border-slate-700">
-            <div>
-                <h1 class="text-2xl font-black text-white flex items-center gap-2">
-                    <i class="fa-solid fa-wallet text-emerald-400"></i> Balances & Cuadres por Vendedor
-                </h1>
-                <p class="text-xs text-slate-400 mt-1">Control financiero, arqueos de caja y sincronización con POS móviles.</p>
+        <div class="flex flex-wrap gap-2 bg-slate-900 p-1.5 rounded-xl border border-slate-700">
+            <button onclick="window.mostrarTabFinanzas('auditoria')" id="tab-btn-auditoria" class="px-4 py-2.5 rounded-lg font-bold text-xs bg-emerald-600 text-white shadow-md transition-all">
+                Auditoría y KPIs
+            </button>
+            <button onclick="window.mostrarTabFinanzas('balances')" id="tab-btn-balances" class="px-4 py-2.5 rounded-lg font-bold text-xs bg-transparent text-slate-400 hover:text-white transition-all">
+                Balances por Vendedor
+            </button>
+            <button onclick="window.mostrarTabFinanzas('cuadres')" id="tab-btn-cuadres" class="px-4 py-2.5 rounded-lg font-bold text-xs bg-transparent text-slate-400 hover:text-white transition-all">
+                Historial de Cuadres
+            </button>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 1: AUDITORÍA GENERAL Y KPIs -->
+    <!-- ========================================== -->
+    <div id="tab-content-auditoria" class="space-y-6">
+        
+        <!-- Filtros de Auditoría -->
+        <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-filter text-emerald-400"></i> Filtros de Auditoría
+                </h4>
+                <div class="flex gap-3">
+                    <button onclick="window.exportarReporteExcel()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1"><i class="fa-solid fa-file-csv"></i> Excel</button>
+                    <button onclick="window.imprimirReportePDF()" class="bg-rose-700 hover:bg-rose-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center gap-1"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+                </div>
             </div>
             
-            <!-- Pestañas de Navegación Interna -->
-            <div class="flex bg-slate-900 p-1 rounded-lg border border-slate-700">
-                <button id="btn-tab-balances-vendedor" class="px-4 py-2 rounded-md font-bold text-xs bg-emerald-600 text-white transition-all">
-                    Balances por Vendedor
-                </button>
-                <button id="btn-tab-cuadres-cierre" class="px-4 py-2 rounded-md font-bold text-xs text-slate-400 hover:text-white transition-all">
-                    Historial de Cuadres
-                </button>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Fecha Desde</label><input type="date" id="rep-fecha-desde" style="color-scheme: dark;" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"></div>
+                <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Fecha Hasta</label><input type="date" id="rep-fecha-hasta" style="color-scheme: dark;" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"></div>
+                <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Zona</label><select id="rep-filtro-zona" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"><option value="todas">Todas las zonas</option></select></div>
+                <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Supervisor</label><select id="rep-filtro-supervisor" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"><option value="todos">Todos los supervisores</option></select></div>
+                <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Vendedor / Banca</label><select id="rep-filtro-vendedor" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"><option value="todos">Todos los vendedores</option></select></div>
+                <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Lotería</label><select id="rep-filtro-loteria" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"><option value="todas">Todas las loterías</option></select></div>
+                <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Tipo Jugada</label><select id="rep-filtro-tipo-jugada" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"><option value="todas">Todas</option><option value="directo">Directo</option><option value="pale">Palé</option><option value="tripleta">Tripleta</option></select></div>
+            </div>
+
+            <div class="flex justify-between items-center pt-3 border-t border-slate-700/50">
+                <button onclick="window.limpiarFiltrosReportes()" class="text-xs text-slate-400 hover:text-emerald-400 transition-colors flex items-center gap-1"><i class="fa-solid fa-rotate-left"></i> Restablecer a Hoy</button>
+                <button onclick="window.generarReporte()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-6 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2"><i class="fa-solid fa-magnifying-glass"></i> Consultar Reporte</button>
             </div>
         </div>
 
-        <!-- SECCIÓN 1: BALANCES POR VENDEDOR -->
-        <div id="seccion-balances-vendedor" class="space-y-6">
-            <!-- Filtros de Búsqueda -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-800 p-4 rounded-xl border border-slate-700">
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-400 mb-1">Fecha Desde</label>
-                    <input type="date" id="balance-fecha-desde" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-400 mb-1">Fecha Hasta</label>
-                    <input type="date" id="balance-fecha-hasta" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-400 mb-1">Vendedor / Banca</label>
-                    <select id="balance-filtro-vendedor" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
-                        <option value="todos">Todos los vendedores / bancas</option>
-                    </select>
-                </div>
-                <div class="flex items-end">
-                    <button onclick="window.consultarBalancesVendedores()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-lg text-xs transition-colors flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-magnifying-glass"></i> Consultar Balances
-                    </button>
-                </div>
-            </div>
-
-            <!-- Tabla de Balances -->
-            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
-                <div class="p-4 border-b border-slate-700 font-bold text-sm text-slate-200">
-                    Desglose Financiero por Banca
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="bg-slate-900/60 border-b border-slate-700 text-[11px] text-slate-400 uppercase font-bold">
-                                <th class="p-3">Banca / Vendedor</th>
-                                <th class="p-3 text-center">Comisión %</th>
-                                <th class="p-3 text-right">Venta Bruta</th>
-                                <th class="p-3 text-right">Comisión</th>
-                                <th class="p-3 text-right">Premios</th>
-                                <th class="p-3 text-right">Saldo Neto</th>
-                                <th class="p-3 text-center">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabla-balances-vendedores-body">
-                            <!-- Los datos se inyectarán dinámicamente aquí -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+        <!-- Tarjetas KPI -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-sm"><p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Venta Bruta Total</p><h4 id="rep-venta-bruta" class="text-2xl font-black text-emerald-400 mt-1">$0.00</h4></div>
+            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-sm"><p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Comisiones Generadas</p><h4 id="rep-comisiones" class="text-2xl font-black text-amber-400 mt-1">$0.00</h4></div>
+            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-sm"><p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Premios Ganados</p><h4 id="rep-premios" class="text-2xl font-black text-rose-400 mt-1">$0.00</h4></div>
+            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-sm"><p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Resultado Neto (Balance)</p><h4 id="rep-balance-neto" class="text-2xl font-black text-sky-400 mt-1">$0.00</h4></div>
         </div>
 
-        <!-- SECCIÓN 2: HISTORIAL DE CUADRES -->
-        <div id="seccion-cuadres-cierre" class="space-y-6 hidden">
-            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
-                <div class="p-4 border-b border-slate-700 font-bold text-sm text-slate-200">
-                    Historial de Arqueos y Cierres Registrados
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="bg-slate-900/60 border-b border-slate-700 text-[11px] text-slate-400 uppercase font-bold">
-                                <th class="p-3">Fecha / Hora</th>
-                                <th class="p-3">Banca</th>
-                                <th class="p-3 text-right">Monto Cuadrado</th>
-                                <th class="p-3 text-center">Estatus</th>
-                                <th class="p-3 text-center">Usuario Responsable</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabla-historial-cuadres-body">
-                            <!-- Historial de cuadres -->
-                        </tbody>
-                    </table>
-                </div>
+        <!-- Tabla de Auditoría -->
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-lg overflow-hidden">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/40">
+                <h4 class="text-sm font-bold text-white flex items-center gap-2"><i class="fa-solid fa-list-check text-emerald-400"></i> Desglose por Banca y Fecha</h4>
+            </div>
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] tracking-wider font-bold border-b border-slate-700">
+                        <tr><th class="p-3">Fecha</th><th class="p-3">Banca / Vendedor</th><th class="p-3">Zona / Sup</th><th class="p-3 text-center">Tickets</th><th class="p-3 text-right">Venta Bruta</th><th class="p-3 text-right">Comisión</th><th class="p-3 text-right">Premios</th><th class="p-3 text-right">Balance Neto</th><th class="p-3 text-center">Estatus Cuadre</th></tr>
+                    </thead>
+                    <tbody id="reports-banca-table-body" class="divide-y divide-slate-700/60">
+                        <tr><td colspan="9" class="text-center py-8 text-slate-500">Haz clic en "Consultar Reporte" para ver la información.</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
+    </div>
 
+    <!-- ========================================== -->
+    <!-- TAB 2: BALANCES POR VENDEDOR Y ARQUEO -->
+    <!-- ========================================== -->
+    <div id="tab-content-balances" class="hidden space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-lg">
+            <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Fecha Desde</label><input type="date" id="balance-fecha-desde" style="color-scheme: dark;" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white"></div>
+            <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Fecha Hasta</label><input type="date" id="balance-fecha-hasta" style="color-scheme: dark;" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white"></div>
+            <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Vendedor / Banca</label><select id="balance-filtro-vendedor" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white"><option value="todos">Todos los vendedores / bancas</option></select></div>
+            <div class="flex items-end"><button onclick="window.consultarBalancesVendedores()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow-md transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-magnifying-glass"></i> Consultar Balances</button></div>
+        </div>
+        
+        <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-lg">
+            <div class="p-4 border-b border-slate-700 bg-slate-900/40 font-bold text-sm text-white flex items-center gap-2"><i class="fa-solid fa-hand-holding-dollar text-emerald-400"></i> Desglose Financiero para Arqueo / Pagos</div>
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left">
+                    <thead class="bg-slate-900/80 border-b border-slate-700 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                        <tr><th class="p-3">Banca / Vendedor</th><th class="p-3 text-center">Comisión %</th><th class="p-3 text-right">Venta Bruta</th><th class="p-3 text-right">Comisión</th><th class="p-3 text-right">Premios</th><th class="p-3 text-right">Saldo Neto</th><th class="p-3 text-center">Acciones</th></tr>
+                    </thead>
+                    <tbody id="tabla-balances-vendedores-body" class="text-xs divide-y divide-slate-700/60">
+                        <tr><td colspan="7" class="text-center p-8 text-slate-500">Selecciona fechas y presiona Consultar Balances.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: HISTORIAL DE CUADRES -->
+    <!-- ========================================== -->
+    <div id="tab-content-cuadres" class="hidden space-y-6">
+        <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-lg">
+            <div class="p-4 border-b border-slate-700 bg-slate-900/40 font-bold text-sm text-white flex items-center gap-2"><i class="fa-solid fa-clock-rotate-left text-emerald-400"></i> Historial de Arqueos y Cierres Registrados</div>
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left">
+                    <thead class="bg-slate-900/80 border-b border-slate-700 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                        <tr><th class="p-3">Fecha / Hora</th><th class="p-3">Banca</th><th class="p-3 text-right">Monto Cuadrado</th><th class="p-3 text-center">Estatus</th><th class="p-3 text-center">Usuario Responsable</th></tr>
+                    </thead>
+                    <tbody id="tabla-historial-cuadres-body" class="text-xs divide-y divide-slate-700/60">
+                        <tr><td colspan="5" class="text-center p-8 text-slate-500">No hay arqueos recientes en este periodo.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
+<!-- ========================================================== -->
+<!-- FIN SECCIÓN REPORTES -->
+<!-- ========================================================== -->
 
     <!-- Filtros de Auditoría -->
     <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-4">

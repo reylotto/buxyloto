@@ -370,7 +370,6 @@
                     <i class="fa-solid fa-file-invoice-dollar text-emerald-400 text-base w-5 text-center"></i>
                     <span>Balances & Cuadres</span>
                 </button>
-            </div>
 
             <div class="p-3 border-t border-slate-700/80 bg-slate-900/50">
                 <div class="flex items-center justify-between text-[11px] text-slate-400">
@@ -668,6 +667,7 @@
 
     </div>
 </section>
+
 
 <!-- SECCIÓN 3: HISTORIAL DE TICKETS -->
 <section id="section-tickets" class="content-section space-y-6 hidden">
@@ -1309,6 +1309,110 @@
             </button>
         </div>
     </div>
+    <!-- ========================================================== -->
+<!-- SECCIÓN DE BALANCES Y CUADRES (id="section-reports") -->
+<!-- ========================================================== -->
+<div id="section-reports" class="app-view hidden p-6 bg-slate-900 min-h-screen text-white">
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- Encabezado -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-800 p-6 rounded-xl border border-slate-700">
+            <div>
+                <h1 class="text-2xl font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-wallet text-emerald-400"></i> Balances & Cuadres por Vendedor
+                </h1>
+                <p class="text-xs text-slate-400 mt-1">Control financiero, arqueos de caja y sincronización con POS móviles.</p>
+            </div>
+            
+            <!-- Pestañas de Navegación Interna -->
+            <div class="flex bg-slate-900 p-1 rounded-lg border border-slate-700">
+                <button id="btn-tab-balances-vendedor" class="px-4 py-2 rounded-md font-bold text-xs bg-emerald-600 text-white transition-all">
+                    Balances por Vendedor
+                </button>
+                <button id="btn-tab-cuadres-cierre" class="px-4 py-2 rounded-md font-bold text-xs text-slate-400 hover:text-white transition-all">
+                    Historial de Cuadres
+                </button>
+            </div>
+        </div>
+
+        <!-- SECCIÓN 1: BALANCES POR VENDEDOR -->
+        <div id="seccion-balances-vendedor" class="space-y-6">
+            <!-- Filtros de Búsqueda -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-800 p-4 rounded-xl border border-slate-700">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-400 mb-1">Fecha Desde</label>
+                    <input type="date" id="balance-fecha-desde" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-400 mb-1">Fecha Hasta</label>
+                    <input type="date" id="balance-fecha-hasta" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-400 mb-1">Vendedor / Banca</label>
+                    <select id="balance-filtro-vendedor" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
+                        <option value="todos">Todos los vendedores / bancas</option>
+                    </select>
+                </div>
+                <div class="flex items-end">
+                    <button onclick="window.consultarBalancesVendedores()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-lg text-xs transition-colors flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-magnifying-glass"></i> Consultar Balances
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabla de Balances -->
+            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
+                <div class="p-4 border-b border-slate-700 font-bold text-sm text-slate-200">
+                    Desglose Financiero por Banca
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-900/60 border-b border-slate-700 text-[11px] text-slate-400 uppercase font-bold">
+                                <th class="p-3">Banca / Vendedor</th>
+                                <th class="p-3 text-center">Comisión %</th>
+                                <th class="p-3 text-right">Venta Bruta</th>
+                                <th class="p-3 text-right">Comisión</th>
+                                <th class="p-3 text-right">Premios</th>
+                                <th class="p-3 text-right">Saldo Neto</th>
+                                <th class="p-3 text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-balances-vendedores-body">
+                            <!-- Los datos se inyectarán dinámicamente aquí -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECCIÓN 2: HISTORIAL DE CUADRES -->
+        <div id="seccion-cuadres-cierre" class="space-y-6 hidden">
+            <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
+                <div class="p-4 border-b border-slate-700 font-bold text-sm text-slate-200">
+                    Historial de Arqueos y Cierres Registrados
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-900/60 border-b border-slate-700 text-[11px] text-slate-400 uppercase font-bold">
+                                <th class="p-3">Fecha / Hora</th>
+                                <th class="p-3">Banca</th>
+                                <th class="p-3 text-right">Monto Cuadrado</th>
+                                <th class="p-3 text-center">Estatus</th>
+                                <th class="p-3 text-center">Usuario Responsable</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-historial-cuadres-body">
+                            <!-- Historial de cuadres -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
 
     <!-- Filtros de Auditoría -->
     <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-4">
@@ -1759,6 +1863,7 @@
             </div>
         </div>
     </div>
+    
 
 
     <!-- SCRIPT PRINCIPAL DE LA APLICACIÓN -->

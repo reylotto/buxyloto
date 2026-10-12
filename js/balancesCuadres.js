@@ -200,7 +200,7 @@ function cargarHistorialCuadres() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const secBalances = document.getElementById('section-balances');
+    const secBalances = document.getElementById('section-reports');
     if (secBalances) {
         const obs = new MutationObserver(() => {
             if (!secBalances.classList.contains('hidden')) {

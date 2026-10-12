@@ -478,13 +478,34 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
         const nombreBanca = typeof obtenerNombreBancaActual === 'function' ? obtenerNombreBancaActual() : 'Banca Principal';
 
+        // 🚨 CAPTURA INTELIGENTE DE LA BANCA Y SU COMISIÓN REAL
         let usuarioId = null;
         let bancaId = null;
-        try {
-            const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || localStorage.getItem('usuario') || '{}');
-            usuarioId = sesion.id || sesion.user_id || sesion.uuid || null;
-            bancaId = sesion.banca_id || null;
-        } catch (e) {}
+        let porcentajeComisionFinal = 10; // Valor por defecto
+
+        // 1. Intentar leer del selector desplegable del POS si está activo
+        const selectBancaPOS = document.getElementById('select-vendedor-asignado') || document.getElementById('pos-select-banca');
+        if (selectBancaPOS && selectBancaPOS.value) {
+            bancaId = selectBancaPOS.value;
+            usuarioId = selectBancaPOS.options[selectBancaPOS.selectedIndex]?.dataset?.uuid || bancaId;
+            
+            // Buscar el porcentaje en la caché global de bancas
+            const bancasCache = window._bancasCache || [];
+            const bancaEncontrada = bancasCache.find(b => String(b.id) === String(bancaId));
+            if (bancaEncontrada && bancaEncontrada.comision !== undefined) {
+                porcentajeComisionFinal = parseFloat(bancaEncontrada.comision);
+            }
+        } else {
+            // 2. Si no, leer de la sesión del usuario logueado
+            try {
+                const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || localStorage.getItem('usuario') || '{}');
+                usuarioId = sesion.id || sesion.user_id || sesion.uuid || null;
+                bancaId = sesion.banca_id || sesion.id || null;
+                if (sesion.comision !== undefined) {
+                    porcentajeComisionFinal = parseFloat(sesion.comision);
+                }
+            } catch (e) {}
+        }
 
         const payloadTicket = {
             codigo_ticket: codigoTicket,
@@ -500,7 +521,9 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             vendedor_id: usuarioId,
             banca_id: bancaId,
             vendedor: nombreBanca,
-            banca_nombre: nombreBanca
+            banca_nombre: nombreBanca,
+            comision_porcentaje: porcentajeComisionFinal, // 👈 ¡Inyectamos el porcentaje real directo en el ticket!
+            comision_monto: parseFloat((montoTotal * (porcentajeComisionFinal / 100)).toFixed(2)) // 👈 ¡Calculamos su comisión exacta en vivo!
         };
 
         // 1. Insertar Ticket

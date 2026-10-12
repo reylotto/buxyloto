@@ -1286,55 +1286,90 @@
                 </div>
             </section>
 
-          <!-- ================================================================= -->
-<!-- SECCIÓN 10: BALANCES FINANCIEROS Y CUADRES (ÚNICA INSTANCIA)     -->
 <!-- ================================================================= -->
-<section id="section-reports" class="content-section space-y-6 hidden">
-    
-    <!-- Encabezado y Botones -->
-    <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-            <h3 class="text-xl font-bold text-white flex items-center gap-2">
-                <i class="fa-solid fa-file-invoice-dollar text-emerald-400"></i>
-                <span>Balances Financieros & Cuadres</span>
-            </h3>
-            <p class="text-xs text-slate-400 mt-1">Consolidado interactivo de ventas, comisiones, premios y saldo neto por banca y fecha.</p>
-        </div>
-        <div class="flex items-center gap-2">
-            <button onclick="window.exportarReporteExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2">
-                <i class="fa-solid fa-file-excel text-sm"></i> Exportar Excel / CSV
-            </button>
-            <button onclick="window.exportarReportePDF()" class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2">
-                <i class="fa-solid fa-file-pdf text-sm"></i> Imprimir / PDF
-            </button>
-        </div>
-    </div>
-<!-- ========================================================== -->
-<!-- SECCIÓN DE BALANCES Y CUADRES (id="section-reports") -->
-<!-- ========================================================== -->
-<div id="section-reports" class="app-view hidden p-4 md:p-6 bg-slate-900 min-h-screen text-white">
-    
-    <!-- Encabezado Principal -->
-    <div class="flex justify-between items-center bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-lg mb-6">
+<!-- SECCIÓN 10: BALANCES FINANCIEROS Y CUADRES                        -->
+<!-- ================================================================= -->
+<section id="section-reports" class="app-view hidden p-4 md:p-6 bg-slate-900 min-h-screen text-white">
+
+    <!-- Encabezado Principal y Pestañas -->
+    <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-lg mb-6">
         <div>
             <h1 class="text-2xl font-black text-white flex items-center gap-2">
                 <i class="fa-solid fa-scale-balanced text-emerald-400"></i> Control de Cuadres y Saldos
             </h1>
-            <p class="text-xs text-slate-400 mt-1">Gestión de resultados, pagos y balances de vendedores.</p>
+            <p class="text-xs text-slate-400 mt-1">Auditoría, pagos y balances de vendedores en tiempo real.</p>
         </div>
-        <div class="flex gap-2 bg-slate-900 p-1.5 rounded-xl border border-slate-700">
-            <button id="btn-vista-general" onclick="window.cambiarVistaCuadre('general')" class="px-4 py-2 rounded-lg font-bold text-xs bg-emerald-600 text-white transition-all">Lista de Balances</button>
-            <button id="btn-vista-detalle" onclick="window.cambiarVistaCuadre('detalle')" class="px-4 py-2 rounded-lg font-bold text-xs text-slate-400 hover:text-white transition-all">Nuevo Cuadre</button>
+        <div class="flex flex-wrap gap-2 bg-slate-900 p-1.5 rounded-xl border border-slate-700">
+            <button id="btn-tab-auditoria" onclick="window.mostrarTabFinanzas('auditoria')" class="px-4 py-2 rounded-lg font-bold text-xs bg-emerald-600 text-white transition-all shadow-lg">Auditoría General</button>
+            <button id="btn-tab-balances" onclick="window.mostrarTabFinanzas('balances-globales')" class="px-4 py-2 rounded-lg font-bold text-xs bg-slate-700 text-slate-400 hover:text-white transition-all">Resumen de Balances</button>
+            <button id="btn-tab-cuadre" onclick="window.mostrarTabFinanzas('nuevo-cuadre')" class="px-4 py-2 rounded-lg font-bold text-xs bg-slate-700 text-slate-400 hover:text-white transition-all">Nuevo Cuadre / Pagos</button>
         </div>
     </div>
 
     <!-- ================================================= -->
-    <!-- VISTA 1: LISTA GENERAL DE BALANCES (Basado en Img 3) -->
+    <!-- PESTAÑA 1: AUDITORÍA GENERAL Y KPIs               -->
     <!-- ================================================= -->
-    <div id="vista-balances-general" class="bg-slate-800 border border-slate-700 rounded-2xl shadow-lg overflow-hidden">
-        <div class="p-4 border-b border-slate-700 flex justify-between items-center">
+    <div id="tab-auditoria" class="space-y-6">
+        <!-- Filtros de Auditoría -->
+        <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-filter text-emerald-400"></i> Filtros de Auditoría
+                </h4>
+                <div class="flex items-center gap-2">
+                    <button onclick="window.exportarReporteExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all shadow-md"><i class="fa-solid fa-file-csv"></i> Excel</button>
+                    <button onclick="window.imprimirReportePDF()" class="bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all shadow-md"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+                    <button onclick="window.limpiarFiltrosReportes()" class="text-[10px] text-slate-400 hover:text-emerald-400 transition-colors ml-2"><i class="fa-solid fa-rotate-left"></i> Limpiar</button>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                <div><label class="block text-[10px] font-semibold text-slate-400 mb-1">Desde</label><input type="date" id="rep-fecha-desde" style="color-scheme: dark;" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-2 py-1.5 focus:outline-none focus:border-emerald-500"></div>
+                <div><label class="block text-[10px] font-semibold text-slate-400 mb-1">Hasta</label><input type="date" id="rep-fecha-hasta" style="color-scheme: dark;" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-2 py-1.5 focus:outline-none focus:border-emerald-500"></div>
+                <div><label class="block text-[10px] font-semibold text-slate-400 mb-1">Zona</label><select id="rep-filtro-zona" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-2 py-1.5"><option value="todas">Todas</option></select></div>
+                <div><label class="block text-[10px] font-semibold text-slate-400 mb-1">Supervisor</label><select id="rep-filtro-supervisor" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-2 py-1.5"><option value="todos">Todos</option></select></div>
+                <div><label class="block text-[10px] font-semibold text-slate-400 mb-1">Vendedor</label><select id="rep-filtro-vendedor" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-2 py-1.5"><option value="todos">Todos</option></select></div>
+                <div><label class="block text-[10px] font-semibold text-slate-400 mb-1">Lotería</label><select id="rep-filtro-loteria" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-2 py-1.5"><option value="todas">Todas</option></select></div>
+                <div><label class="block text-[10px] font-semibold text-slate-400 mb-1">Jugada</label><select id="rep-filtro-jugada" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-2 py-1.5"><option value="todas">Todas</option><option value="directo">Directo</option><option value="pale">Palé</option><option value="tripleta">Tripleta</option></select></div>
+            </div>
+            <div class="flex justify-end pt-2 border-t border-slate-700/50">
+                <button onclick="window.generarReporte()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-6 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2"><i class="fa-solid fa-magnifying-glass"></i> Consultar Auditoría</button>
+            </div>
+        </div>
+
+        <!-- Tarjetas KPI -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-semibold uppercase">Venta Bruta Total</p><h4 id="rep-venta-bruta" class="text-2xl font-bold text-emerald-400 mt-1">$0.00</h4></div>
+            <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-semibold uppercase">Comisiones Generadas</p><h4 id="rep-comisiones" class="text-2xl font-bold text-amber-400 mt-1">$0.00</h4></div>
+            <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-semibold uppercase">Premios Ganados</p><h4 id="rep-premios" class="text-2xl font-bold text-rose-400 mt-1">$0.00</h4></div>
+            <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-semibold uppercase">Resultado Neto (Balance)</p><h4 id="rep-balance-neto" class="text-2xl font-bold text-sky-400 mt-1">$0.00</h4></div>
+        </div>
+
+        <!-- Tabla de Desglose de Auditoría -->
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-lg overflow-hidden">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/40">
+                <h4 class="text-sm font-bold text-white flex items-center gap-2"><i class="fa-solid fa-list-check text-emerald-400"></i> Desglose por Banca y Fecha</h4>
+                <span id="cant-registros" class="text-[10px] bg-slate-700 text-slate-300 px-3 py-1 rounded-full font-mono">0 Registros</span>
+            </div>
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] tracking-wider font-bold border-b border-slate-700">
+                        <tr><th class="p-3">Fecha</th><th class="p-3">Banca / Vendedor</th><th class="p-3">Zona / Sup</th><th class="p-3 text-center">Tickets</th><th class="p-3 text-right">Venta Bruta</th><th class="p-3 text-right">Comisión</th><th class="p-3 text-right">Premios</th><th class="p-3 text-right">Balance Neto</th><th class="p-3 text-center">Estatus</th></tr>
+                    </thead>
+                    <tbody id="reports-banca-table-body" class="divide-y divide-slate-700/60">
+                        <tr><td colspan="9" class="text-center py-8 text-slate-500">Haz clic en "Consultar Auditoría" para ver la información.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================= -->
+    <!-- PESTAÑA 2: RESUMEN DE BALANCES (FOTO 3)           -->
+    <!-- ================================================= -->
+    <div id="tab-balances-globales" class="hidden bg-slate-800 border border-slate-700 rounded-2xl shadow-lg overflow-hidden">
+        <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/40">
             <h4 class="text-sm font-bold text-white"><i class="fa-solid fa-users text-emerald-400 mr-2"></i> Resumen Global por Vendedor</h4>
-            <button onclick="window.cargarResumenBalances()" class="text-xs text-emerald-400 hover:text-emerald-300"><i class="fa-solid fa-rotate mr-1"></i> Actualizar</button>
+            <button onclick="window.cargarResumenBalances()" class="text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-400/10 px-3 py-1.5 rounded-lg"><i class="fa-solid fa-rotate mr-1"></i> Actualizar</button>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs">
@@ -1342,22 +1377,19 @@
                     <tr><th class="p-4">Vendedor</th><th class="p-4">Grupo / Zona</th><th class="p-4 text-center">Balance Neto</th><th class="p-4 text-right">Última Actividad</th><th class="p-4 text-center">Acción</th></tr>
                 </thead>
                 <tbody id="tabla-resumen-balances" class="divide-y divide-slate-700/60 text-slate-300">
-                    <tr><td colspan="5" class="text-center py-8 text-slate-500">Cargando saldos...</td></tr>
+                    <tr><td colspan="5" class="text-center py-8 text-slate-500">Cargando saldos de vendedores...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
     <!-- ================================================= -->
-    <!-- VISTA 2: NUEVO CUADRE Y PAGOS (Basado en Img 1 y 2) -->
+    <!-- PESTAÑA 3: NUEVO CUADRE / PAGOS (FOTO 1 y 2)      -->
     <!-- ================================================= -->
-    <div id="vista-nuevo-cuadre" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+    <div id="tab-nuevo-cuadre" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6">
         <!-- PANEL IZQUIERDO: Filtros y Tarjeta de Resultados (30%) -->
         <div class="lg:col-span-4 space-y-4">
-            
-            <!-- Filtros de Cuadre -->
-            <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-lg space-y-3">
+            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-3">
                 <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider border-b border-slate-700 pb-2">Configurar Cuadre</h4>
                 <div class="grid grid-cols-2 gap-2">
                     <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label><input type="date" id="cuadre-fecha-desde" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-lg p-2 focus:border-emerald-500 outline-none" style="color-scheme: dark;"></div>
@@ -1369,73 +1401,105 @@
                         <option value="">Seleccione Vendedor...</option>
                     </select>
                 </div>
-                <button onclick="window.generarDetalleCuadre()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-lg text-xs transition-colors"><i class="fa-solid fa-magnifying-glass mr-1"></i> Buscar Datos</button>
+                <button onclick="window.generarDetalleCuadre()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-lg text-xs transition-colors mt-2"><i class="fa-solid fa-magnifying-glass mr-1"></i> Buscar Datos</button>
             </div>
 
             <!-- TARJETA DE BALANCE Y PROCESAR PAGO -->
             <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg">
-                <div class="text-center mb-4">
-                    <h3 id="cuadre-nombre-vendedor" class="text-lg font-bold text-white">Vendedor</h3>
-                    <p id="cuadre-rango-fechas" class="text-[10px] text-slate-400">Seleccione un vendedor para iniciar</p>
+                <div class="text-center mb-5 bg-slate-900 p-3 rounded-xl border border-slate-700">
+                    <h3 id="cuadre-nombre-vendedor" class="text-base font-bold text-white">Vendedor</h3>
+                    <p id="cuadre-rango-fechas" class="text-[10px] text-slate-400">Seleccione para iniciar</p>
                 </div>
                 
-                <div class="space-y-2 text-xs">
+                <div class="space-y-3 text-xs">
                     <div class="flex justify-between text-slate-300"><span class="font-bold">Ventas</span><span id="cuadre-val-ventas" class="font-mono">$0.00</span></div>
                     <div class="flex justify-between text-rose-400"><span class="font-bold">Premios</span><span id="cuadre-val-premios" class="font-mono">$0.00</span></div>
                     <div class="flex justify-between text-amber-400"><span class="font-bold">Comisión</span><span id="cuadre-val-comision" class="font-mono">$0.00</span></div>
-                    <div class="flex justify-between text-white border-t border-slate-700 pt-2 mt-2"><span class="font-bold">RESULTADO</span><span id="cuadre-val-resultado" class="font-mono font-bold">$0.00</span></div>
-                    <div class="flex justify-between text-cyan-400"><span class="font-bold">Pagos Procesados</span><span id="cuadre-val-pagos" class="font-mono">-$0.00</span></div>
+                    <div class="flex justify-between text-white border-t border-slate-700 pt-3 mt-1"><span class="font-bold">RESULTADO</span><span id="cuadre-val-resultado" class="font-mono font-bold">$0.00</span></div>
+                    <div class="flex justify-between text-cyan-400"><span class="font-bold">Pagos Negativos</span><span id="cuadre-val-pagos" class="font-mono">-$0.00</span></div>
                 </div>
 
-                <div class="mt-4 pt-4 border-t border-slate-600">
-                    <div class="flex justify-between items-center text-sm">
-                        <span class="font-black text-slate-200">BALANCE NETO</span>
-                        <span id="cuadre-val-balance" class="font-black font-mono text-emerald-400">$0.00</span>
+                <div class="mt-5 pt-4 border-t border-slate-600">
+                    <div class="flex justify-between items-center">
+                        <span class="font-black text-slate-200 text-sm">BALANCE NETO</span>
+                        <span id="cuadre-val-balance" class="font-black font-mono text-xl text-emerald-400">$0.00</span>
                     </div>
                 </div>
 
-                <button onclick="window.procesarPagoVendedor()" class="w-full mt-5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl text-xs shadow-lg transition-all flex justify-center items-center gap-2">
-                    <i class="fa-solid fa-hand-holding-dollar"></i> $ Procesar Pago / Abono
+                <button onclick="window.procesarPagoVendedor()" class="w-full mt-5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl text-sm shadow-lg transition-all flex justify-center items-center gap-2">
+                    <i class="fa-solid fa-hand-holding-dollar"></i> Procesar Pago
                 </button>
             </div>
         </div>
 
         <!-- PANEL DERECHO: Tablas de Detalles (70%) -->
         <div class="lg:col-span-8 space-y-6">
-            
-            <!-- Tabla Detalles de Ventas Diarias -->
+            <!-- Detalles de Ventas -->
             <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-lg overflow-hidden">
-                <div class="p-3 border-b border-slate-700 bg-slate-900/40"><h4 class="text-xs font-bold text-slate-200">Detalles de Ventas por Día</h4></div>
+                <div class="p-4 border-b border-slate-700 bg-slate-900/40"><h4 class="text-sm font-bold text-slate-200"><i class="fa-solid fa-chart-line text-emerald-400 mr-2"></i>Detalles de Ventas por Día</h4></div>
                 <div class="overflow-x-auto h-64 custom-scrollbar">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] font-bold sticky top-0">
-                            <tr><th class="p-3">Fecha</th><th class="p-3 text-right">Ventas</th><th class="p-3 text-right">Premios</th><th class="p-3 text-right">Comisión</th><th class="p-3 text-right">Resultado</th></tr>
+                            <tr><th class="p-3 pl-4">Fecha</th><th class="p-3 text-right">Ventas</th><th class="p-3 text-right">Premios</th><th class="p-3 text-right">Comisión</th><th class="p-3 text-right pr-4">Resultado</th></tr>
                         </thead>
                         <tbody id="tabla-detalles-ventas" class="divide-y divide-slate-700/60 text-slate-300">
-                            <tr><td colspan="5" class="text-center py-6 text-slate-500">Seleccione un vendedor para ver el desglose.</td></tr>
+                            <tr><td colspan="5" class="text-center py-8 text-slate-500">Seleccione un vendedor para ver el desglose.</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- Tabla de Pagos Realizados -->
+            <!-- Pagos Negativos -->
             <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-lg overflow-hidden">
-                <div class="p-3 border-b border-slate-700 bg-slate-900/40"><h4 class="text-xs font-bold text-slate-200">Pagos y Abonos Registrados</h4></div>
+                <div class="p-4 border-b border-slate-700 bg-slate-900/40"><h4 class="text-sm font-bold text-slate-200"><i class="fa-solid fa-money-bill-transfer text-emerald-400 mr-2"></i>Pagos Negativos Registrados</h4></div>
                 <div class="overflow-x-auto h-48 custom-scrollbar">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] font-bold sticky top-0">
-                            <tr><th class="p-3">Fecha</th><th class="p-3">Concepto</th><th class="p-3 text-right">Monto Procesado</th><th class="p-3 text-center">Realizado por</th></tr>
+                            <tr><th class="p-3 pl-4">Fecha</th><th class="p-3 text-right">Monto</th><th class="p-3 text-center">Realizado por</th></tr>
                         </thead>
                         <tbody id="tabla-pagos-negativos" class="divide-y divide-slate-700/60 text-slate-300">
-                            <tr><td colspan="4" class="text-center py-6 text-slate-500">No hay pagos registrados.</td></tr>
+                            <tr><td colspan="3" class="text-center py-6 text-slate-500">No hay pagos registrados.</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
-
         </div>
     </div>
-</div>
+
+    <!-- Script de Pestañas Integrado -->
+    <script>
+        window.mostrarTabFinanzas = function(tab) {
+            document.getElementById('tab-auditoria').classList.add('hidden');
+            document.getElementById('tab-balances-globales').classList.add('hidden');
+            document.getElementById('tab-nuevo-cuadre').classList.add('hidden');
+
+            document.getElementById('btn-tab-auditoria').className = 'px-4 py-2 rounded-lg font-bold text-xs bg-slate-700 text-slate-400 hover:text-white transition-all';
+            document.getElementById('btn-tab-balances').className = 'px-4 py-2 rounded-lg font-bold text-xs bg-slate-700 text-slate-400 hover:text-white transition-all';
+            document.getElementById('btn-tab-cuadre').className = 'px-4 py-2 rounded-lg font-bold text-xs bg-slate-700 text-slate-400 hover:text-white transition-all';
+
+            document.getElementById('tab-' + tab).classList.remove('hidden');
+
+            if(tab === 'auditoria') {
+                document.getElementById('btn-tab-auditoria').className = 'px-4 py-2 rounded-lg font-bold text-xs bg-emerald-600 text-white transition-all shadow-lg';
+                if(window.generarReporte) window.generarReporte();
+            }
+            if(tab === 'balances-globales') {
+                document.getElementById('btn-tab-balances').className = 'px-4 py-2 rounded-lg font-bold text-xs bg-emerald-600 text-white transition-all shadow-lg';
+                if(window.cargarResumenBalances) window.cargarResumenBalances();
+            }
+            if(tab === 'nuevo-cuadre') {
+                document.getElementById('btn-tab-cuadre').className = 'px-4 py-2 rounded-lg font-bold text-xs bg-emerald-600 text-white transition-all shadow-lg';
+            }
+        };
+
+        window.irACuadreDetalle = function(bancaId) {
+            const select = document.getElementById('cuadre-vendedor');
+            if (select) select.value = bancaId;
+            window.mostrarTabFinanzas('nuevo-cuadre');
+            if(window.generarDetalleCuadre) window.generarDetalleCuadre();
+        };
+    </script>
+</section>
 
     <!-- MODALES DE CONTROL & EDICIÓN -->
 

@@ -521,9 +521,7 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             vendedor_id: usuarioId,
             banca_id: bancaId,
             vendedor: nombreBanca,
-            banca_nombre: nombreBanca,
-            comision_porcentaje: porcentajeComisionFinal, // 👈 ¡Inyectamos el porcentaje real directo en el ticket!
-            comision_monto: parseFloat((montoTotal * (porcentajeComisionFinal / 100)).toFixed(2)) // 👈 ¡Calculamos su comisión exacta en vivo!
+            banca_nombre: nombreBanca
         };
 
         // 1. Insertar Ticket

@@ -1,242 +1,267 @@
 // ==========================================================
-// MÓDULO DE BALANCES, CUADRES Y ARQUEOS FINANCIEROS (js/balancesCuadres.js)
+// MÓDULO DE CONTROL DE CUADRES Y BALANCES (balancesCuadres.js)
 // ==========================================================
 
+let estadoBalances = {
+    vendedores: [],
+    pagosLocales: JSON.parse(localStorage.getItem('buxy_pagos_vendedores')) || [],
+    vendedorActual: null
+};
+
 export async function initBalancesCuadresModule() {
-    console.log("💼 Módulo de Balances y Cuadres Avanzado inicializado.");
-    await cargarFiltrosBalances();
-    configurarPestañasBalances();
-    consultarBalancesVendedores();
+    // Configurar fechas por defecto
+    const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+    const btnDesde = document.getElementById('cuadre-fecha-desde');
+    const btnHasta = document.getElementById('cuadre-fecha-hasta');
+    if (btnDesde && !btnDesde.value) btnDesde.value = hoy;
+    if (btnHasta && !btnHasta.value) btnHasta.value = hoy;
+
+    await cargarListaVendedores();
+    await cargarResumenBalances();
 }
 window.initBalancesCuadresModule = initBalancesCuadresModule;
 
-// 1. Configuración de Pestañas (Balances vs Cuadres)
-function configurarPestañasBalances() {
-    const btnTabBalances = document.getElementById('btn-tab-balances-vendedor');
-    const btnTabCuadres = document.getElementById('btn-tab-cuadres-cierre');
-    
-    const secBalances = document.getElementById('seccion-balances-vendedor');
-    const secCuadres = document.getElementById('seccion-cuadres-cierre');
+// Cambio de vistas internas (Pestañas)
+window.cambiarVistaCuadre = function(vista) {
+    const vGeneral = document.getElementById('vista-balances-general');
+    const vDetalle = document.getElementById('vista-nuevo-cuadre');
+    const bGeneral = document.getElementById('btn-vista-general');
+    const bDetalle = document.getElementById('btn-vista-detalle');
 
-    if (btnTabBalances && btnTabCuadres) {
-        btnTabBalances.onclick = (e) => {
-            e.preventDefault();
-            btnTabBalances.classList.add('bg-emerald-600', 'text-white');
-            btnTabCuadres.classList.remove('bg-emerald-600', 'text-white');
-            if (secBalances) secBalances.classList.remove('hidden');
-            if (secCuadres) secCuadres.classList.add('hidden');
-        };
-
-        btnTabCuadres.onclick = (e) => {
-            e.preventDefault();
-            btnTabCuadres.classList.add('bg-emerald-600', 'text-white');
-            btnTabBalances.classList.remove('bg-emerald-600', 'text-white');
-            if (secCuadres) secCuadres.classList.remove('hidden');
-            if (secBalances) secBalances.classList.add('hidden');
-            cargarHistorialCuadres();
-        };
+    if (vista === 'general') {
+        vGeneral.classList.remove('hidden');
+        vDetalle.classList.add('hidden');
+        bGeneral.className = 'px-4 py-2 rounded-lg font-bold text-xs bg-emerald-600 text-white transition-all';
+        bDetalle.className = 'px-4 py-2 rounded-lg font-bold text-xs text-slate-400 hover:text-white transition-all';
+        cargarResumenBalances();
+    } else {
+        vGeneral.classList.add('hidden');
+        vDetalle.classList.remove('hidden');
+        bDetalle.className = 'px-4 py-2 rounded-lg font-bold text-xs bg-emerald-600 text-white transition-all';
+        bGeneral.className = 'px-4 py-2 rounded-lg font-bold text-xs text-slate-400 hover:text-white transition-all';
     }
-}
+};
 
-// 2. Cargar Selects y Filtros por Grupo, Vendedor y Fechas
-async function cargarFiltrosBalances() {
-    const supabase = window.supabase;
-    if (!supabase) return;
-
+async function cargarListaVendedores() {
     try {
-        // Cargar Bancas / Vendedores
-        const { data: bancas } = await supabase.from('bancas').select('*');
-        const selVendedor = document.getElementById('balance-filtro-vendedor');
-        if (selVendedor && bancas) {
-            selVendedor.innerHTML = '<option value="todos">Todos los vendedores / bancas</option>';
-            bancas.forEach(b => {
-                const nombre = b.nombre_banca || b.vendedor_nombre || `Banca #${b.id}`;
-                selVendedor.innerHTML += `<option value="${b.id}">${nombre}</option>`;
+        const { data: bancas } = await window.supabase.from('bancas').select('*');
+        estadoBalances.vendedores = bancas || [];
+        
+        const select = document.getElementById('cuadre-vendedor');
+        if (select) {
+            select.innerHTML = '<option value="">Seleccione Vendedor...</option>';
+            estadoBalances.vendedores.forEach(b => {
+                select.innerHTML += `<option value="${b.id}">${b.nombre_banca || b.vendedor_nombre || 'Banca ' + b.id}</option>`;
             });
         }
-
-        // Cargar Supervisores / Grupos
-        const { data: usuarios } = await supabase.from('usuarios').select('*');
-        const selGrupo = document.getElementById('balance-filtro-grupo');
-        if (selGrupo && usuarios) {
-            selGrupo.innerHTML = '<option value="todos">Todos los grupos / supervisores</option>';
-            const supervisores = usuarios.filter(u => String(u.rol || u.role).toLowerCase() === 'supervisor' || String(u.rol || u.role).toLowerCase() === 'admin');
-            supervisores.forEach(sup => {
-                selGrupo.innerHTML += `<option value="${sup.id}">${sup.nombre || sup.username || sup.email}</option>`;
-            });
-        }
-
-        // Establecer fechas de hoy por defecto
-        const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
-        const inputDesde = document.getElementById('balance-fecha-desde');
-        const inputHasta = document.getElementById('balance-fecha-hasta');
-        if (inputDesde && !inputDesde.value) inputDesde.value = hoy;
-        if (inputHasta && !inputHasta.value) inputHasta.value = hoy;
-
     } catch (e) {
-        console.warn("Error al cargar filtros de balances:", e);
+        console.error("Error cargando vendedores:", e);
     }
 }
 
-// 3. Consultar y Calcular Balances por Vendedor en tiempo real
-export async function consultarBalancesVendedores() {
-    const supabase = window.supabase;
-    const tbody = document.getElementById('tabla-balances-vendedores-body');
+window.cargarResumenBalances = async function() {
+    const tbody = document.getElementById('tabla-resumen-balances');
     if (!tbody) return;
-
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-emerald-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Calculando balances de bancas...</td></tr>`;
-
-    const fechaDesde = document.getElementById('balance-fecha-desde')?.value;
-    const fechaHasta = document.getElementById('balance-fecha-hasta')?.value;
-    const vendedorFiltro = document.getElementById('balance-filtro-vendedor')?.value || 'todos';
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-emerald-400"><i class="fa-solid fa-spinner fa-spin"></i> Calculando balances globales...</td></tr>';
 
     try {
-        let query = supabase.from('tickets').select('*');
-        if (fechaDesde) query = query.gte('created_at', `${fechaDesde}T00:00:00`);
-        if (fechaHasta) query = query.lte('created_at', `${fechaHasta}T23:59:59`);
+        const { data: tickets } = await window.supabase.from('tickets').select('*');
+        let html = '';
 
-        const { data: tickets, error } = await query;
-        if (error) throw error;
-
-        const { data: bancas } = await supabase.from('bancas').select('*');
-        const listaBancas = bancas || [];
-
-        const resumenBancas = {};
-
-        // Inicializar todas las bancas en el reporte
-        listaBancas.forEach(b => {
-            if (vendedorFiltro !== 'todos' && String(b.id) !== String(vendedorFiltro)) return;
-            resumenBancas[b.id] = {
-                id: b.id,
-                nombre: b.nombre_banca || b.vendedor_nombre || `Banca #${b.id}`,
-                comisionPct: parseFloat(b.comision || 10),
-                ventas: 0,
-                comisiones: 0,
-                premios: 0,
-                neto: 0,
-                ticketsCount: 0
-            };
-        });
-
-        // Procesar tickets
-        (tickets || []).forEach(t => {
-            const estado = String(t.estatus || t.estado || '').toLowerCase();
-            if (estado === 'cancelado' || estado === 'anulado') return;
-
-            const bId = t.banca_id;
-            if (!bId || !resumenBancas[bId]) return;
-            if (vendedorFiltro !== 'todos' && String(bId) !== String(vendedorFiltro)) return;
-
-            const monto = parseFloat(t.monto_total || t.monto || 0);
-            const pct = resumenBancas[bId].comisionPct;
-            const comision = monto * (pct / 100);
+        estadoBalances.vendedores.forEach(b => {
+            const ticketsVendedor = (tickets || []).filter(t => String(t.banca_id) === String(b.id) && t.estatus !== 'cancelado');
             
-            let premio = parseFloat(t.monto_premio || t.premio || 0);
-            if (estado === 'premiado' || estado === 'ganador') {
-                if (premio === 0 && Array.isArray(t.jugadas || t.detalles)) {
-                    (t.jugadas || t.detalles).forEach(j => premio += parseFloat(j.premio || 0));
+            let ventas = 0; let premios = 0; let comisiones = 0;
+            const comisionPct = parseFloat(b.comision || 10) / 100;
+
+            ticketsVendedor.forEach(t => {
+                const ventaT = parseFloat(t.monto_total || 0);
+                ventas += ventaT;
+                comisiones += ventaT * comisionPct;
+                if (String(t.estatus).toLowerCase() === 'premiado') {
+                    premios += parseFloat(t.monto_premio || 0);
                 }
-            } else {
-                premio = 0;
-            }
+            });
 
-            resumenBancas[bId].ventas += monto;
-            resumenBancas[bId].comisiones += comision;
-            resumenBancas[bId].premios += premio;
-        });
+            // Restar los pagos que ya le hemos procesado
+            const pagosProcesados = estadoBalances.pagosLocales
+                .filter(p => String(p.bancaId) === String(b.id))
+                .reduce((acc, p) => acc + parseFloat(p.monto), 0);
 
-        const arrayBalances = Object.values(resumenBancas);
-        if (arrayBalances.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400">No hay registros para este filtro.</td></tr>`;
-            return;
-        }
+            const resultadoNeto = ventas - premios - comisiones;
+            const balanceFinal = resultadoNeto - pagosProcesados;
+            
+            const colorClass = balanceFinal >= 0 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+            const nombre = b.nombre_banca || b.vendedor_nombre;
+            const grupo = b.zona || 'General';
 
-        tbody.innerHTML = arrayBalances.map(b => {
-            const neto = b.ventas - b.comisiones - b.premios;
-            return `
-                <tr class="border-b border-slate-700/40 hover:bg-slate-700/30 text-xs">
-                    <td class="p-3 font-bold text-white">${b.nombre}</td>
-                    <td class="p-3 text-center font-mono text-cyan-400">${b.comisionPct}%</td>
-                    <td class="p-3 text-right font-mono text-emerald-400 font-semibold">$${b.ventas.toFixed(2)}</td>
-                    <td class="p-3 text-right font-mono text-amber-400">$${b.comisiones.toFixed(2)}</td>
-                    <td class="p-3 text-right font-mono text-rose-400">$${b.premios.toFixed(2)}</td>
-                    <td class="p-3 text-right font-mono font-bold ${neto >= 0 ? 'text-emerald-400' : 'text-rose-500'}">$${neto.toFixed(2)}</td>
-                    <td class="p-3 text-center">
-                        <button onclick="window.abrirModalCuarqueBanca('${b.id}', '${b.nombre}', ${neto.toFixed(2)})" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg font-bold text-[11px] shadow">
-                            Registrar Cuadre / Pago
-                        </button>
+            html += `
+                <tr class="hover:bg-slate-700/30 border-b border-slate-700/50">
+                    <td class="p-4 font-bold text-white">${nombre}</td>
+                    <td class="p-4 text-slate-400">${grupo}</td>
+                    <td class="p-4 text-center">
+                        <span class="px-3 py-1 rounded-full border font-mono font-bold text-xs ${colorClass}">
+                            $${balanceFinal.toFixed(2)}
+                        </span>
+                    </td>
+                    <td class="p-4 text-right text-slate-400">Calculado Hoy</td>
+                    <td class="p-4 text-center">
+                        <button onclick="irACuadreDetalle('${b.id}')" class="bg-slate-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded text-xs transition">Cuadrar</button>
                     </td>
                 </tr>
             `;
-        }).join('');
+        });
 
-    } catch (err) {
-        console.error("Error al consultar balances de vendedores:", err);
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-rose-400">Error al cargar balances.</td></tr>`;
+        tbody.innerHTML = html || '<tr><td colspan="5" class="text-center py-6 text-slate-500">No hay datos para mostrar.</td></tr>';
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-rose-400">Error al cargar saldos.</td></tr>';
     }
-}
-window.consultarBalancesVendedores = consultarBalancesVendedores;
-
-// 4. Modal de Arqueo y Cuadre para registrar pagos o abonos
-window.abrirModalCuarqueBanca = function(bancaId, nombreBanca, saldoNeto) {
-    const montoAbono = prompt(`Registrar Arqueo / Cuadre para: ${nombreBanca}\nSaldo Neto Actual: $${saldoNeto}\n\nIngrese el monto entregado o a cuadrar ($):`, saldoNeto);
-    if (montoAbono === null) return;
-
-    const montoNum = parseFloat(montoAbono);
-    if (isNaN(montoNum)) {
-        alert("Monto inválido.");
-        return;
-    }
-
-    alert(`✅ Cuadre registrado con éxito para ${nombreBanca}.\nMonto procesado: $${montoNum.toFixed(2)}\nEste estado se sincronizará con el POS del vendedor.`);
-    // Aquí puedes agregar la inserción a Supabase si creas una tabla de cuadres.
 };
 
-// 5. Cargar Historial de Cuadres Realizados
-function cargarHistorialCuadres() {
-    const tbody = document.getElementById('tabla-historial-cuadres-body');
-    if (!tbody) return;
-    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-400">Historial de arqueos sincronizado al día.</td></tr>`;
-}
+window.irACuadreDetalle = function(bancaId) {
+    document.getElementById('cuadre-vendedor').value = bancaId;
+    window.cambiarVistaCuadre('detalle');
+    window.generarDetalleCuadre();
+};
 
+// ==============================================
+// MOTOR DEL NUEVO CUADRE Y DESGLOSE (IMG 1 Y 2)
+// ==============================================
+window.generarDetalleCuadre = async function() {
+    const bancaId = document.getElementById('cuadre-vendedor').value;
+    const fDesde = document.getElementById('cuadre-fecha-desde').value;
+    const fHasta = document.getElementById('cuadre-fecha-hasta').value;
+
+    if (!bancaId) return alert("Por favor seleccione un vendedor para ver el cuadre.");
+
+    const vendedor = estadoBalances.vendedores.find(v => String(v.id) === String(bancaId));
+    estadoBalances.vendedorActual = vendedor;
+    const comisionPct = parseFloat(vendedor?.comision || 10) / 100;
+
+    document.getElementById('cuadre-nombre-vendedor').textContent = vendedor.nombre_banca || vendedor.vendedor_nombre;
+    document.getElementById('cuadre-rango-fechas').textContent = `${fDesde} al ${fHasta}`;
+
+    const tbodyVentas = document.getElementById('tabla-detalles-ventas');
+    tbodyVentas.innerHTML = '<tr><td colspan="5" class="text-center py-4"><i class="fa-solid fa-spinner fa-spin text-emerald-400"></i></td></tr>';
+
+    try {
+        const { data: tickets } = await window.supabase.from('tickets')
+            .select('*')
+            .eq('banca_id', bancaId)
+            .gte('created_at', `${fDesde}T00:00:00`)
+            .lte('created_at', `${fHasta}T23:59:59`);
+
+        let htmlVentas = '';
+        let totVentas = 0; let totPremios = 0; let totComision = 0;
+        
+        // Agrupar tickets por día para la tabla detallada
+        const agrupadoDias = {};
+
+        (tickets || []).forEach(t => {
+            if (t.estatus === 'cancelado') return;
+            const dia = t.created_at.split('T')[0];
+            if (!agrupadoDias[dia]) agrupadoDias[dia] = { ventas: 0, premios: 0, comision: 0 };
+            
+            const venta = parseFloat(t.monto_total || 0);
+            const comision = venta * comisionPct;
+            let premio = 0;
+            if (String(t.estatus).toLowerCase() === 'premiado') premio = parseFloat(t.monto_premio || 0);
+
+            agrupadoDias[dia].ventas += venta;
+            agrupadoDias[dia].comision += comision;
+            agrupadoDias[dia].premios += premio;
+
+            totVentas += venta;
+            totComision += comision;
+            totPremios += premio;
+        });
+
+        // Imprimir desglose por días
+        Object.keys(agrupadoDias).sort().forEach(dia => {
+            const d = agrupadoDias[dia];
+            const resultado = d.ventas - d.premios - d.comision;
+            htmlVentas += `
+                <tr class="hover:bg-slate-700/40 border-b border-slate-700/50">
+                    <td class="p-3 font-mono">${dia}</td>
+                    <td class="p-3 text-right font-mono">$${d.ventas.toFixed(2)}</td>
+                    <td class="p-3 text-right font-mono text-rose-400">$${d.premios.toFixed(2)}</td>
+                    <td class="p-3 text-right font-mono text-amber-400">$${d.comision.toFixed(2)}</td>
+                    <td class="p-3 text-right font-mono font-bold ${resultado >= 0 ? 'text-emerald-400' : 'text-rose-400'}">$${resultado.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+        tbodyVentas.innerHTML = htmlVentas || '<tr><td colspan="5" class="text-center py-4 text-slate-500">No hay ventas en este rango.</td></tr>';
+
+        // Cargar Pagos Negativos (Abonos)
+        const pagosVendedor = estadoBalances.pagosLocales.filter(p => String(p.bancaId) === String(bancaId));
+        const totPagos = pagosVendedor.reduce((acc, p) => acc + parseFloat(p.monto), 0);
+        
+        const tbodyPagos = document.getElementById('tabla-pagos-negativos');
+        tbodyPagos.innerHTML = pagosVendedor.map(p => `
+            <tr class="border-b border-slate-700/50">
+                <td class="p-3 font-mono text-[10px]">${p.fecha}</td>
+                <td class="p-3 text-slate-300">${p.concepto}</td>
+                <td class="p-3 text-right font-mono text-cyan-400">-$${parseFloat(p.monto).toFixed(2)}</td>
+                <td class="p-3 text-center text-slate-400">${p.responsable}</td>
+            </tr>
+        `).join('') || '<tr><td colspan="4" class="text-center py-4 text-slate-500">No hay pagos registrados.</td></tr>';
+
+        // Actualizar Tarjeta de Cuadre
+        const totResultado = totVentas - totPremios - totComision;
+        const balanceNeto = totResultado - totPagos;
+
+        document.getElementById('cuadre-val-ventas').textContent = `$${totVentas.toFixed(2)}`;
+        document.getElementById('cuadre-val-premios').textContent = `$${totPremios.toFixed(2)}`;
+        document.getElementById('cuadre-val-comision').textContent = `$${totComision.toFixed(2)}`;
+        document.getElementById('cuadre-val-resultado').textContent = `$${totResultado.toFixed(2)}`;
+        document.getElementById('cuadre-val-pagos').textContent = `-$${totPagos.toFixed(2)}`;
+        
+        const balEl = document.getElementById('cuadre-val-balance');
+        balEl.textContent = `$${balanceNeto.toFixed(2)}`;
+        balEl.className = `font-black font-mono text-lg ${balanceNeto >= 0 ? 'text-emerald-400' : 'text-rose-500'}`;
+        
+    } catch (e) {
+        console.error("Error al generar cuadre:", e);
+    }
+};
+
+window.procesarPagoVendedor = function() {
+    if (!estadoBalances.vendedorActual) return alert("Seleccione un vendedor primero.");
+    const balanceTexto = document.getElementById('cuadre-val-balance').textContent.replace('$', '');
+    const maxSaldo = parseFloat(balanceTexto);
+
+    const montoStr = prompt(`PROCESAR PAGO / ABONO\n\nVendedor: ${estadoBalances.vendedorActual.nombre_banca}\nSaldo Actual: $${maxSaldo.toFixed(2)}\n\nIngrese el monto entregado por el vendedor (o monto a favor de la banca):`);
+    
+    if (montoStr === null || montoStr.trim() === '') return;
+    const monto = parseFloat(montoStr);
+    
+    if (isNaN(monto) || monto <= 0) return alert("Monto inválido.");
+
+    // Guardamos el pago en el historial
+    const nuevoPago = {
+        bancaId: estadoBalances.vendedorActual.id,
+        fecha: new Date().toLocaleString(),
+        monto: monto,
+        concepto: 'Abono / Cuadre de Caja',
+        responsable: window.currentUserProfile?.email || 'Administrador'
+    };
+
+    estadoBalances.pagosLocales.push(nuevoPago);
+    localStorage.setItem('buxy_pagos_vendedores', JSON.stringify(estadoBalances.pagosLocales));
+
+    alert(`✅ Pago de $${monto.toFixed(2)} procesado exitosamente.\nEl balance ha sido actualizado.`);
+    window.generarDetalleCuadre(); // Recalcular todo
+};
+
+// Autoiniciar el módulo al abrir la vista
 document.addEventListener('DOMContentLoaded', () => {
-    const secBalances = document.getElementById('section-reports');
-    if (secBalances) {
+    const secReports = document.getElementById('section-reports');
+    if (secReports) {
         const obs = new MutationObserver(() => {
-            if (!secBalances.classList.contains('hidden')) {
+            if (!secReports.classList.contains('hidden')) {
                 initBalancesCuadresModule();
             }
         });
-        obs.observe(secBalances, { attributes: true });
+        obs.observe(secReports, { attributes: true });
     }
 });
-// Agrega esto al final de js/balancesCuadres.js
-window.mostrarTabFinanzas = function(tabName) {
-    // 1. Ocultar todos los contenidos
-    const tabs = ['auditoria', 'balances', 'cuadres'];
-    tabs.forEach(t => {
-        const el = document.getElementById('tab-content-' + t);
-        if (el) el.classList.add('hidden');
-        
-        // 2. Quitar el color verde de todos los botones
-        const btn = document.getElementById('tab-btn-' + t);
-        if (btn) {
-            btn.classList.remove('bg-emerald-600', 'text-white');
-            btn.classList.add('bg-transparent', 'text-slate-400');
-        }
-    });
-    
-    // 3. Mostrar el contenido seleccionado y pintar el botón de verde
-    const activeContent = document.getElementById('tab-content-' + tabName);
-    if (activeContent) activeContent.classList.remove('hidden');
-    
-    const activeBtn = document.getElementById('tab-btn-' + tabName);
-    if (activeBtn) {
-        activeBtn.classList.remove('bg-transparent', 'text-slate-400');
-        activeBtn.classList.add('bg-emerald-600', 'text-white');
-    }
-    
-    // 4. Disparar las consultas automáticamente al cambiar de pestaña
-    if (tabName === 'auditoria' && typeof window.generarReporte === 'function') window.generarReporte();
-    if (tabName === 'balances' && typeof window.consultarBalancesVendedores === 'function') window.consultarBalancesVendedores();
-};

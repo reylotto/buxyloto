@@ -70,7 +70,7 @@ window.cargarResumenBalances = async function() {
             const balanceFinal = resultadoNeto - totIngresos + totEgresos; // Si recibimos plata (ingreso) la deuda baja. Si le pagamos (egreso) la deuda sube.
             
             const colorClass = balanceFinal >= 0 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
-            const nombre = b.nombre_banca || b.vendedor_nombre;
+            const nombre = b.nombre_banca || b.vendedor_nombre || b.name || `Banca #${b.id}`;
             const grupo = b.zona || 'General';
 
             html += `

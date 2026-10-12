@@ -95,16 +95,83 @@ export async function initReportesModule() {
     if (inputDesde && !inputDesde.value) inputDesde.value = hoyStr;
     if (inputHasta && !inputHasta.value) inputHasta.value = hoyStr;
 
+    await asegurarBancasCache();
     await cargarFiltrosDesplegables(); 
     await generarReporte();
+
+    // Asegurar listener del botón consultar auditoría
+    const btnConsultar = document.querySelector('button[onclick*="generarReporte"]') || document.getElementById('btn-consultar-auditoria');
+    if (btnConsultar) {
+        btnConsultar.onclick = (e) => {
+            e.preventDefault();
+            window.generarReporte();
+        };
+    }
 }
 window.initReportesModule = initReportesModule;
 
-export function exportarReporteExcel() {
+async function cargarFiltrosDesplegables() {
+    await asegurarBancasCache();
+    const supabase = window.supabase;
+
+    try {
+        if (supabase && usuariosCache.length === 0) {
+            const { data: usrs } = await supabase.from('usuarios').select('*');
+            if (usrs) usuariosCache = usrs;
+        }
+
+        if (supabase && loteriasCache.length === 0) {
+            const { data: sort } = await supabase.from('sorteos').select('*');
+            if (sort) loteriasCache = sort;
+        }
+
+        // Poblar Vendedores (Evitando nombres undefined)
+        const selVendedor = document.getElementById('rep-filtro-vendedor');
+        if (selVendedor && bancasCache.length > 0) {
+            selVendedor.innerHTML = '<option value="todos">Todos los vendedores</option>';
+            bancasCache.forEach(b => {
+                const nombreBanca = b.nombre_banca || b.vendedor_nombre || b.name || `Banca #${b.id}`;
+                selVendedor.innerHTML += `<option value="${b.id}">${nombreBanca}</option>`;
+            });
+        }
+
+        // Poblar Zonas
+        const selZona = document.getElementById('rep-filtro-zona');
+        if (selZona && bancasCache.length > 0) {
+            const zonas = new Set();
+            bancasCache.forEach(b => { if (b.zona && String(b.zona).trim() !== '') zonas.add(b.zona.trim()); });
+            selZona.innerHTML = '<option value="todas">Todas las zonas</option>';
+            zonas.forEach(z => selZona.innerHTML += `<option value="${z}">${z}</option>`);
+        }
+
+        // Poblar Supervisores
+        const selSupervisor = document.getElementById('rep-filtro-supervisor');
+        if (selSupervisor) {
+            selSupervisor.innerHTML = '<option value="todos">Todos los supervisores</option>';
+            const supervisores = usuariosCache.filter(u => String(u.rol || u.role).toLowerCase() === 'supervisor' || String(u.rol || u.role).toLowerCase() === 'admin');
+            supervisores.forEach(sup => {
+                const nombreSup = sup.nombre || sup.username || sup.email || `Supervisor #${sup.id}`;
+                selSupervisor.innerHTML += `<option value="${sup.id}">${nombreSup}</option>`;
+            });
+        }
+
+        // Poblar Loterías
+        const selLoteria = document.getElementById('rep-filtro-loteria');
+        if (selLoteria && loteriasCache.length > 0) {
+            selLoteria.innerHTML = '<option value="todas">Todas las loterías</option>';
+            loteriasCache.forEach(s => {
+                const nombreLoteria = s.nombre || s.name || `Sorteo #${s.id}`;
+                selLoteria.innerHTML += `<option value="${s.id}">${nombreLoteria}</option>`;
+            });
+        }
+    } catch (e) { console.warn("Error cargando filtros:", e); }
+}
+
+// Asegurar exportaciones globales
+window.exportarReporteExcel = function() {
     if (!reporteDataCache || reporteDataCache.length === 0) {
         return alert("No hay datos para exportar. Consulte el reporte primero.");
     }
-    // Usamos punto y coma (;) que funciona mejor en Excels en español, y forzamos codificación limpia
     let csvContent = "FECHA;BANCA/VENDEDOR;ZONA;TICKETS;VENTA BRUTA;COMISION;PREMIOS;BALANCE NETO\n";
 
     reporteDataCache.forEach(d => {
@@ -120,10 +187,9 @@ export function exportarReporteExcel() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-}
-window.exportarReporteExcel = exportarReporteExcel;
+};
 
-export function imprimirReportePDF() {
+window.imprimirReportePDF = function() {
     const tbody = document.getElementById('reports-banca-table-body');
     if (!tbody || tbody.innerText.includes("Haz clic en")) {
         return alert("Genere el reporte en la tabla antes de imprimir.");
@@ -153,15 +219,14 @@ export function imprimirReportePDF() {
                 <thead>
                     <tr><th>Fecha</th><th>Vendedor</th><th>Zona</th><th class="text-center">Tickets</th><th class="text-right">Venta Bruta</th><th class="text-right">Comisión</th><th class="text-right">Premios</th><th class="text-right">Balance Neto</th></tr>
                 </thead>
-                <tbody>${tbody.innerHTML.replace(/<td class="p-3 text-center">.*?<\/td>/g, '')}</tbody>
+                <tbody>${tbody.innerHTML}</tbody>
             </table>
             <script>window.onload = function() { window.print(); window.close(); }<\/script>
         </body>
         </html>
     `);
     printWindow.document.close();
-}
-window.imprimirReportePDF = imprimirReportePDF;
+};
 
 export async function generarReporte() {
     const supabase = window.supabase;

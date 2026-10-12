@@ -111,7 +111,7 @@ export async function initReportesModule() {
 window.initReportesModule = initReportesModule;
 
 // ==========================================================
-// CORRECCIÓN DE FILTROS Y ESTATUS EN reportes.js
+// CARGA DINÁMICA DE FILTROS DESPLEGABLES (Corregida)
 // ==========================================================
 
 async function cargarFiltrosDesplegables() {
@@ -171,8 +171,12 @@ async function cargarFiltrosDesplegables() {
     } catch (e) { console.warn("Error cargando filtros desplegables:", e); }
 }
 
+// ==========================================================
+// RENDERIZADO DE TABLA CON ESTATUS REAL (Cuadrado / Pendiente)
+// ==========================================================
+
 function renderizarTablaReporte(datos) {
-    const tbody = document.getElementById('reports-banca-table-body') || document.getElementById('reportes-table-body');
+    const tbody = document.getElementById('reports-banca-table-body') || document.getElementById('reportes-table-body') || document.querySelector('.tabla-balances-body');
     if (!tbody) return;
 
     if (!datos || datos.length === 0) {
@@ -180,7 +184,6 @@ function renderizarTablaReporte(datos) {
         return;
     }
 
-    // Verificar cuadres locales guardados para mostrar estatus real
     const pagosLocales = JSON.parse(localStorage.getItem('buxy_pagos_vendedores')) || [];
 
     let html = '';
@@ -188,12 +191,12 @@ function renderizarTablaReporte(datos) {
         const balanceNeto = d.venta - d.comision - d.premios;
         const balanceClass = balanceNeto >= 0 ? 'text-emerald-400' : 'text-rose-400';
 
-        // Comprobar si esta banca tiene algún movimiento de pago/cuadre registrado hoy
+        // Evaluar estatus real basado en si tiene pagos/cuadres registrados
         const estaCuadrado = pagosLocales.some(p => String(p.bancaId) === String(d.banca_id || d.vendedor));
         const estatusLabel = estaCuadrado ? 'CUADRADO' : 'PENDIENTE DE CUADRE';
         const estatusClass = estaCuadrado 
-            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' 
-            : 'bg-amber-500/10 text-amber-400 border border-amber-500/30';
+            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold' 
+            : 'bg-amber-500/10 text-amber-400 border border-amber-500/30 font-bold';
 
         html += `
             <tr class="hover:bg-slate-700/35 transition-all border-b border-slate-700/40 text-xs">
@@ -206,7 +209,7 @@ function renderizarTablaReporte(datos) {
                 <td class="p-3 font-mono text-rose-400">$${d.premios.toFixed(2)}</td>
                 <td class="p-3 font-mono font-bold ${balanceClass}">$${balanceNeto.toFixed(2)}</td>
                 <td class="p-3 text-center">
-                    <span class="text-[10px] px-2.5 py-1 rounded-full font-bold uppercase ${estatusClass}">
+                    <span class="text-[10px] px-2.5 py-1 rounded-full uppercase ${estatusClass}">
                         ${estatusLabel}
                     </span>
                 </td>
@@ -217,7 +220,10 @@ function renderizarTablaReporte(datos) {
     tbody.innerHTML = html;
 }
 
-// Asegurar exportaciones globales (Excel)
+// ==========================================================
+// EXPORTACIÓN EXCEL Y PDF (Limpias y funcionales)
+// ==========================================================
+
 window.exportarReporteExcel = function() {
     if (!reporteDataCache || reporteDataCache.length === 0) {
         return alert("No hay datos para exportar. Consulte el reporte primero.");
@@ -240,7 +246,6 @@ window.exportarReporteExcel = function() {
 };
 window.exportarReporteExcel = exportarReporteExcel;
 
-// CORRECCIÓN PDF: Genera una ventana limpia con los datos tabulados sin mostrar en blanco
 window.imprimirReportePDF = function() {
     if (!reporteDataCache || reporteDataCache.length === 0) {
         return alert("Genere y consulte el reporte en la tabla antes de imprimir el PDF.");
@@ -313,6 +318,10 @@ window.imprimirReportePDF = function() {
 window.imprimirReportePDF = imprimirReportePDF;
 window.exportarReportePDF = imprimirReportePDF;
 
+// ==========================================================
+// CONSULTA PRINCIPAL Y FILTRADO (Con soporte para Zonas y Supervisores)
+// ==========================================================
+
 export async function generarReporte() {
     const supabase = window.supabase;
     const tbody = document.getElementById('reports-banca-table-body') || document.getElementById('reportes-table-body') || document.querySelector('.tabla-balances-body');
@@ -320,7 +329,7 @@ export async function generarReporte() {
 
     tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-emerald-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Consultando ventas y balances...</td></tr>`;
 
-    // 1. Capturar todos los filtros de la interfaz
+    // Capturar todos los filtros de la interfaz
     const fechaDesde = document.getElementById('rep-fecha-desde')?.value || document.getElementById('reporte-fecha-desde')?.value;
     const fechaHasta = document.getElementById('rep-fecha-hasta')?.value || document.getElementById('reporte-fecha-hasta')?.value;
     const vendedorFiltro = document.getElementById('rep-filtro-vendedor')?.value || document.getElementById('rep-filtro-banca')?.value || document.getElementById('reporte-banca-select')?.value || 'todos';
@@ -387,6 +396,7 @@ export async function generarReporte() {
                 agrupado[key] = {
                     fecha: fechaKey,
                     vendedor: bancaNombre,
+                    banca_id: t.banca_id,
                     zona: zonaBanca,
                     ticketsCount: 0,
                     venta: 0,
@@ -450,42 +460,6 @@ export async function generarReporte() {
     }
 }
 window.generarReporte = generarReporte;
-
-function renderizarTablaReporte(datos) {
-    const tbody = document.getElementById('reports-banca-table-body') || document.getElementById('reportes-table-body') || document.querySelector('.tabla-balances-body');
-    if (!tbody) return;
-
-    if (!datos || datos.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-slate-500">No hay ventas registradas con los filtros seleccionados.</td></tr>`;
-        return;
-    }
-
-    let html = '';
-    datos.forEach(d => {
-        const balanceNeto = d.venta - d.comision - d.premios;
-        const balanceClass = balanceNeto >= 0 ? 'text-emerald-400' : 'text-rose-400';
-
-        html += `
-            <tr class="hover:bg-slate-700/35 transition-all border-b border-slate-700/40 text-xs">
-                <td class="p-3 font-mono text-slate-300 capitalize">${d.fecha}</td>
-                <td class="p-3 font-bold text-white">${d.vendedor}</td>
-                <td class="p-3 text-slate-400">${d.zona}</td>
-                <td class="p-3 text-center font-mono text-cyan-400">${d.ticketsCount}</td>
-                <td class="p-3 font-mono font-semibold text-white">$${d.venta.toFixed(2)}</td>
-                <td class="p-3 font-mono text-amber-400">$${d.comision.toFixed(2)}</td>
-                <td class="p-3 font-mono text-rose-400">$${d.premios.toFixed(2)}</td>
-                <td class="p-3 font-mono font-bold ${balanceClass}">$${balanceNeto.toFixed(2)}</td>
-                <td class="p-3 text-center">
-                    <span class="bg-slate-800 text-slate-300 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase border border-slate-700">
-                        ${balanceNeto >= 0 ? 'Cuadrado' : 'Revisión'}
-                    </span>
-                </td>
-            </tr>
-        `;
-    });
-
-    tbody.innerHTML = html;
-}
 
 export function limpiarFiltrosReportes() {
     const hoyStr = getHoyYMD();

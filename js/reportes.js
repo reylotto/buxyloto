@@ -75,7 +75,9 @@ function obtenerNombreBanca(bancaId, ticket = {}) {
         return `Banca ${idBuscar.substring(0, 5).toUpperCase()}`;
     }
 
-    return `Banca ${idBuscar || 'Central'}`;
+    // Corrección quirúrgica: Evitar retornar strings vacíos o "undefined" que generen filas fantasma
+    const fallbackId = String(idBuscar || '').trim();
+    return fallbackId ? `Banca ${fallbackId}` : null;
 }
 
 function obtenerObjetoBanca(bancaId, ticket = {}) {
@@ -187,7 +189,13 @@ function renderizarTablaReporte(datos) {
     const tbody = document.getElementById('reports-banca-table-body') || document.getElementById('reportes-table-body') || document.querySelector('.tabla-balances-body');
     if (!tbody) return;
 
-    if (!datos || datos.length === 0) {
+    // Corrección quirúrgica: Filtrar filas con datos nulos o nombres fantasma ("undefined")
+    const datosValidos = (datos || []).filter(d => d && d.vendedor && !d.vendedor.includes('undefined') && !d.vendedor.includes('Null'));
+    
+    const badgeRegistros = document.getElementById('cant-registros');
+    if (badgeRegistros) badgeRegistros.textContent = `${datosValidos.length} Registros`;
+
+    if (datosValidos.length === 0) {
         tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-slate-500">No hay ventas registradas con los filtros seleccionados.</td></tr>`;
         return;
     }
@@ -195,7 +203,7 @@ function renderizarTablaReporte(datos) {
     const pagosLocales = JSON.parse(localStorage.getItem('buxy_pagos_vendedores')) || [];
 
     let html = '';
-    datos.forEach(d => {
+    datosValidos.forEach(d => {
         const balanceNeto = d.venta - d.comision - d.premios;
         const balanceClass = balanceNeto >= 0 ? 'text-emerald-400' : 'text-rose-400';
 
@@ -238,6 +246,7 @@ window.exportarReporteExcel = function() {
     let csvContent = "FECHA;BANCA/VENDEDOR;ZONA;TICKETS;VENTA BRUTA;COMISION;PREMIOS;BALANCE NETO\n";
 
     reporteDataCache.forEach(d => {
+        if (!d || !d.vendedor || d.vendedor.includes('undefined')) return;
         const neto = d.venta - d.comision - d.premios;
         csvContent += `"${d.fecha}";"${d.vendedor}";"${d.zona}";${d.ticketsCount};${d.venta.toFixed(2)};${d.comision.toFixed(2)};${d.premios.toFixed(2)};${neto.toFixed(2)}\n`;
     });
@@ -260,6 +269,7 @@ window.imprimirReportePDF = function() {
 
     let filasHTML = '';
     reporteDataCache.forEach(d => {
+        if (!d || !d.vendedor || d.vendedor.includes('undefined')) return;
         const neto = d.venta - d.comision - d.premios;
         filasHTML += `
             <tr>
@@ -376,8 +386,10 @@ export async function generarReporte() {
             // Filtro por Lotería
             if (loteriaFiltro !== 'todas' && loteriaFiltro !== '' && String(t.sorteo_id) !== String(loteriaFiltro)) return;
 
-            const bancaObj = obtenerObjetoBanca(t.banca_id, t);
             const bancaNombre = obtenerNombreBanca(t.banca_id, t);
+            if (!bancaNombre || bancaNombre.includes('undefined')) return; // Descarta registros inválidos o fantasmas
+
+            const bancaObj = obtenerObjetoBanca(t.banca_id, t);
             const zonaBanca = bancaObj?.zona || 'Zona General';
             const supervisorBanca = String(bancaObj?.supervisor_id || bancaObj?.supervisor || '').trim();
 
@@ -396,7 +408,7 @@ export async function generarReporte() {
 
             const fechaObj = new Date(t.created_at || t.createdAt);
             const fechaKey = isNaN(fechaObj) ? getHoyYMD() : fechaObj.toLocaleDateString('es-PA');
-            const key = `${fechaKey}_${bancaNombre}`;
+            const key = `${fechaKey}_${t.banca_id || bancaNombre}`;
 
             if (!agrupado[key]) {
                 agrupado[key] = {
@@ -787,6 +799,7 @@ window.imprimirTicketHistorial = async function(uniqueId) {
     window.verTicketHistorial(uniqueId);
 };
 
+// Corrección robusta para prevenir que la sección se quede colgada o flotando en otras vistas
 document.addEventListener('DOMContentLoaded', () => {
     const ticketSection = document.getElementById('section-reports');
     if (ticketSection) {

@@ -161,11 +161,14 @@ export async function generarReporte() {
 
     tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-emerald-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Consultando ventas y balances...</td></tr>`;
 
+    // 1. Capturar todos los filtros de la interfaz
     const fechaDesde = document.getElementById('rep-fecha-desde')?.value || document.getElementById('reporte-fecha-desde')?.value;
     const fechaHasta = document.getElementById('rep-fecha-hasta')?.value || document.getElementById('reporte-fecha-hasta')?.value;
     const vendedorFiltro = document.getElementById('rep-filtro-vendedor')?.value || document.getElementById('rep-filtro-banca')?.value || document.getElementById('reporte-banca-select')?.value || 'todos';
     const zonaFiltro = document.getElementById('rep-filtro-zona')?.value || 'todas';
+    const supervisorFiltro = document.getElementById('rep-filtro-supervisor')?.value || 'todos';
     const loteriaFiltro = document.getElementById('rep-filtro-loteria')?.value || document.getElementById('reporte-loteria-select')?.value || 'todas';
+    const tipoJugadaFiltro = document.getElementById('rep-filtro-tipo-jugada')?.value || document.querySelector('select[name*="jugada"]')?.value || 'todas';
 
     await asegurarBancasCache();
 
@@ -193,14 +196,29 @@ export async function generarReporte() {
             const estado = String(t.estatus || t.status || t.estado || 'pendiente').toLowerCase();
             if (estado === 'cancelado' || estado === 'anulado') return;
 
+            // Filtro por Vendedor / Banca
             if (vendedorFiltro !== 'todos' && vendedorFiltro !== '' && String(t.banca_id) !== String(vendedorFiltro)) return;
+
+            // Filtro por Lotería / Sorteo
             if (loteriaFiltro !== 'todas' && loteriaFiltro !== '' && String(t.sorteo_id) !== String(loteriaFiltro)) return;
 
             const bancaObj = obtenerObjetoBanca(t.banca_id, t);
             const bancaNombre = obtenerNombreBanca(t.banca_id, t);
             const zonaBanca = bancaObj?.zona || 'Zona General';
+            const supervisorBanca = String(bancaObj?.supervisor_id || bancaObj?.supervisor || '').trim();
 
-            if (zonaFiltro !== 'todas' && zonaBanca !== zonaFiltro) return;
+            // Filtro por Zona
+            if (zonaFiltro !== 'todas' && zonaFiltro !== '' && zonaBanca.toLowerCase() !== zonaFiltro.toLowerCase()) return;
+
+            // Filtro por Supervisor
+            if (supervisorFiltro !== 'todos' && supervisorFiltro !== '' && supervisorBanca !== String(supervisorFiltro)) return;
+
+            // Filtro por Tipo de Jugada (Directo, Palé, Tripleta)
+            const itemsTicket = normalizarItemsTicket(t);
+            if (tipoJugadaFiltro !== 'todas' && tipoJugadaFiltro !== '' && tipoJugadaFiltro !== 'todos') {
+                const coincideTipo = itemsTicket.some(j => String(j.tipo || '').toLowerCase() === tipoJugadaFiltro.toLowerCase());
+                if (!coincideTipo) return;
+            }
 
             const fechaObj = new Date(t.created_at || t.createdAt);
             const fechaKey = isNaN(fechaObj) ? getHoyYMD() : fechaObj.toLocaleDateString('es-PA');
@@ -231,8 +249,8 @@ export async function generarReporte() {
             
             let premio = parseFloat(t.monto_premio || t.premio_monto || t.premio || 0);
             if (estado === 'premiado' || estado === 'ganador') {
-                if (premio === 0 && Array.isArray(t.jugadas || t.detalles)) {
-                    (t.jugadas || t.detalles).forEach(j => {
+                if (premio === 0 && Array.isArray(itemsTicket)) {
+                    itemsTicket.forEach(j => {
                         premio += parseFloat(j.premio || j.monto_premio || 0);
                     });
                 }

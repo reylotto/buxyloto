@@ -507,9 +507,21 @@ async function cargarResumenOperacionesHoy() {
             return est !== 'cancelado' && est !== 'anulado';
         });
 
-        // Descarga de bancas
-        const { data: bancasData } = await supabase.from('bancas').select('*');
-        const listaBancas = bancasData || [];
+        // ----------------------------------------------------------------------
+        // 🚨 SOLUCIÓN: DESCARGAR LAS BANCAS ANTES DE HACER LA MATEMÁTICA
+        // ----------------------------------------------------------------------
+        if (typeof window.cargarBancasSistema === 'function' && (!window._bancasCache || window._bancasCache.length === 0)) {
+            try { await window.cargarBancasSistema(); } catch (e) { console.warn("Aviso pre-cargando bancas:", e); }
+        }
+        
+        let bancasCache = window._bancasCache || [];
+        if (bancasCache.length === 0) {
+            // Consulta de rescate por si admin.js no ha cargado aún
+            const { data: bancasDirectas } = await supabase.from('bancas').select('*');
+            bancasCache = bancasDirectas || [];
+            window._bancasCache = bancasCache; // Guardar en caché global
+        }
+        // ----------------------------------------------------------------------
 
         const totalTickets = tickets.length;
         let ventaTotal = 0;
@@ -517,45 +529,30 @@ async function cargarResumenOperacionesHoy() {
         let premiosTotal = 0;
         let totalGanadores = 0;
 
-        // Limpiamos la consola para ver el reporte fresco
-        console.log("================ REPORTE DE COMISIONES POR TICKET ================");
-
         tickets.forEach(t => {
             const monto = parseFloat(t.total || t.monto || t.monto_total || 0);
             
+           // --------------------------------------------------------
+            // LECTURA DINÁMICA ESTRICTA (LA BANCA MANDA)
             // --------------------------------------------------------
-            // LECTURA DINÁMICA ESTRICTA CON RASTREADOR
-            // --------------------------------------------------------
-            let pctComision = 10; // Por defecto para huérfanos
-            let nombreBancaDebug = "Banca General (Ticket Huérfano)";
+            let pctComision = 0; // Iniciamos en 0
             
-            const tBancaId = String(t.banca_id || t.usuario_id || '').trim();
-            const tBancaNombre = String(t.banca_nombre || t.vendedor_nombre || t.banca || t.vendedor || '').toLowerCase().trim();
-
-            const bancaAsociada = listaBancas.find(b => {
-                const bId = String(b.id).trim();
-                const bAuthId = String(b.auth_id || b.usuario_id || '').trim();
-                const bNombre = String(b.nombre_banca || b.nombre || '').toLowerCase().trim();
-                const bVendedor = String(b.vendedor_nombre || b.operador || '').toLowerCase().trim();
-                
-                if (tBancaId !== '' && (tBancaId === bId || tBancaId === bAuthId)) return true;
-                if (tBancaNombre !== '' && (tBancaNombre === bNombre || tBancaNombre === bVendedor)) return true;
-                return false;
-            });
-
+            const bancaIdStr = String(t.banca_id || t.usuario_id || '');
+            const bancaAsociada = bancasCache.find(b => String(b.id) === bancaIdStr);
+            
             if (bancaAsociada && bancaAsociada.comision !== undefined && bancaAsociada.comision !== null) {
-                pctComision = parseFloat(bancaAsociada.comision); // LA BANCA MANDA
-                nombreBancaDebug = bancaAsociada.vendedor_nombre || bancaAsociada.nombre_banca;
+                // PRIORIDAD 1: Siempre usar el porcentaje actual de la Banca (ignora el del ticket)
+                pctComision = parseFloat(bancaAsociada.comision);
             } else if (t.comision_porcentaje !== undefined && t.comision_porcentaje !== null) {
+                // PRIORIDAD 2: Solo si la banca fue borrada, confía en el ticket
                 pctComision = parseFloat(t.comision_porcentaje);
+            } else {
+                 // PRIORIDAD 3: Rescate extremo
+                 pctComision = 10; 
             }
 
-            // Matemática inquebrantable
+            // FORZAR MATEMÁTICA ESTRICTA: Ignorar montos viejos de Supabase
             const comision = parseFloat(monto * (pctComision / 100));
-            
-            // IMPRESIÓN EN CONSOLA (F12) PARA COMPROBAR LA VERDAD
-            console.log(`🎟️ Ticket #${t.codigo || t.id} | Venta: $${monto.toFixed(2)} | Vendedor: ${nombreBancaDebug} | Comisión Aplicada: ${pctComision}% | Dólares: $${comision.toFixed(2)}`);
-            // --------------------------------------------------------
             
             ventaTotal += monto;
             comisionesTotal += comision;
@@ -580,9 +577,6 @@ async function cargarResumenOperacionesHoy() {
                 totalGanadores++;
             }
         });
-
-        console.log(`💰 TOTALES DEL DÍA -> Venta: $${ventaTotal.toFixed(2)} | Comisiones Pagadas: $${comisionesTotal.toFixed(2)}`);
-        console.log("==================================================================");
 
         const gananciaNeta = ventaTotal - comisionesTotal - premiosTotal;
         const totalVentasFmt = `$${ventaTotal.toFixed(2)}`;
@@ -609,10 +603,12 @@ async function cargarResumenOperacionesHoy() {
             elemGanancia.className = `text-2xl font-black mt-2 ${gananciaNeta >= 0 ? 'text-emerald-400' : 'text-rose-500'}`;
         }
 
-        if (typeof window.renderizarGraficosCompletos === 'function') window.renderizarGraficosCompletos(tickets);
+        renderizarGraficosCompletos(tickets);
 
         if (typeof window.cargarGridSorteosEnVivo === 'function') {
             await window.cargarGridSorteosEnVivo();
+        } else if (typeof cargarGridSorteosEnVivo === 'function') {
+            await cargarGridSorteosEnVivo();
         }
 
     } catch (err) {

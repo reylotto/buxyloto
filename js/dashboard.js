@@ -551,7 +551,8 @@ async function cargarResumenOperacionesHoy() {
                  pctComision = 10; 
             }
 
-            const comision = t.comision_monto ? parseFloat(t.comision_monto) : parseFloat(monto * (pctComision / 100));
+            // FORZAR MATEMÁTICA ESTRICTA: Ignorar montos viejos de Supabase
+            const comision = parseFloat(monto * (pctComision / 100));
             
             ventaTotal += monto;
             comisionesTotal += comision;

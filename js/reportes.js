@@ -233,7 +233,8 @@ export async function generarReporte() {
                  pctComision = 10; 
             }
 
-            const comisionMonto = t.comision_monto ? parseFloat(t.comision_monto) : (venta * (pctComision / 100));
+            // FORZAR MATEMÁTICA ESTRICTA: Ignorar montos viejos de Supabase
+            const comisionMonto = venta * (pctComision / 100);
             const premio = parseFloat(t.monto_premio || t.premio_monto || t.premio || 0);
 
             agrupado[key].ticketsCount += 1;

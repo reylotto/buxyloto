@@ -1318,9 +1318,9 @@
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-lg">
         <div>
             <h1 class="text-2xl font-black text-white flex items-center gap-2">
-                <i class="fa-solid fa-wallet text-emerald-400"></i> Reportes & Balances
+                <i class="fa-solid fa-wallet text-emerald-400"></i> Balances Financieros & Cuadres
             </h1>
-            <p class="text-xs text-slate-400 mt-1">Control financiero, auditoría general y arqueos de caja.</p>
+            <p class="text-xs text-slate-400 mt-1">Consolidado interactivo de ventas, comisiones, premios y saldo neto.</p>
         </div>
         
         <div class="flex flex-wrap gap-2 bg-slate-900 p-1.5 rounded-xl border border-slate-700">
@@ -1358,7 +1358,7 @@
                 <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Fecha Hasta</label><input type="date" id="rep-fecha-hasta" style="color-scheme: dark;" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 cursor-pointer focus:outline-none focus:border-emerald-500"></div>
                 <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Zona</label><select id="rep-filtro-zona" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"><option value="todas">Todas las zonas</option></select></div>
                 <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Supervisor</label><select id="rep-filtro-supervisor" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"><option value="todos">Todos los supervisores</option></select></div>
-                <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Vendedor / Banca</label><select id="rep-filtro-vendedor" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"><option value="todos">Todos los vendedores</option></select></div>
+                <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Banca / Vendedor</label><select id="rep-filtro-vendedor" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"><option value="todos">Todos los vendedores</option></select></div>
                 <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Lotería</label><select id="rep-filtro-loteria" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"><option value="todas">Todas las loterías</option></select></div>
                 <div><label class="block text-[11px] font-semibold text-slate-400 mb-1">Tipo Jugada</label><select id="rep-filtro-tipo-jugada" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"><option value="todas">Todas las jugadas</option><option value="directo">Directo / Pega 3</option><option value="pale">Palé</option><option value="tripleta">Tripleta</option></select></div>
             </div>
@@ -1371,13 +1371,13 @@
 
         <!-- Tarjetas KPI -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-sm"><p class="text-xs text-slate-400 font-semibold uppercase">Venta Bruta Total</p><h4 id="rep-venta-bruta" class="text-2xl font-black text-emerald-400 mt-1">$0.00</h4></div>
-            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-sm"><p class="text-xs text-slate-400 font-semibold uppercase">Comisiones Generadas</p><h4 id="rep-comisiones" class="text-2xl font-black text-amber-400 mt-1">$0.00</h4></div>
-            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-sm"><p class="text-xs text-slate-400 font-semibold uppercase">Premios Ganados</p><h4 id="rep-premios" class="text-2xl font-black text-rose-400 mt-1">$0.00</h4></div>
-            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-sm"><p class="text-xs text-slate-400 font-semibold uppercase">Resultado Neto (Balance)</p><h4 id="rep-balance-neto" class="text-2xl font-black text-sky-400 mt-1">$0.00</h4></div>
+            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-sm"><p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Venta Bruta Total</p><h4 id="rep-venta-bruta" class="text-2xl font-black text-emerald-400 mt-1">$0.00</h4></div>
+            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-sm"><p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Comisiones Generadas</p><h4 id="rep-comisiones" class="text-2xl font-black text-amber-400 mt-1">$0.00</h4></div>
+            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-sm"><p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Premios Ganados</p><h4 id="rep-premios" class="text-2xl font-black text-rose-400 mt-1">$0.00</h4></div>
+            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-sm"><p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Resultado Neto (Balance)</p><h4 id="rep-balance-neto" class="text-2xl font-black text-sky-400 mt-1">$0.00</h4></div>
         </div>
 
-        <!-- Tabla de Desglose de Auditoría -->
+        <!-- Tabla de Auditoría -->
         <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-lg overflow-hidden">
             <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/40">
                 <h4 class="text-sm font-bold text-white flex items-center gap-2"><i class="fa-solid fa-list-check text-emerald-400"></i> Desglose por Banca y Fecha</h4>
@@ -1385,7 +1385,7 @@
             <div class="overflow-x-auto custom-scrollbar">
                 <table class="w-full text-left text-xs text-slate-300">
                     <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] tracking-wider font-bold border-b border-slate-700">
-                        <tr><th class="p-3">Fecha / Día</th><th class="p-3">Banca / Vendedor</th><th class="p-3">Zona / Sup</th><th class="p-3 text-center">Tickets</th><th class="p-3 text-right">Venta Bruta ($)</th><th class="p-3 text-right">Comisión ($)</th><th class="p-3 text-right">Premios ($)</th><th class="p-3 text-right">Balance Neto ($)</th><th class="p-3 text-center">Estatus Cuadre</th></tr>
+                        <tr><th class="p-3">Fecha / Día</th><th class="p-3">Banca / Vendedor</th><th class="p-3">Zona / Sup</th><th class="p-3 text-center">Tickets</th><th class="p-3 text-right">Venta Bruta</th><th class="p-3 text-right">Comisión</th><th class="p-3 text-right">Premios</th><th class="p-3 text-right">Balance Neto</th><th class="p-3 text-center">Estatus Cuadre</th></tr>
                     </thead>
                     <tbody id="reports-banca-table-body" class="divide-y divide-slate-700/60">
                         <tr><td colspan="9" class="text-center py-8 text-slate-500">Haz clic en "Consultar Reporte" para ver la información.</td></tr>
@@ -1408,7 +1408,7 @@
         
         <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-lg">
             <div class="p-4 border-b border-slate-700 bg-slate-900/40 font-bold text-sm text-white flex items-center gap-2"><i class="fa-solid fa-hand-holding-dollar text-emerald-400"></i> Desglose Financiero para Arqueo / Pagos</div>
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto custom-scrollbar">
                 <table class="w-full text-left">
                     <thead class="bg-slate-900/80 border-b border-slate-700 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
                         <tr><th class="p-3">Banca / Vendedor</th><th class="p-3 text-center">Comisión %</th><th class="p-3 text-right">Venta Bruta</th><th class="p-3 text-right">Comisión</th><th class="p-3 text-right">Premios</th><th class="p-3 text-right">Saldo Neto</th><th class="p-3 text-center">Acciones</th></tr>
@@ -1427,7 +1427,7 @@
     <div id="tab-content-cuadres" class="hidden space-y-6">
         <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-lg">
             <div class="p-4 border-b border-slate-700 bg-slate-900/40 font-bold text-sm text-white flex items-center gap-2"><i class="fa-solid fa-clock-rotate-left text-emerald-400"></i> Historial de Arqueos y Cierres Registrados</div>
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto custom-scrollbar">
                 <table class="w-full text-left">
                     <thead class="bg-slate-900/80 border-b border-slate-700 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
                         <tr><th class="p-3">Fecha / Hora</th><th class="p-3">Banca</th><th class="p-3 text-right">Monto Cuadrado</th><th class="p-3 text-center">Estatus</th><th class="p-3 text-center">Usuario Responsable</th></tr>
@@ -1441,19 +1441,21 @@
     </div>
 </div>
 
-<!-- SCRIPT EN LÍNEA PARA CONTROLAR LAS PESTAÑAS -->
+<!-- Script en línea para Control de Pestañas (asegura que las funciones existan) -->
 <script>
     window.mostrarTabFinanzas = function(tabName) {
         document.getElementById('tab-content-auditoria').classList.add('hidden');
         document.getElementById('tab-content-balances').classList.add('hidden');
         document.getElementById('tab-content-cuadres').classList.add('hidden');
         
-        document.getElementById('tab-btn-auditoria').classList.replace('bg-emerald-600', 'bg-transparent');
-        document.getElementById('tab-btn-auditoria').classList.replace('text-white', 'text-slate-400');
-        document.getElementById('tab-btn-balances').classList.replace('bg-emerald-600', 'bg-transparent');
-        document.getElementById('tab-btn-balances').classList.replace('text-white', 'text-slate-400');
-        document.getElementById('tab-btn-cuadres').classList.replace('bg-emerald-600', 'bg-transparent');
-        document.getElementById('tab-btn-cuadres').classList.replace('text-white', 'text-slate-400');
+        document.getElementById('tab-btn-auditoria').classList.replace('bg-emerald-600', 'bg-transparent') || document.getElementById('tab-btn-auditoria').classList.remove('bg-emerald-600');
+        document.getElementById('tab-btn-auditoria').classList.replace('text-white', 'text-slate-400') || document.getElementById('tab-btn-auditoria').classList.remove('text-white');
+        
+        document.getElementById('tab-btn-balances').classList.replace('bg-emerald-600', 'bg-transparent') || document.getElementById('tab-btn-balances').classList.remove('bg-emerald-600');
+        document.getElementById('tab-btn-balances').classList.replace('text-white', 'text-slate-400') || document.getElementById('tab-btn-balances').classList.remove('text-white');
+        
+        document.getElementById('tab-btn-cuadres').classList.replace('bg-emerald-600', 'bg-transparent') || document.getElementById('tab-btn-cuadres').classList.remove('bg-emerald-600');
+        document.getElementById('tab-btn-cuadres').classList.replace('text-white', 'text-slate-400') || document.getElementById('tab-btn-cuadres').classList.remove('text-white');
         
         const activeBtn = document.getElementById('tab-btn-' + tabName);
         activeBtn.classList.replace('bg-transparent', 'bg-emerald-600') || activeBtn.classList.add('bg-emerald-600');

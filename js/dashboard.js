@@ -507,7 +507,7 @@ async function cargarResumenOperacionesHoy() {
             return est !== 'cancelado' && est !== 'anulado';
         });
 
-        // 🚨 SOLUCIÓN DEFINITIVA: Descarga directa de Supabase sin depender de la caché
+        // Descarga de bancas
         const { data: bancasData } = await supabase.from('bancas').select('*');
         const listaBancas = bancasData || [];
 
@@ -517,15 +517,18 @@ async function cargarResumenOperacionesHoy() {
         let premiosTotal = 0;
         let totalGanadores = 0;
 
+        // Limpiamos la consola para ver el reporte fresco
+        console.log("================ REPORTE DE COMISIONES POR TICKET ================");
+
         tickets.forEach(t => {
             const monto = parseFloat(t.total || t.monto || t.monto_total || 0);
             
             // --------------------------------------------------------
-            // BÚSQUEDA INTELIGENTE A PRUEBA DE BALAS (Por ID y Nombre)
+            // LECTURA DINÁMICA ESTRICTA CON RASTREADOR
             // --------------------------------------------------------
-            let pctComision = 10; // Rescate extremo
+            let pctComision = 10; // Por defecto para huérfanos
+            let nombreBancaDebug = "Banca General (Ticket Huérfano)";
             
-            // Sacamos cualquier dato que tenga el ticket (ID o Nombres)
             const tBancaId = String(t.banca_id || t.usuario_id || '').trim();
             const tBancaNombre = String(t.banca_nombre || t.vendedor_nombre || t.banca || t.vendedor || '').toLowerCase().trim();
 
@@ -535,23 +538,23 @@ async function cargarResumenOperacionesHoy() {
                 const bNombre = String(b.nombre_banca || b.nombre || '').toLowerCase().trim();
                 const bVendedor = String(b.vendedor_nombre || b.operador || '').toLowerCase().trim();
                 
-                // Si el ID coincide, ¡es esta!
                 if (tBancaId !== '' && (tBancaId === bId || tBancaId === bAuthId)) return true;
-                // Si el NOMBRE coincide, ¡es esta! (Aquí cazamos a Enzo Alessandro y Jey)
                 if (tBancaNombre !== '' && (tBancaNombre === bNombre || tBancaNombre === bVendedor)) return true;
-                
                 return false;
             });
 
-            // Asignamos la comisión real de la banca que encontramos
             if (bancaAsociada && bancaAsociada.comision !== undefined && bancaAsociada.comision !== null) {
-                pctComision = parseFloat(bancaAsociada.comision); // ¡LA BANCA MANDA!
+                pctComision = parseFloat(bancaAsociada.comision); // LA BANCA MANDA
+                nombreBancaDebug = bancaAsociada.vendedor_nombre || bancaAsociada.nombre_banca;
             } else if (t.comision_porcentaje !== undefined && t.comision_porcentaje !== null) {
                 pctComision = parseFloat(t.comision_porcentaje);
             }
 
-            // MATEMÁTICA EN VIVO E INQUEBRANTABLE (Ignora errores viejos de Supabase)
+            // Matemática inquebrantable
             const comision = parseFloat(monto * (pctComision / 100));
+            
+            // IMPRESIÓN EN CONSOLA (F12) PARA COMPROBAR LA VERDAD
+            console.log(`🎟️ Ticket #${t.codigo || t.id} | Venta: $${monto.toFixed(2)} | Vendedor: ${nombreBancaDebug} | Comisión Aplicada: ${pctComision}% | Dólares: $${comision.toFixed(2)}`);
             // --------------------------------------------------------
             
             ventaTotal += monto;
@@ -577,6 +580,9 @@ async function cargarResumenOperacionesHoy() {
                 totalGanadores++;
             }
         });
+
+        console.log(`💰 TOTALES DEL DÍA -> Venta: $${ventaTotal.toFixed(2)} | Comisiones Pagadas: $${comisionesTotal.toFixed(2)}`);
+        console.log("==================================================================");
 
         const gananciaNeta = ventaTotal - comisionesTotal - premiosTotal;
         const totalVentasFmt = `$${ventaTotal.toFixed(2)}`;

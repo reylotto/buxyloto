@@ -1,4 +1,4 @@
-// --- MÓDULO DASHBOARD Y MÉTRICAS ACTUALIZADO (PERFIL ADMIN & REALTIME CONECTADO) ---
+// --- MÓDULO DASHBOARD Y MÉTRICAS ACTUALIZADO (LIMPIO DE INTERFERENCIAS) ---
 
 // Respaldo por si getSupabaseClient o getSupabaseClientDashboard no están definidos globalmente
 if (typeof window.getSupabaseClient !== 'function') {
@@ -18,9 +18,7 @@ export function initDashboardModule() {
     console.log("Módulo Dashboard inicializado.");
     initSystemClock();
     cargarMetricasSeguras();
-    initBancasModal();
-    initBancasSearch();
-    cargarBancas();
+    // NOTA: Se eliminaron las llamadas viejas a bancas para evitar conflictos con admin.js
     cargarHistorialTickets();
     initPerfilAdmin();
     cargarResumenOperacionesHoy();
@@ -153,11 +151,9 @@ async function guardarPerfilAdmin() {
 
         alert("¡Perfil de Administrador Central actualizado con éxito en Supabase!");
 
-        // Limpiar campos de contraseña
         if (inputs[2]) inputs[2].value = '';
         if (inputs[3]) inputs[3].value = '';
 
-        // Cerrar modal
         if (modal) {
             modal.classList.add('hidden');
             modal.style.display = 'none';
@@ -174,7 +170,6 @@ async function guardarPerfilAdmin() {
     }
 }
 
-// Cierre de sesión seguro y redirección
 async function cerrarSesionAdmin() {
     if (!confirm("¿Estás seguro de que deseas cerrar sesión?")) return;
 
@@ -201,7 +196,6 @@ async function cargarMetricasSeguras() {
         const supabase = window.getSupabaseClient();
         if (!supabase) return;
 
-        // Consultar directamente la tabla 'tickets'
         const { data: tickets, error } = await supabase
             .from('tickets')
             .select('monto, monto_total, total, premio, monto_premio, estatus, estado');
@@ -213,19 +207,16 @@ async function cargarMetricasSeguras() {
 
         const listaTickets = tickets || [];
 
-        // EXCLUIR TICKETS CANCELADOS O ANULADOS
         const listaTicketsValidos = listaTickets.filter(t => {
             const est = String(t.estatus || t.estado || '').toLowerCase();
             return est !== 'cancelado' && est !== 'anulado';
         });
 
-        // Calcular total vendido solo con tickets válidos
         const totalVendido = listaTicketsValidos.reduce((acc, t) => {
             const montoVal = Number(t.monto_total || t.monto || t.total || 0);
             return acc + montoVal;
         }, 0);
 
-        // Calcular total de premios a pagar con tickets válidos
         const totalPremios = listaTicketsValidos.reduce((acc, t) => {
             const est = String(t.estatus || t.estado || '').toLowerCase();
             if (est === 'premiado' || est === 'ganador') {
@@ -234,7 +225,6 @@ async function cargarMetricasSeguras() {
             return acc;
         }, 0);
 
-        // Actualizar elementos en el DOM si existen
         const elemTotal = document.getElementById('metric-total-ventas') || document.getElementById('total-ventas');
         if (elemTotal) elemTotal.textContent = `$${totalVendido.toFixed(2)}`;
 
@@ -250,312 +240,8 @@ async function cargarMetricasSeguras() {
 }
 window.cargarMetricasSeguras = cargarMetricasSeguras;
 
-// Helper para obtener el modal activo
-function getBancaModal() {
-    return document.getElementById('modal-crear-banca') || document.getElementById('modal-crear-usuario');
-}
-
-// Helper para obtener el formulario activo
-function getBancaForm() {
-    return document.getElementById('form-crear-banca') || document.getElementById('form-crear-usuario');
-}
-
-// Control del Modal de Bancas
-function initBancasModal() {
-    const modal = getBancaModal();
-    const btnOpen = document.getElementById('btn-open-banca-modal');
-    const form = getBancaForm();
-
-    if (btnOpen) {
-        btnOpen.addEventListener('click', () => {
-            prepararModalParaCrear();
-            const targetModal = getBancaModal();
-            if (targetModal) targetModal.classList.remove('hidden');
-        });
-    }
-
-    if (modal) {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) cerrarModal();
-        });
-    }
-
-    if (form) {
-        form.onsubmit = async (e) => {
-            e.preventDefault();
-            const rol = document.getElementById('crear-rol')?.value || 'banca';
-            if (rol === 'banca' || rol === 'vendedor') {
-                await guardarBanca();
-            } else if (typeof window.guardarUsuarioSistema === 'function') {
-                await window.guardarUsuarioSistema();
-            }
-        };
-    }
-}
-
-export function cerrarModal() {
-    const modalUsuario = document.getElementById('modal-crear-usuario');
-    const modalBanca = document.getElementById('modal-crear-banca');
-    if (modalUsuario) modalUsuario.classList.add('hidden');
-    if (modalBanca) modalBanca.classList.add('hidden');
-    prepararModalParaCrear();
-}
-window.cerrarModal = cerrarModal;
-
-// 5. Guardar Banca en Supabase
-export async function guardarBanca() {
-    const supabase = window.getSupabaseClient();
-    if (!supabase) return alert("Error: No hay conexión con Supabase.");
-
-    const rol = document.getElementById('crear-rol')?.value || 'banca';
-    if (rol === 'admin' || rol === 'supervisor' || rol === 'caja') {
-        if (typeof window.guardarUsuarioSistema === 'function') {
-            return await window.guardarUsuarioSistema();
-        }
-        return;
-    }
-
-    let bancaId = (document.getElementById('edit-banca-id') || document.getElementById('edit-usuario-id'))?.value;
-    if (bancaId === 'undefined' || bancaId === 'null' || !bancaId) {
-        bancaId = ''; 
-    }
-
-    const nombreBanca = (
-        document.getElementById('crear-banca')?.value || 
-        document.getElementById('bnk-nombre')?.value || 
-        document.getElementById('banca-nombre')?.value || 
-        ''
-    ).trim();
-
-    const vendedorNombre = (
-        document.getElementById('crear-nombre')?.value || 
-        document.getElementById('bnk-vendedor')?.value || 
-        document.getElementById('banca-encargado')?.value || 
-        ''
-    ).trim();
-
-    const username = (
-        document.getElementById('crear-username')?.value || 
-        document.getElementById('bnk-username')?.value || 
-        document.getElementById('banca-username')?.value || 
-        ''
-    ).trim();
-
-    const password = (
-        document.getElementById('crear-password')?.value || 
-        document.getElementById('bnk-password')?.value || 
-        document.getElementById('banca-password')?.value || 
-        ''
-    );
-
-    const comision = parseFloat(
-        document.getElementById('crear-comision')?.value || 
-        document.getElementById('bnk-comision')?.value || 
-        0
-    ) || 0;
-
-    const limiteCredito = parseFloat(
-        document.getElementById('crear-limite')?.value || 
-        document.getElementById('bnk-limite')?.value || 
-        0
-    ) || 0;
-
-    const estatus = document.getElementById('crear-estatus')?.value || 'activo';
-
-    if (!nombreBanca) return alert("Por favor, ingresa el Nombre Comercial de la Banca.");
-    if (!vendedorNombre) return alert("Por favor, ingresa el Nombre del Encargado / Vendedor.");
-    if (!username) return alert("Por favor, ingresa un Usuario de Acceso (Username).");
-
-    const btnGuardar = document.getElementById('btn-guardar-usuario') || document.getElementById('btn-guardar-banca');
-    if (btnGuardar) {
-        btnGuardar.disabled = true;
-        btnGuardar.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
-    }
-
-    try {
-        if (bancaId && bancaId !== '') {
-            const updateData = {
-                nombre_banca: nombreBanca,
-                vendedor_nombre: vendedorNombre,
-                username: username,
-                comision: comision,
-                limite_credito: limiteCredito,
-                rol: rol,
-                estatus: estatus
-            };
-
-            const { error: updateError } = await supabase
-                .from('bancas')
-                .update(updateData)
-                .eq('id', bancaId);
-
-            if (updateError) throw updateError;
-            alert("¡Banca actualizada correctamente en Supabase!");
-        } else {
-            if (!password || password.length < 6) {
-                alert("La contraseña debe tener al menos 6 caracteres.");
-                if (btnGuardar) {
-                    btnGuardar.disabled = false;
-                    btnGuardar.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Guardar`;
-                }
-                return;
-            }
-
-            const { error: dbError } = await supabase.from('bancas').insert([{
-                nombre_banca: nombreBanca,
-                vendedor_nombre: vendedorNombre,
-                username: username,
-                password: password, 
-                rol: rol,
-                comision: comision,
-                limite_credito: limiteCredito,
-                estatus: estatus
-            }]);
-
-            if (dbError) throw dbError;
-            alert("¡Banca registrada exitosamente en Supabase!");
-        }
-
-        cerrarModal();
-        await cargarBancas();
-
-    } catch (err) {
-        console.error("Error al guardar en Supabase:", err);
-        alert("Error al guardar en Supabase: " + (err.message || JSON.stringify(err)));
-    } finally {
-        if (btnGuardar) {
-            btnGuardar.disabled = false;
-            btnGuardar.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Guardar`;
-        }
-    }
-}
-window.guardarBanca = guardarBanca;
-
-// 6. Cargar Tabla de Bancas
-export async function cargarBancas(filtroTexto = '') {
-    const tbody = document.getElementById('bancas-table-body');
-    if (!tbody) return;
-
-    tbody.innerHTML = `
-        <tr>
-            <td colspan="7" class="p-6 text-center text-slate-400">
-                <i class="fa-solid fa-spinner fa-spin mr-2 text-emerald-400"></i> Conectando con Supabase...
-            </td>
-        </tr>
-    `;
-
-    const supabase = window.getSupabaseClient();
-    if (!supabase) return;
-
-    try {
-        const { data: bancas, error } = await supabase
-            .from('bancas')
-            .select('*')
-            .order('created_at', { ascending: false });
-
-        if (error) throw error;
-
-        window._bancasCache = bancas || [];
-        if (typeof AppState !== 'undefined') {
-            AppState.bancas = bancas || [];
-        }
-
-        let bancasFiltradas = bancas || [];
-        if (filtroTexto.trim() !== '') {
-            const q = filtroTexto.toLowerCase();
-            bancasFiltradas = bancasFiltradas.filter(b => 
-                (b.nombre_banca && b.nombre_banca.toLowerCase().includes(q)) ||
-                (b.vendedor_nombre && b.vendedor_nombre.toLowerCase().includes(q)) ||
-                (b.username && b.username.toLowerCase().includes(q))
-            );
-        }
-
-        if (bancasFiltradas.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="7" class="p-6 text-center text-slate-400">
-                        No hay bancas registradas en Supabase.
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-
-        tbody.innerHTML = bancasFiltradas.map(banca => {
-            let estatusBadge = banca.estatus === 'activo'
-                ? `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full text-[10px] font-bold">Activo</span>`
-                : `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-full text-[10px] font-bold">Inactivo</span>`;
-
-            const comision = Number(banca.comision || 0).toFixed(2);
-            const limiteCredito = Number(banca.limite_credito || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-            const safeBanca = (banca.nombre_banca || '').replace(/'/g, "\\'");
-
-            return `
-                <tr class="hover:bg-slate-800/60 transition border-b border-slate-700/40">
-                    <td class="p-3 font-semibold text-white">${banca.nombre_banca || 'Sin nombre'}</td>
-                    <td class="p-3 text-slate-300">
-                        <div class="font-medium">${banca.vendedor_nombre || 'N/A'}</div>
-                        <div class="text-[11px] text-cyan-400 font-mono">@${banca.username || 'sin-usuario'}</div>
-                    </td>
-                    <td class="p-3 font-mono text-emerald-400 font-bold">${comision}%</td>
-                    <td class="p-3 font-mono text-slate-200">${limiteCredito}</td>
-                    <td class="p-3 text-slate-400 text-xs">${banca.rol || 'banca'}</td>
-                    <td class="p-3">${estatusBadge}</td>
-                    <td class="p-3 text-center">
-                        <div class="flex items-center justify-center gap-1.5">
-                            <button onclick="editarBanca('${banca.id}')" class="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-cyan-400 rounded-lg transition" title="Editar Banca">
-                                <i class="fa-solid fa-pen-to-square"></i>
-                            </button>
-                            <button onclick="cambiarPasswordBanca('${banca.id}', '${safeBanca}')" class="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-amber-400 rounded-lg transition" title="Cambiar Contraseña">
-                                <i class="fa-solid fa-key"></i>
-                            </button>
-                            <button onclick="eliminarBanca('${banca.id}')" class="p-1.5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-lg transition" title="Eliminar Banca">
-                                <i class="fa-solid fa-trash-can"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-
-    } catch (err) {
-        console.error("Error al cargar bancas:", err);
-    }
-}
-
-// 7. Buscador y Helpers
-function initBancasSearch() {
-    const searchInput = document.getElementById('input-buscar-banca');
-    if (searchInput) searchInput.addEventListener('input', (e) => cargarBancas(e.target.value));
-}
-
-window.cambiarPasswordBanca = async function(bancaId, nombreBanca) {
-    if (!bancaId) return alert("ID de banca inválido.");
-    const nuevaClave = prompt(`Nueva contraseña para la banca "${nombreBanca}":`);
-    if (!nuevaClave || nuevaClave.length < 6) return alert("Cancelado. Mínimo 6 caracteres.");
-    try {
-        const { error } = await window.getSupabaseClient().from('bancas').update({ password: nuevaClave }).eq('id', bancaId);
-        if (error) throw error;
-        alert("¡Contraseña actualizada con éxito!");
-    } catch (err) {
-        alert("Error: " + err.message);
-    }
-};
-
-window.eliminarBanca = async function(id) {
-    if (!confirm("¿Estás seguro de eliminar esta banca por completo?")) return;
-    try {
-        const { error } = await window.getSupabaseClient().from('bancas').delete().eq('id', id);
-        if (error) throw error;
-        alert("Banca eliminada exitosamente.");
-        await cargarBancas();
-    } catch (err) {
-        alert("Error al eliminar: " + err.message);
-    }
-};
-
 // ==========================================================
-// CARGAR HISTORIAL DE TICKETS CON RESTRICCIÓN STRICTA DE ANULACIÓN
+// CARGAR HISTORIAL DE TICKETS (AHORA FILTRADO POR EL DÍA DE HOY)
 // ==========================================================
 async function cargarHistorialTickets() {
     const tbody = document.getElementById('tickets-table-body') || 
@@ -568,16 +254,18 @@ async function cargarHistorialTickets() {
         const supabase = window.getSupabaseClient();
         if (!supabase) return;
 
-        // 1. Obtener la lista de sorteos para consultar estado y hora de cierre
-        const { data: sorteosData } = await supabase
-            .from('sorteos')
-            .select('*');
+        // Filtros obligatorios para el día de hoy
+        const hoy = new Date();
+        const fechaHoyStr = hoy.toISOString().split('T')[0];
+
+        const { data: sorteosData } = await supabase.from('sorteos').select('*');
         const sorteosCache = sorteosData || [];
 
-        // 2. Consultar los tickets ordenados del más reciente al más antiguo
         const { data: tickets, error } = await supabase
             .from('tickets')
             .select('*')
+            .gte('created_at', `${fechaHoyStr}T00:00:00.000Z`)
+            .lte('created_at', `${fechaHoyStr}T23:59:59.999Z`)
             .order('id', { ascending: false });
 
         if (error) throw error;
@@ -585,7 +273,7 @@ async function cargarHistorialTickets() {
         tbody.innerHTML = '';
 
         if (!tickets || tickets.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center p-4 text-slate-400">No hay tickets registrados aún.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center p-4 text-slate-400">No hay tickets registrados hoy.</td></tr>';
             return;
         }
 
@@ -626,13 +314,11 @@ async function cargarHistorialTickets() {
                 } catch(e) {}
             }
 
-            // --- REGLAS DE ESTATUS Y BOTÓN DE ANULACIÓN ---
             let estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400">PENDIENTE</span>`;
             let textoPremio = `<span class="text-slate-500 font-mono">$0.00</span>`;
             let puedeAnular = false;
             let motivoBloqueo = 'Cerrado';
 
-            // 1. Evaluar si el ticket está en un estado finalizado (PREMIADO, NO PREMIADO, CANCELADO, PAGADO)
             if (estado === 'premiado' || estado === 'ganador') {
                 estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">PREMIADO</span>`;
                 textoPremio = `<span class="text-emerald-400 font-mono font-bold text-sm">$${montoPremio}</span>`;
@@ -644,7 +330,6 @@ async function cargarHistorialTickets() {
                 estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400">CANCELADO</span>`;
                 motivoBloqueo = 'Anulado';
             } else if (estado === 'pendiente' || estado === 'activo' || estado === 'en_juego') {
-                // 2. Si el ticket sigue pendiente/activo, validar el estado del sorteo correspondiente
                 let sorteoCerrado = false;
                 const sorteoAsociado = sorteosCache.find(s => String(s.id) === String(t.sorteo_id));
 
@@ -666,7 +351,7 @@ async function cargarHistorialTickets() {
                 }
 
                 if (sorteoCerrado) {
-                    estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">EN JUEGO (SORTEO CERRADO)</span>`;
+                    estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">EN JUEGO (CERRADO)</span>`;
                     puedeAnular = false;
                     motivoBloqueo = 'Sorteo Cerrado';
                 } else {
@@ -674,7 +359,6 @@ async function cargarHistorialTickets() {
                 }
             }
 
-            // Generar HTML del botón o indicador de bloqueo
             const botonAnulacionHTML = puedeAnular 
                 ? `<button onclick="eliminarTicketHistorial('${t.id}')" title="Anular Ticket"
                            class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2 py-1 rounded transition-colors text-xs flex items-center gap-1">
@@ -712,7 +396,7 @@ window.cargarHistorialTickets = cargarHistorialTickets;
 window.cargarVentas = cargarHistorialTickets;
 
 // ==========================================================
-// ANULACIÓN / ELIMINACIÓN DE TICKETS EN DASHBOARD (CORREGIDA)
+// ANULACIÓN / ELIMINACIÓN DE TICKETS
 // ==========================================================
 window.eliminarTicketHistorial = async function(ticketId) {
     if (!ticketId) return;
@@ -753,7 +437,6 @@ function cambiarSeccion(seccionId) {
     }
 
     if (seccionId === 'section-results') {
-        console.log("🔄 Cargando sección Resultados & Escrutinio...");
         if (typeof window.cargarSorteosEscrutinio === 'function') {
             window.cargarSorteosEscrutinio();
         }
@@ -766,8 +449,6 @@ function cambiarSeccion(seccionId) {
 // ==========================================================
 // RESUMEN DE OPERACIONES Y MÉTRICAS HOY CON GRÁFICOS
 // ==========================================================
-
-// 1. Declaración global/auxiliar segura para actualizar texto en el DOM
 if (typeof window.actualizarTexto !== 'function') {
     window.actualizarTexto = function(id, valor) {
         const el = document.getElementById(id);
@@ -776,40 +457,30 @@ if (typeof window.actualizarTexto !== 'function') {
 }
 const actualizarTexto = window.actualizarTexto;
 
-// 2. Función Principal: Cargar Resumen de Operaciones
 async function cargarResumenOperacionesHoy() {
     try {
         const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
         if (!supabase) return;
 
-        // Rango de fecha de hoy (00:00:00 - 23:59:59)
         const hoy = new Date();
         const inicioDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0);
         const finDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59, 999);
 
-        // Consultar tickets de hoy
         const { data: ticketsHoy, error: errTickets } = await supabase
             .from('tickets')
             .select('*')
             .gte('created_at', inicioDia.toISOString())
             .lte('created_at', finDia.toISOString());
 
-        if (errTickets) {
-            console.error("Error consultando tickets de hoy:", errTickets.message);
-            return;
-        }
+        if (errTickets) return;
 
         const ticketsRaw = ticketsHoy || [];
-
-        // Excluir tickets cancelados o anulados
         const tickets = ticketsRaw.filter(t => {
             const est = String(t.estatus || t.status || t.estado || '').toLowerCase();
             return est !== 'cancelado' && est !== 'anulado';
         });
 
         const totalTickets = tickets.length;
-
-        // Cálculos Financieros
         let ventaTotal = 0;
         let comisionesTotal = 0;
         let premiosTotal = 0;
@@ -817,20 +488,17 @@ async function cargarResumenOperacionesHoy() {
 
         tickets.forEach(t => {
             const monto = parseFloat(t.total || t.monto || t.monto_total || 0);
-            
             let pctComision = 10;
             if (t.comision_porcentaje) pctComision = parseFloat(t.comision_porcentaje);
 
-            const comision = t.comision_monto 
-                ? parseFloat(t.comision_monto) 
-                : parseFloat(t.comision || (monto * (pctComision / 100)));
+            const comision = t.comision_monto ? parseFloat(t.comision_monto) : parseFloat(t.comision || (monto * (pctComision / 100)));
             
             ventaTotal += monto;
             comisionesTotal += comision;
 
             let premioVal = parseFloat(t.premio || t.monto_premio || t.total_premio || t.monto_ganado || 0);
-
             const detallesJugadas = t.jugadas || t.detalles || t.apuestas || [];
+            
             if (Array.isArray(detallesJugadas)) {
                 detallesJugadas.forEach(j => {
                     const premioJugada = parseFloat(j.premio || j.monto_premio || j.monto_ganado || 0);
@@ -850,8 +518,6 @@ async function cargarResumenOperacionesHoy() {
         });
 
         const gananciaNeta = ventaTotal - comisionesTotal - premiosTotal;
-
-        // Inyectar datos en el DOM (Compatibilidad con múltiples IDs de plantillas)
         const totalVentasFmt = `$${ventaTotal.toFixed(2)}`;
         const totalComisionesFmt = `$${comisionesTotal.toFixed(2)}`;
         const totalPremiosFmt = `$${premiosTotal.toFixed(2)}`;
@@ -876,17 +542,13 @@ async function cargarResumenOperacionesHoy() {
             elemGanancia.className = `text-2xl font-black mt-2 ${gananciaNeta >= 0 ? 'text-emerald-400' : 'text-rose-500'}`;
         }
 
-        console.log(`✅ Resumen y ventas actualizadas automáticamente: ${totalVentasFmt} en ${totalTickets} tickets.`);
-
-        // Cargar caché de bancas si está disponible y no se ha cargado aún
-        if (typeof window.cargarBancas === 'function' && (!window._bancasCache || window._bancasCache.length === 0)) {
-            try { await window.cargarBancas(); } catch (e) { console.warn("Aviso pre-cargando bancas:", e); }
+        // LLAMADA CORREGIDA A ADMIN.JS
+        if (typeof window.cargarBancasSistema === 'function' && (!window._bancasCache || window._bancasCache.length === 0)) {
+            try { await window.cargarBancasSistema(); } catch (e) { console.warn("Aviso pre-cargando bancas:", e); }
         }
 
-        // Llamada segura a renderizar gráficos
         renderizarGraficosCompletos(tickets);
 
-        // Cargar grilla de sorteos en vivo si existe la función
         if (typeof window.cargarGridSorteosEnVivo === 'function') {
             await window.cargarGridSorteosEnVivo();
         } else if (typeof cargarGridSorteosEnVivo === 'function') {
@@ -903,17 +565,12 @@ window.cargarResumenOperacionesHoy = cargarResumenOperacionesHoy;
 // RENDERING DE GRÁFICOS (VENTAS POR BANCA Y BALANCE POR SORTEO)
 // ==========================================================
 function renderizarGraficosCompletos(tickets = []) {
-    if (typeof Chart === 'undefined') {
-        console.warn("⚠️ Chart.js no está cargado en la página.");
-        return;
-    }
-
+    if (typeof Chart === 'undefined') return;
     renderizarGraficoVendedores(tickets);
     renderizarGraficoSorteos(tickets);
 }
 window.renderizarGraficosCompletos = renderizarGraficosCompletos;
 
-// 1. Gráfico de Ventas por Banca / Vendedor
 function renderizarGraficoVendedores(tickets = []) {
     const canvas = document.getElementById('chart-ventas-vendedor') || document.getElementById('chartVentasBanca');
     if (!canvas) return;
@@ -923,7 +580,6 @@ function renderizarGraficoVendedores(tickets = []) {
 
     tickets.forEach(t => {
         let nombre = t.banca_nombre || t.vendedor_nombre || t.banca || t.vendedor || '';
-
         if (!nombre && (t.banca_id !== undefined && t.banca_id !== null || t.usuario_id !== undefined && t.usuario_id !== null)) {
             const bId = String(t.banca_id ?? t.usuario_id);
             const encontrada = bancasCache.find(b => String(b.id) === bId);
@@ -931,11 +587,7 @@ function renderizarGraficoVendedores(tickets = []) {
                 nombre = encontrada.nombre_banca || encontrada.vendedor_nombre || encontrada.nombre || encontrada.username || '';
             }
         }
-
-        if (!nombre || nombre === '0' || nombre === 0 || String(nombre).trim() === '') {
-            nombre = 'Banca General';
-        }
-
+        if (!nombre || nombre === '0' || nombre === 0 || String(nombre).trim() === '') nombre = 'Banca General';
         const monto = parseFloat(t.total || t.monto || t.monto_total || t.monto_venta || 0);
         bancasMap[nombre] = (bancasMap[nombre] || 0) + monto;
     });
@@ -967,29 +619,17 @@ function renderizarGraficoVendedores(tickets = []) {
             maintainAspectRatio: false,
             plugins: { 
                 legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: (ctx) => `Venta Total: $${Number(ctx.raw).toFixed(2)}`
-                    }
-                }
+                tooltip: { callbacks: { label: (ctx) => `Venta Total: $${Number(ctx.raw).toFixed(2)}` } }
             },
             scales: {
-                y: { 
-                    beginAtZero: true,
-                    ticks: { color: '#94a3b8' }, 
-                    grid: { color: 'rgba(51, 65, 85, 0.3)' } 
-                },
-                x: { 
-                    ticks: { color: '#94a3b8' }, 
-                    grid: { display: false } 
-                }
+                y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(51, 65, 85, 0.3)' } },
+                x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
             }
         }
     });
 }
 window.renderizarGraficoVendedores = renderizarGraficoVendedores;
 
-// 2. Gráfico de Distribución y Ganancia/Pérdida por Sorteo
 function renderizarGraficoSorteos(tickets = []) {
     const canvas = document.getElementById('chart-distribucion-sorteo') || document.getElementById('chartDistribucionSorteo');
     if (!canvas) return;
@@ -999,7 +639,6 @@ function renderizarGraficoSorteos(tickets = []) {
     tickets.forEach(t => {
         const nombreSorteo = t.sorteo_nombre || t.sorteo || t.nombre_sorteo || 'Sorteo General';
         const montoVenta = parseFloat(t.total || t.monto || t.monto_total || 0);
-        
         let montoPremio = parseFloat(t.premio || t.monto_premio || t.total_premio || 0);
         const est = String(t.estatus || t.estado || '').toLowerCase();
         
@@ -1037,9 +676,7 @@ function renderizarGraficoSorteos(tickets = []) {
             labels: labels.length ? labels : ['Sin Datos'],
             datasets: [{
                 data: dataVentas.length ? dataVentas : [1],
-                backgroundColor: [
-                    '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'
-                ],
+                backgroundColor: ['#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'],
                 borderWidth: 2,
                 borderColor: '#0f172a'
             }]
@@ -1072,25 +709,17 @@ function renderizarGraficoSorteos(tickets = []) {
 window.renderizarGraficoSorteos = renderizarGraficoSorteos;
 
 // ==========================================================
-// EVALUACIÓN DINÁMICA DE ESTATUS (HORA DE PANAMÁ)
+// EVALUACIÓN DINÁMICA DE ESTATUS 
 // ==========================================================
 export function evaluarEstatusDinamicoSorteo(sorteo) {
     if (!sorteo) return { texto: 'CERRADO', esActivo: false, claseBadge: 'bg-rose-500/20 text-rose-400 border border-rose-500/30' };
 
     const estatusDB = String(sorteo.estatus || sorteo.estado || 'ACTIVO').toUpperCase().trim();
     if (['PAUSADO', 'INACTIVO', 'PAUSA', 'DESACTIVADO'].includes(estatusDB)) {
-        return { 
-            texto: 'PAUSADO', 
-            esActivo: false, 
-            claseBadge: 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
-        };
+        return { texto: 'PAUSADO', esActivo: false, claseBadge: 'bg-amber-500/20 text-amber-400 border border-amber-500/30' };
     }
 
-    const ahoraPanama = new Date().toLocaleTimeString('en-GB', { 
-        timeZone: 'America/Panama', 
-        hour12: false 
-    });
-
+    const ahoraPanama = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Panama', hour12: false });
     const normHora = (hStr, def) => {
         if (!hStr || hStr === '00:00' || hStr === '00:00:00') return def;
         let s = String(hStr).trim();
@@ -1102,32 +731,20 @@ export function evaluarEstatusDinamicoSorteo(sorteo) {
     const horaCierre = normHora(sorteo.hora_cierre || sorteo.horario_cierre || sorteo.hora, '23:59:00');
 
     if (ahoraPanama < horaApertura || ahoraPanama >= horaCierre) {
-        return { 
-            texto: 'CERRADO', 
-            esActivo: false, 
-            claseBadge: 'bg-rose-500/20 text-rose-400 border border-rose-500/30' 
-        };
+        return { texto: 'CERRADO', esActivo: false, claseBadge: 'bg-rose-500/20 text-rose-400 border border-rose-500/30' };
     }
 
-    return { 
-        texto: 'ACTIVO', 
-        esActivo: true, 
-        claseBadge: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-    };
+    return { texto: 'ACTIVO', esActivo: true, claseBadge: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' };
 }
 window.evaluarEstatusDinamicoSorteo = evaluarEstatusDinamicoSorteo;
 
-// Grilla dinámica de sorteos en vivo
 async function cargarGridSorteosEnVivo() {
     try {
         const supabase = window.getSupabaseClient();
         const grid = document.getElementById('dashboard-draws-grid');
         if (!supabase || !grid) return;
 
-        const { data: sorteos, error } = await supabase
-            .from('sorteos')
-            .select('*')
-            .order('id', { ascending: true });
+        const { data: sorteos, error } = await supabase.from('sorteos').select('*').order('id', { ascending: true });
 
         if (error || !sorteos || sorteos.length === 0) {
             grid.innerHTML = `<div class="col-span-full text-center text-slate-400 py-4 text-xs">No hay sorteos registrados hoy.</div>`;
@@ -1181,9 +798,7 @@ async function cargarGridSorteosEnVivo() {
 
                 if (!estatusInfo.esActivo) {
                     timerElem.textContent = estatusInfo.texto;
-                    timerElem.className = estatusInfo.texto === 'PAUSADO' 
-                        ? "font-mono font-bold text-amber-400" 
-                        : "font-mono font-bold text-rose-400";
+                    timerElem.className = estatusInfo.texto === 'PAUSADO' ? "font-mono font-bold text-amber-400" : "font-mono font-bold text-rose-400";
                     return;
                 }
 
@@ -1235,7 +850,6 @@ window.dismissClosingAlert = function() {
             window._sorteosSilenciados.add(id);
         });
     }
-    
     const el = document.getElementById('global-closing-alert');
     if (el) el.classList.add('hidden');
 };
@@ -1254,38 +868,29 @@ async function suscribirEventosTiempoReal() {
     window.realtimeChannel = supabase
         .channel('schema-db-changes-global')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
-            console.log('⚡ Actualizando automáticamente por cambio en tickets...');
             cargarResumenOperacionesHoy();
             cargarMetricasSeguras();
-            if (typeof window.cargarHistorialTickets === 'function') {
-                window.cargarHistorialTickets();
-            }
+            if (typeof window.cargarHistorialTickets === 'function') window.cargarHistorialTickets();
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'resultados' }, () => {
-            console.log('⚡ Actualizando automáticamente por nuevo resultado ingresado...');
             cargarResumenOperacionesHoy();
             cargarMetricasSeguras();
-            if (typeof window.cargarHistorialTickets === 'function') {
-                window.cargarHistorialTickets();
-            }
+            if (typeof window.cargarHistorialTickets === 'function') window.cargarHistorialTickets();
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'jugadas' }, () => {
-            console.log('⚡ Actualizando automáticamente por cambio en jugadas...');
             cargarResumenOperacionesHoy();
             cargarMetricasSeguras();
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'sorteos' }, () => {
-            console.log('⚡ Actualizando automáticamente por cambio en sorteos...');
             cargarResumenOperacionesHoy();
         })
         .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
-                console.log('✅ Realtime conectado exitosamente en todas las tablas.');
+                console.log('✅ Realtime conectado exitosamente.');
             }
         });
 }
 
-// Exposición global
 window.cargarResumenOperacionesHoy = cargarResumenOperacionesHoy;
 window.actualizarResumenOperaciones = cargarResumenOperacionesHoy;
 window.actualizarResumenDashboard = function() {
@@ -1301,7 +906,6 @@ window.suscribirEventosTiempoReal = suscribirEventosTiempoReal;
 document.addEventListener('DOMContentLoaded', () => {
     initDashboardModule();
 
-    // Botón manual de refresco
     const btnRefresh = document.getElementById('btn-refresh-dashboard');
     if (btnRefresh) {
         btnRefresh.addEventListener('click', () => {
@@ -1310,7 +914,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Botones de cerrar sesión vinculados a la función de la app
     const botonesCerrarSesion = document.querySelectorAll('#btn-logout, .btn-logout, [data-action="logout"], #btn-cerrar-sesion');
     botonesCerrarSesion.forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -1319,7 +922,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Navegación por pestañas
     const navLinks = document.querySelectorAll('[data-section], nav button, .nav-link, a[href*="section"]');
     navLinks.forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -1334,7 +936,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Vinculación del botón Guardar Perfil de Administrador Central
     const btnGuardarPerfil = document.getElementById('btn-guardar-perfil-admin') || document.getElementById('btn-save-admin');
     if (btnGuardarPerfil) {
         btnGuardarPerfil.addEventListener('click', (e) => {
@@ -1343,7 +944,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Suscribir a tiempo real
     if (typeof suscribirEventosTiempoReal === 'function') {
         suscribirEventosTiempoReal();
     }

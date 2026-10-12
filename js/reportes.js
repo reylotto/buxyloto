@@ -110,6 +110,10 @@ export async function initReportesModule() {
 }
 window.initReportesModule = initReportesModule;
 
+// ==========================================================
+// CORRECCIÓN DE FILTROS Y ESTATUS EN reportes.js
+// ==========================================================
+
 async function cargarFiltrosDesplegables() {
     await asegurarBancasCache();
     const supabase = window.supabase;
@@ -125,19 +129,19 @@ async function cargarFiltrosDesplegables() {
             if (sort) loteriasCache = sort;
         }
 
-        // Poblar Vendedores
+        // Poblar Vendedores / Bancas
         const selVendedor = document.getElementById('rep-filtro-vendedor');
-        if (selVendedor && bancasCache.length > 0) {
+        if (selVendedor) {
             selVendedor.innerHTML = '<option value="todos">Todos los vendedores</option>';
             bancasCache.forEach(b => {
-                const nombreBanca = b.nombre_banca || b.vendedor_nombre || b.name || `Banca #${b.id}`;
-                selVendedor.innerHTML += `<option value="${b.id}">${nombreBanca}</option>`;
+                const nombre = b.nombre_banca || b.vendedor_nombre || b.name || `Banca #${b.id}`;
+                selVendedor.innerHTML += `<option value="${b.id}">${nombre}</option>`;
             });
         }
 
         // Poblar Zonas
         const selZona = document.getElementById('rep-filtro-zona');
-        if (selZona && bancasCache.length > 0) {
+        if (selZona) {
             const zonas = new Set();
             bancasCache.forEach(b => { if (b.zona && String(b.zona).trim() !== '') zonas.add(b.zona.trim()); });
             selZona.innerHTML = '<option value="todas">Todas las zonas</option>';
@@ -148,23 +152,69 @@ async function cargarFiltrosDesplegables() {
         const selSupervisor = document.getElementById('rep-filtro-supervisor');
         if (selSupervisor) {
             selSupervisor.innerHTML = '<option value="todos">Todos los supervisores</option>';
-            const supervisores = usuariosCache.filter(u => String(u.rol || u.role).toLowerCase() === 'supervisor' || String(u.rol || u.role).toLowerCase() === 'admin');
-            supervisores.forEach(sup => {
-                const nombreSup = sup.nombre || sup.username || sup.email || `Supervisor #${sup.id}`;
-                selSupervisor.innerHTML += `<option value="${sup.id}">${nombreSup}</option>`;
+            const sups = usuariosCache.filter(u => String(u.rol || u.role).toLowerCase() === 'supervisor' || String(u.rol || u.role).toLowerCase() === 'admin');
+            sups.forEach(s => {
+                const nombreSup = s.nombre || s.username || s.email || `Supervisor #${s.id}`;
+                selSupervisor.innerHTML += `<option value="${s.id}">${nombreSup}</option>`;
             });
         }
 
         // Poblar Loterías
         const selLoteria = document.getElementById('rep-filtro-loteria');
-        if (selLoteria && loteriasCache.length > 0) {
+        if (selLoteria) {
             selLoteria.innerHTML = '<option value="todas">Todas las loterías</option>';
-            loteriasCache.forEach(s => {
-                const nombreLoteria = s.nombre || s.name || `Sorteo #${s.id}`;
-                selLoteria.innerHTML += `<option value="${s.id}">${nombreLoteria}</option>`;
+            loteriasCache.forEach(l => {
+                const nombreLot = l.nombre || l.name || `Sorteo #${l.id}`;
+                selLoteria.innerHTML += `<option value="${l.id}">${nombreLot}</option>`;
             });
         }
-    } catch (e) { console.warn("Error cargando filtros:", e); }
+    } catch (e) { console.warn("Error cargando filtros desplegables:", e); }
+}
+
+function renderizarTablaReporte(datos) {
+    const tbody = document.getElementById('reports-banca-table-body') || document.getElementById('reportes-table-body');
+    if (!tbody) return;
+
+    if (!datos || datos.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-slate-500">No hay ventas registradas con los filtros seleccionados.</td></tr>`;
+        return;
+    }
+
+    // Verificar cuadres locales guardados para mostrar estatus real
+    const pagosLocales = JSON.parse(localStorage.getItem('buxy_pagos_vendedores')) || [];
+
+    let html = '';
+    datos.forEach(d => {
+        const balanceNeto = d.venta - d.comision - d.premios;
+        const balanceClass = balanceNeto >= 0 ? 'text-emerald-400' : 'text-rose-400';
+
+        // Comprobar si esta banca tiene algún movimiento de pago/cuadre registrado hoy
+        const estaCuadrado = pagosLocales.some(p => String(p.bancaId) === String(d.banca_id || d.vendedor));
+        const estatusLabel = estaCuadrado ? 'CUADRADO' : 'PENDIENTE DE CUADRE';
+        const estatusClass = estaCuadrado 
+            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' 
+            : 'bg-amber-500/10 text-amber-400 border border-amber-500/30';
+
+        html += `
+            <tr class="hover:bg-slate-700/35 transition-all border-b border-slate-700/40 text-xs">
+                <td class="p-3 font-mono text-slate-300 capitalize">${d.fecha}</td>
+                <td class="p-3 font-bold text-white">${d.vendedor}</td>
+                <td class="p-3 text-slate-400">${d.zona}</td>
+                <td class="p-3 text-center font-mono text-cyan-400">${d.ticketsCount}</td>
+                <td class="p-3 font-mono font-semibold text-white">$${d.venta.toFixed(2)}</td>
+                <td class="p-3 font-mono text-amber-400">$${d.comision.toFixed(2)}</td>
+                <td class="p-3 font-mono text-rose-400">$${d.premios.toFixed(2)}</td>
+                <td class="p-3 font-mono font-bold ${balanceClass}">$${balanceNeto.toFixed(2)}</td>
+                <td class="p-3 text-center">
+                    <span class="text-[10px] px-2.5 py-1 rounded-full font-bold uppercase ${estatusClass}">
+                        ${estatusLabel}
+                    </span>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
 }
 
 // Asegurar exportaciones globales (Excel)

@@ -507,21 +507,9 @@ async function cargarResumenOperacionesHoy() {
             return est !== 'cancelado' && est !== 'anulado';
         });
 
-        // ----------------------------------------------------------------------
-        // 🚨 SOLUCIÓN: DESCARGAR LAS BANCAS ANTES DE HACER LA MATEMÁTICA
-        // ----------------------------------------------------------------------
-        if (typeof window.cargarBancasSistema === 'function' && (!window._bancasCache || window._bancasCache.length === 0)) {
-            try { await window.cargarBancasSistema(); } catch (e) { console.warn("Aviso pre-cargando bancas:", e); }
-        }
-        
-        let bancasCache = window._bancasCache || [];
-        if (bancasCache.length === 0) {
-            // Consulta de rescate por si admin.js no ha cargado aún
-            const { data: bancasDirectas } = await supabase.from('bancas').select('*');
-            bancasCache = bancasDirectas || [];
-            window._bancasCache = bancasCache; // Guardar en caché global
-        }
-        // ----------------------------------------------------------------------
+        // 🚨 SOLUCIÓN DEFINITIVA: Descarga directa de Supabase sin depender de la caché
+        const { data: bancasData } = await supabase.from('bancas').select('*');
+        const listaBancas = bancasData || [];
 
         const totalTickets = tickets.length;
         let ventaTotal = 0;
@@ -532,27 +520,39 @@ async function cargarResumenOperacionesHoy() {
         tickets.forEach(t => {
             const monto = parseFloat(t.total || t.monto || t.monto_total || 0);
             
-           // --------------------------------------------------------
-            // LECTURA DINÁMICA ESTRICTA (LA BANCA MANDA)
             // --------------------------------------------------------
-            let pctComision = 0; // Iniciamos en 0
+            // BÚSQUEDA INTELIGENTE A PRUEBA DE BALAS (Por ID y Nombre)
+            // --------------------------------------------------------
+            let pctComision = 10; // Rescate extremo
             
-            const bancaIdStr = String(t.banca_id || t.usuario_id || '');
-            const bancaAsociada = bancasCache.find(b => String(b.id) === bancaIdStr);
-            
+            // Sacamos cualquier dato que tenga el ticket (ID o Nombres)
+            const tBancaId = String(t.banca_id || t.usuario_id || '').trim();
+            const tBancaNombre = String(t.banca_nombre || t.vendedor_nombre || t.banca || t.vendedor || '').toLowerCase().trim();
+
+            const bancaAsociada = listaBancas.find(b => {
+                const bId = String(b.id).trim();
+                const bAuthId = String(b.auth_id || b.usuario_id || '').trim();
+                const bNombre = String(b.nombre_banca || b.nombre || '').toLowerCase().trim();
+                const bVendedor = String(b.vendedor_nombre || b.operador || '').toLowerCase().trim();
+                
+                // Si el ID coincide, ¡es esta!
+                if (tBancaId !== '' && (tBancaId === bId || tBancaId === bAuthId)) return true;
+                // Si el NOMBRE coincide, ¡es esta! (Aquí cazamos a Enzo Alessandro y Jey)
+                if (tBancaNombre !== '' && (tBancaNombre === bNombre || tBancaNombre === bVendedor)) return true;
+                
+                return false;
+            });
+
+            // Asignamos la comisión real de la banca que encontramos
             if (bancaAsociada && bancaAsociada.comision !== undefined && bancaAsociada.comision !== null) {
-                // PRIORIDAD 1: Siempre usar el porcentaje actual de la Banca (ignora el del ticket)
-                pctComision = parseFloat(bancaAsociada.comision);
+                pctComision = parseFloat(bancaAsociada.comision); // ¡LA BANCA MANDA!
             } else if (t.comision_porcentaje !== undefined && t.comision_porcentaje !== null) {
-                // PRIORIDAD 2: Solo si la banca fue borrada, confía en el ticket
                 pctComision = parseFloat(t.comision_porcentaje);
-            } else {
-                 // PRIORIDAD 3: Rescate extremo
-                 pctComision = 10; 
             }
 
-            // FORZAR MATEMÁTICA ESTRICTA: Ignorar montos viejos de Supabase
+            // MATEMÁTICA EN VIVO E INQUEBRANTABLE (Ignora errores viejos de Supabase)
             const comision = parseFloat(monto * (pctComision / 100));
+            // --------------------------------------------------------
             
             ventaTotal += monto;
             comisionesTotal += comision;
@@ -603,12 +603,10 @@ async function cargarResumenOperacionesHoy() {
             elemGanancia.className = `text-2xl font-black mt-2 ${gananciaNeta >= 0 ? 'text-emerald-400' : 'text-rose-500'}`;
         }
 
-        renderizarGraficosCompletos(tickets);
+        if (typeof window.renderizarGraficosCompletos === 'function') window.renderizarGraficosCompletos(tickets);
 
         if (typeof window.cargarGridSorteosEnVivo === 'function') {
             await window.cargarGridSorteosEnVivo();
-        } else if (typeof cargarGridSorteosEnVivo === 'function') {
-            await cargarGridSorteosEnVivo();
         }
 
     } catch (err) {

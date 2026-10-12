@@ -302,7 +302,6 @@ export function cerrarModal() {
 }
 window.cerrarModal = cerrarModal;
 
-
 // 5. Guardar Banca en Supabase
 export async function guardarBanca() {
     const supabase = window.getSupabaseClient();

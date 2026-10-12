@@ -2,6 +2,7 @@
 import { initPOSModule } from './pos.js';
 import { initDashboardModule } from './dashboard.js';
 import { initAdminModule } from './admin.js';
+import { initBalancesCuadresModule } from './balancesCuadres.js'; // 👈 ¡Nuevo módulo integrado!
 
 // 1. Detección inmediata de sesión al cargar la página (Anti-cierre con F5)
 document.addEventListener('DOMContentLoaded', async () => {
@@ -61,6 +62,7 @@ export function iniciarAplicacionPrincipal() {
     initDashboardModule();
     initPOSModule();
     initAdminModule();
+    initBalancesCuadresModule(); // 👈 ¡Inicializamos el módulo de balances y cuadres aquí!
     restaurarUltimaVista();
 }
 

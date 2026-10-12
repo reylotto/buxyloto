@@ -125,7 +125,7 @@ async function cargarFiltrosDesplegables() {
             if (sort) loteriasCache = sort;
         }
 
-        // Poblar Vendedores (Evitando nombres undefined)
+        // Poblar Vendedores
         const selVendedor = document.getElementById('rep-filtro-vendedor');
         if (selVendedor && bancasCache.length > 0) {
             selVendedor.innerHTML = '<option value="todos">Todos los vendedores</option>';
@@ -167,7 +167,7 @@ async function cargarFiltrosDesplegables() {
     } catch (e) { console.warn("Error cargando filtros:", e); }
 }
 
-// Asegurar exportaciones globales
+// Asegurar exportaciones globales (Excel)
 window.exportarReporteExcel = function() {
     if (!reporteDataCache || reporteDataCache.length === 0) {
         return alert("No hay datos para exportar. Consulte el reporte primero.");
@@ -188,45 +188,80 @@ window.exportarReporteExcel = function() {
     link.click();
     document.body.removeChild(link);
 };
+window.exportarReporteExcel = exportarReporteExcel;
 
+// CORRECCIÓN PDF: Genera una ventana limpia con los datos tabulados sin mostrar en blanco
 window.imprimirReportePDF = function() {
-    const tbody = document.getElementById('reports-banca-table-body');
-    if (!tbody || tbody.innerText.includes("Haz clic en")) {
-        return alert("Genere el reporte en la tabla antes de imprimir.");
+    if (!reporteDataCache || reporteDataCache.length === 0) {
+        return alert("Genere y consulte el reporte en la tabla antes de imprimir el PDF.");
     }
 
-    const printWindow = window.open('', '_blank');
+    let filasHTML = '';
+    reporteDataCache.forEach(d => {
+        const neto = d.venta - d.comision - d.premios;
+        filasHTML += `
+            <tr>
+                <td>${d.fecha}</td>
+                <td>${d.vendedor}</td>
+                <td>${d.zona}</td>
+                <td style="text-align:center;">${d.ticketsCount}</td>
+                <td style="text-align:right;">$${d.venta.toFixed(2)}</td>
+                <td style="text-align:right;">$${d.comision.toFixed(2)}</td>
+                <td style="text-align:right;">$${d.premios.toFixed(2)}</td>
+                <td style="text-align:right;">$${neto.toFixed(2)}</td>
+            </tr>
+        `;
+    });
+
+    const printWindow = window.open('', '_blank', 'width=900,height=600');
+    if (!printWindow) {
+        return alert("El navegador bloqueó la ventana emergente. Por favor permita las ventanas emergentes para este sitio.");
+    }
+
     printWindow.document.write(`
         <!DOCTYPE html>
         <html>
         <head>
             <title>Reporte de Auditoría - BuxyLoto</title>
             <style>
-                body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+                body { font-family: Arial, sans-serif; padding: 20px; color: #111; }
                 h2 { text-align: center; color: #000; margin-bottom: 5px; }
-                p { text-align: center; font-size: 12px; color: #666; margin-bottom: 20px; }
-                table { width: 100%; border-collapse: collapse; font-size: 12px; }
-                th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-                th { background-color: #f2f2f2; font-weight: bold; }
-                .text-right { text-align: right; }
-                .text-center { text-align: center; }
+                p { text-align: center; font-size: 11px; color: #555; margin-bottom: 25px; }
+                table { width: 100%; border-collapse: collapse; font-size: 11px; }
+                th, td { border: 1px solid #999; padding: 6px 8px; text-align: left; }
+                th { background-color: #eee; font-weight: bold; }
             </style>
         </head>
         <body>
-            <h2>BUXYLOTO POS - REPORTE DE AUDITORÍA</h2>
+            <h2>BUXYLOTO POS - REPORTE DE AUDITORÍA FINANCIERA</h2>
             <p>Fecha de emisión: ${new Date().toLocaleString('es-PA')}</p>
             <table>
                 <thead>
-                    <tr><th>Fecha</th><th>Vendedor</th><th>Zona</th><th class="text-center">Tickets</th><th class="text-right">Venta Bruta</th><th class="text-right">Comisión</th><th class="text-right">Premios</th><th class="text-right">Balance Neto</th></tr>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Vendedor</th>
+                        <th>Zona</th>
+                        <th style="text-align:center;">Tickets</th>
+                        <th style="text-align:right;">Venta Bruta</th>
+                        <th style="text-align:right;">Comisión</th>
+                        <th style="text-align:right;">Premios</th>
+                        <th style="text-align:right;">Balance Neto</th>
+                    </tr>
                 </thead>
-                <tbody>${tbody.innerHTML}</tbody>
+                <tbody>${filasHTML}</tbody>
             </table>
-            <script>window.onload = function() { window.print(); window.close(); }<\/script>
         </body>
         </html>
     `);
     printWindow.document.close();
+    setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+        printWindow.close();
+    }, 500);
 };
+window.imprimirReportePDF = imprimirReportePDF;
+window.exportarReportePDF = imprimirReportePDF;
 
 export async function generarReporte() {
     const supabase = window.supabase;
@@ -287,7 +322,7 @@ export async function generarReporte() {
             // Filtro por Supervisor
             if (supervisorFiltro !== 'todos' && supervisorFiltro !== '' && supervisorBanca !== String(supervisorFiltro)) return;
 
-            // Filtro por Tipo de Jugada (Directo, Palé, Tripleta)
+            // Filtro por Tipo de Jugada
             const itemsTicket = normalizarItemsTicket(t);
             if (tipoJugadaFiltro !== 'todas' && tipoJugadaFiltro !== '' && tipoJugadaFiltro !== 'todos') {
                 const coincideTipo = itemsTicket.some(j => String(j.tipo || '').toLowerCase() === tipoJugadaFiltro.toLowerCase());
@@ -421,35 +456,6 @@ export function limpiarFiltrosReportes() {
     generarReporte();
 }
 window.limpiarFiltrosReportes = limpiarFiltrosReportes;
-
-export function exportarReporteExcel() {
-    if (!reporteDataCache || reporteDataCache.length === 0) {
-        alert("No hay datos para exportar en este momento.");
-        return;
-    }
-
-    let csvContent = "data:text/csv;charset=utf-8,FECHA,BANCA/VENDEDOR,ZONA,TICKETS,VENTA TOTAL,COMISIóN,PREMIOS,BALANCE NETO\n";
-
-    reporteDataCache.forEach(d => {
-        const net = d.venta - d.comision - d.premios;
-        csvContent += `"${d.fecha}","${d.vendedor}","${d.zona}",${d.ticketsCount},${d.venta.toFixed(2)},${d.comision.toFixed(2)},${d.premios.toFixed(2)},${net.toFixed(2)}\n`;
-    });
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Reporte_Balances_${getHoyYMD()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-window.exportarReporteExcel = exportarReporteExcel;
-
-export function imprimirReportePDF() {
-    window.print();
-}
-window.imprimirReportePDF = imprimirReportePDF;
-window.exportarReportePDF = imprimirReportePDF;
 
 // =================================================================
 // MÓDULO DE HISTORIAL DE TICKETS

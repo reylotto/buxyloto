@@ -1,8 +1,8 @@
 // ==========================================================
-// LÓGICA PRINCIPAL DEL SISTEMA (js/app.js)
+// LÓGICA PRINCIPAL DEL SISTEMA (js/app.js) - LIMPIO DE CONFLICTOS
 // ==========================================================
-// Memoria para recordar qué alertas de sorteos ya fueron silenciadas
 window._sorteosSilenciados = window._sorteosSilenciados || new Set();
+
 // 1. CONFIGURACIÓN E INICIALIZACIÓN DE SUPABASE
 const SUPABASE_URL = 'https://ruruabsbkvfbudnqkjby.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1cnVhYnNia3ZmYnVkbnFramJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5NTc0MzEsImV4cCI6MjEwNTUzMzQzMX0.7w3de1uogpGtHFUIyh6sO3U0Ad9BU_7CMDVfOy50cxU';
@@ -20,10 +20,9 @@ if (typeof supabase !== 'undefined') {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 Aplicación inicializada.');
 
-    // Cargar sorteos y bancas al iniciar
+    // Cargar sorteos al iniciar
     cargarSorteosActivos();
     renderizarTablaLoterias();
-    renderBancasTable();
 
     // Si existe el módulo de POS (pos.js), inicializar los sorteos de venta
     if (typeof window.renderizarSorteosPOS === 'function') {
@@ -36,19 +35,13 @@ document.addEventListener('DOMContentLoaded', () => {
         formResultados.addEventListener('submit', manejarEscrutinioSorteo);
     }
 
-    // Event listener para el formulario de usuarios
-    const formUsuario = document.getElementById('form-crear-usuario');
-    if (formUsuario) {
-        formUsuario.addEventListener('submit', guardarUsuarioSistema);
-    }
-
     // Event listener para el formulario de loterías y sorteos
     const formLoteria = document.getElementById('form-loteria');
     if (formLoteria) {
         formLoteria.addEventListener('submit', guardarLoteriaSorteo);
     }
 
-    // Botones de cerrar modal
+    // Botones de cerrar modal de loteria
     document.querySelectorAll('.btn-close-modal').forEach(btn => {
         btn.addEventListener('click', () => {
             const modal = document.getElementById('modal-loteria');
@@ -71,7 +64,6 @@ async function cargarSorteosActivos() {
         const supabase = window.supabase;
         if (!supabase) return;
 
-        // Consultar únicamente la tabla 'sorteos' existente
         const { data: resSorteos, error } = await supabase
             .from('sorteos')
             .select('*')
@@ -100,133 +92,13 @@ async function cargarSorteosActivos() {
                 });
             }
         });
-
-        console.log(`✅ ${lista.length} sorteos cargados correctamente.`);
     } catch (err) {
         console.error('Error al cargar sorteos activos:', err.message);
     }
 }
 window.cargarSorteosActivos = cargarSorteosActivos;
 
-// 4. GESTIÓN DE BANCAS Y OPERADORES (TABLA DEDICADA)
-async function renderBancasTable() {
-    const tbody = document.getElementById('bancas-table-body') || 
-                  document.querySelector('#section-bancas tbody');
-    if (!tbody) return;
-
-    try {
-        const supabase = window.supabase;
-        let bancas = [];
-
-        if (supabase) {
-            const { data, error } = await supabase.from('bancas').select('*').order('id', { ascending: true });
-            if (!error && data) bancas = data;
-        }
-
-        tbody.innerHTML = '';
-
-        if (bancas.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-slate-400">No hay bancas registradas en la base de datos.</td></tr>';
-            return;
-        }
-
-        bancas.forEach(banca => {
-            const tr = document.createElement('tr');
-            tr.className = 'hover:bg-slate-800/50 border-b border-slate-700/50 text-xs';
-            
-            const estatusVal = (banca.status || banca.estado || 'activo').toLowerCase();
-            const estadoBadge = estatusVal === 'activo'
-                ? '<span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">Activo</span>'
-                : '<span class="bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded border border-rose-500/20 font-bold">Inactivo</span>';
-
-            tr.innerHTML = `
-                <td class="p-3 font-bold text-white">${banca.nombre || banca.name || 'Sin Nombre'}</td>
-                <td class="p-3 text-slate-300 font-semibold">${banca.operador || banca.encargado || 'Sin Asignar'}</td>
-                <td class="p-3 text-slate-400 font-mono">${banca.codigo || banca.id || 'N/A'}</td>
-                <td class="p-3">${estadoBadge}</td>
-                <td class="p-3 text-center space-x-1">
-                    <button onclick="cambiarPasswordBanca('${banca.id}')" title="Cambiar Contraseña"
-                            class="bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold">
-                        <i class="fa-solid fa-key mr-1"></i> Pass
-                    </button>
-                    <button onclick="editarBanca('${banca.id}')" title="Editar Banca"
-                            class="bg-amber-600/20 hover:bg-amber-600 text-amber-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold">
-                        <i class="fa-solid fa-pen mr-1"></i> Editar
-                    </button>
-                    <button onclick="toggleEstadoBanca('${banca.id}', '${estatusVal}')" title="Bloquear / Inhabilitar"
-                            class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold">
-                        <i class="fa-solid fa-ban mr-1"></i> ${estatusVal === 'activo' ? 'Bloquear' : 'Activar'}
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
-    } catch (err) {
-        console.error("Error al renderizar tabla de bancas:", err);
-    }
-}
-window.renderBancasTable = renderBancasTable;
-
-// Funciones de acción para las bancas
-window.cambiarPasswordBanca = async function(id) {
-    const nuevaPass = prompt("Ingrese la nueva contraseña para la banca:");
-    if (!nuevaPass) return;
-
-    try {
-        const { error } = await window.supabase
-            .from('bancas')
-            .update({ password: nuevaPass })
-            .eq('id', id);
-
-        if (error) throw error;
-        alert('✅ Contraseña actualizada correctamente.');
-    } catch (err) {
-        alert('❌ Error al actualizar contraseña: ' + err.message);
-    }
-};
-
-window.editarBanca = async function(id) {
-    try {
-        const { data: banca, error } = await window.supabase.from('bancas').select('*').eq('id', id).single();
-        if (error || !banca) return;
-
-        const nuevoNombre = prompt("Editar Nombre de Banca:", banca.nombre || banca.name || '');
-        if (nuevoNombre === null) return;
-
-        const nuevoOperador = prompt("Editar Operador / Encargado:", banca.operador || banca.encargado || '');
-        if (nuevoOperador === null) return;
-
-        const { error: updErr } = await window.supabase
-            .from('bancas')
-            .update({ nombre: nuevoNombre, operador: nuevoOperador })
-            .eq('id', id);
-
-        if (updErr) throw updErr;
-
-        alert('✅ Banca actualizada con éxito.');
-        await renderBancasTable();
-    } catch (err) {
-        alert('❌ Error al editar banca: ' + err.message);
-    }
-};
-
-window.toggleEstadoBanca = async function(id, estatusActual) {
-    const nuevoStatus = estatusActual === 'activo' ? 'inactivo' : 'activo';
-    try {
-        const { error } = await window.supabase
-            .from('bancas')
-            .update({ status: nuevoStatus, estado: nuevoStatus })
-            .eq('id', id);
-
-        if (error) throw error;
-
-        await renderBancasTable();
-    } catch (err) {
-        alert('❌ Error al cambiar estado de la banca: ' + err.message);
-    }
-};
-
-// 5. FUNCIÓN MANEJADORA DEL PROCESO DE ESCRUTINIO
+// 4. FUNCIÓN MANEJADORA DEL PROCESO DE ESCRUTINIO
 async function manejarEscrutinioSorteo(e) {
     e.preventDefault();
 
@@ -252,9 +124,7 @@ async function manejarEscrutinioSorteo(e) {
             throw new Error('La función window.ejecutarEscrutinioSorteo no está definida en js/escrutinio.js.');
         }
 
-        console.log(`Iniciando escrutinio para el Sorteo ID: ${sorteoId}...`);
         const resumen = await window.ejecutarEscrutinioSorteo(sorteoId, resultadosOficiales);
-
         alert(`✅ ¡Escrutinio completado con éxito!\n-----------------------------------\n🎟️ Total de Tickets Procesados: ${resumen.procesados}\n🏆 Tickets Ganadores: ${resumen.premiados}`);
 
         e.target.reset();
@@ -268,26 +138,21 @@ async function manejarEscrutinioSorteo(e) {
 }
 window.manejarEscrutinioSorteo = manejarEscrutinioSorteo;
 
-// 6. CREACIÓN Y EDICIÓN DE LOTERÍA / SORTEO
+// 5. CREACIÓN Y EDICIÓN DE LOTERÍA / SORTEO
 async function guardarLoteriaSorteo(e) {
     e.preventDefault();
 
     const inputEditId = document.getElementById('loteria-edit-id');
     const editId = inputEditId ? inputEditId.value.trim() : '';
-
     const nombre = document.getElementById('loteria-name')?.value || '';
     const horaApertura = document.getElementById('loteria-open-time')?.value || '';
     const horaCierre = document.getElementById('loteria-close-time')?.value || '';
     const multiplicador = document.getElementById('loteria-multiplier')?.value || 60;
     const estatus = document.getElementById('loteria-status')?.value || 'activo';
-
     const diasCheckboxes = document.querySelectorAll('input[name="loteria-days"]:checked');
     const dias = Array.from(diasCheckboxes).map(cb => cb.value);
 
-    if (!nombre) {
-        alert('⚠️ Por favor ingrese el nombre de la lotería / sorteo.');
-        return;
-    }
+    if (!nombre) return alert('⚠️ Por favor ingrese el nombre de la lotería / sorteo.');
 
     try {
         const btnSubmit = e.target.querySelector('button[type="submit"]');
@@ -304,17 +169,14 @@ async function guardarLoteriaSorteo(e) {
 
         let res;
         if (editId !== '' && editId !== 'null' && editId !== 'undefined') {
-            console.log('🔄 Actualizando sorteo existente ID:', editId);
             res = await window.supabase.from('sorteos').update(payload).eq('id', editId);
         } else {
-            console.log('➕ Insertando nuevo sorteo en Supabase...', payload);
             res = await window.supabase.from('sorteos').insert([payload]).select();
         }
 
         if (res.error) throw res.error;
 
         alert('✅ ¡Sorteo / Lotería guardado con éxito!');
-
         e.target.reset();
         if (inputEditId) inputEditId.value = '';
 
@@ -323,12 +185,9 @@ async function guardarLoteriaSorteo(e) {
 
         await cargarSorteosActivos();
         await renderizarTablaLoterias();
-        if (typeof window.renderizarSorteosPOS === 'function') {
-            await window.renderizarSorteosPOS();
-        }
+        if (typeof window.renderizarSorteosPOS === 'function') await window.renderizarSorteosPOS();
 
     } catch (err) {
-        console.error('❌ Error al guardar sorteo:', err);
         alert('❌ Error de Supabase al guardar: ' + err.message);
     } finally {
         const btnSubmit = e.target.querySelector('button[type="submit"]');
@@ -337,38 +196,7 @@ async function guardarLoteriaSorteo(e) {
 }
 window.guardarLoteriaSorteo = guardarLoteriaSorteo;
 
-// 7. FUNCIONES AUXILIARES DE USUARIOS
-function cerrarModal() {
-    const modal = document.getElementById('modal-crear-usuario');
-    if (modal) modal.classList.add('hidden');
-}
-
-async function guardarUsuarioSistema(e) {
-    e.preventDefault();
-
-    const nombre = document.getElementById('crear-nombre').value;
-    const username = document.getElementById('crear-username').value;
-    const rol = document.getElementById('crear-rol').value;
-    const estatus = document.getElementById('crear-estatus').value;
-
-    try {
-        const { error } = await window.supabase
-            .from('usuarios')
-            .insert([{ nombre, username, rol, estatus }]);
-
-        if (error) throw error;
-
-        alert('✅ Usuario creado correctamente.');
-        cerrarModal();
-        e.target.reset();
-    } catch (err) {
-        console.error('Error al guardar usuario:', err.message);
-        alert('❌ Error al guardar usuario: ' + err.message);
-    }
-}
-window.guardarUsuarioSistema = guardarUsuarioSistema;
-
-// 8. FUNCIÓN PARA MOSTRAR LOS SORTEOS EN LA TABLA O CONTENEDOR DEL DASHBOARD
+// 6. FUNCIÓN PARA MOSTRAR LOS SORTEOS EN LA TABLA O CONTENEDOR DEL DASHBOARD
 async function renderizarTablaLoterias() {
     const tbody = document.getElementById('loterias-table-body');
     const contenedorTarjetas = document.getElementById('contenedor-loterias') || 
@@ -457,14 +285,13 @@ async function renderizarTablaLoterias() {
                 });
             }
         }
-
     } catch (err) {
         console.error('Error al cargar la lista de loterías:', err.message);
     }
 }
 window.renderizarTablaLoterias = renderizarTablaLoterias;
 
-// 9. ACCIONES GLOBALES DE SORTEOS
+// 7. ACCIONES GLOBALES DE SORTEOS
 window.editLoteria = async function(id) {
     try {
         const { data: l, error } = await window.supabase.from('sorteos').select('*').eq('id', id).single();
@@ -495,18 +322,11 @@ window.editLoteria = async function(id) {
 window.toggleLoteriaStatus = async function(id, statusActual) {
     const nuevoStatus = statusActual === 'activo' ? 'inactivo' : 'activo';
     try {
-        const { error } = await window.supabase
-            .from('sorteos')
-            .update({ estatus: nuevoStatus })
-            .eq('id', id);
-
+        const { error } = await window.supabase.from('sorteos').update({ estatus: nuevoStatus }).eq('id', id);
         if (error) throw error;
-
         await cargarSorteosActivos();
         await renderizarTablaLoterias();
-        if (typeof window.renderizarSorteosPOS === 'function') {
-            await window.renderizarSorteosPOS();
-        }
+        if (typeof window.renderizarSorteosPOS === 'function') await window.renderizarSorteosPOS();
     } catch (err) {
         alert('❌ Error al cambiar estatus: ' + err.message);
     }
@@ -515,18 +335,11 @@ window.toggleLoteriaStatus = async function(id, statusActual) {
 window.deleteLoteria = async function(id) {
     if (!confirm('¿Está seguro de eliminar este sorteo?')) return;
     try {
-        const { error } = await window.supabase
-            .from('sorteos')
-            .delete()
-            .eq('id', id);
-
+        const { error } = await window.supabase.from('sorteos').delete().eq('id', id);
         if (error) throw error;
-
         await cargarSorteosActivos();
         await renderizarTablaLoterias();
-        if (typeof window.renderizarSorteosPOS === 'function') {
-            await window.renderizarSorteosPOS();
-        }
+        if (typeof window.renderizarSorteosPOS === 'function') await window.renderizarSorteosPOS();
     } catch (err) {
         alert('❌ Error al eliminar el sorteo: ' + err.message);
     }
@@ -535,32 +348,25 @@ window.deleteLoteria = async function(id) {
 window.openNewLoteriaModal = function() {
     const title = document.getElementById('modal-loteria-title');
     if (title) title.textContent = 'Crear Nuevo Sorteo / Lotería';
-
     const editId = document.getElementById('loteria-edit-id');
     if (editId) editId.value = '';
-
     const name = document.getElementById('loteria-name');
     if (name) name.value = '';
-
     const openTime = document.getElementById('loteria-open-time');
     if (openTime) openTime.value = '08:00';
-
     const closeTime = document.getElementById('loteria-close-time');
     if (closeTime) closeTime.value = '20:00';
-
     const mult = document.getElementById('loteria-multiplier');
     if (mult) mult.value = '60';
-
     const status = document.getElementById('loteria-status');
     if (status) status.value = 'activo';
-
     const cbs = document.querySelectorAll('input[name="loteria-days"]');
     cbs.forEach(cb => cb.checked = true);
-
     const modal = document.getElementById('modal-loteria');
     if (modal) modal.classList.remove('hidden');
 };
-// CARGA Y RENDERING DEL HISTORIAL DE TICKETS CON BOTONES DE ACCIÓN
+
+// 8. CARGA Y RENDERING DEL HISTORIAL DE TICKETS CON BOTONES DE ACCIÓN
 async function cargarHistorialTickets() {
     const tbody = document.getElementById('tabla-historial-tickets') || 
                   document.getElementById('tickets-table-body') ||
@@ -644,7 +450,7 @@ async function cargarHistorialTickets() {
     }
 }
 
-// FUNCIONES DE ACCIÓN PARA LOS TICKETS
+// 9. FUNCIONES DE ACCIÓN PARA LOS TICKETS
 window.verTicketDetalle = async function(id) {
     try {
         const { data: t, error } = await window.supabase.from('tickets').select('*, sorteos(nombre)').eq('id', id).single();
@@ -655,14 +461,7 @@ window.verTicketDetalle = async function(id) {
             try { jugadas = JSON.parse(jugadas); } catch (e) { jugadas = []; }
         }
 
-        let textoDetalle = `===========================\n`;
-        textoDetalle += `     BUXYLOTO POS - TICKET     \n`;
-        textoDetalle += `===========================\n`;
-        textoDetalle += `Ticket #: ${t.codigo || t.id}\n`;
-        textoDetalle += `Sorteo: ${t.sorteos ? t.sorteos.nombre : t.sorteo_id}\n`;
-        textoDetalle += `Fecha: ${new Date(t.created_at).toLocaleString()}\n`;
-        textoDetalle += `---------------------------\n`;
-        textoDetalle += `JUGADAS:\n`;
+        let textoDetalle = `===========================\n     BUXYLOTO POS - TICKET     \n===========================\nTicket #: ${t.codigo || t.id}\nSorteo: ${t.sorteos ? t.sorteos.nombre : t.sorteo_id}\nFecha: ${new Date(t.created_at).toLocaleString()}\n---------------------------\nJUGADAS:\n`;
 
         if (Array.isArray(jugadas)) {
             jugadas.forEach(j => {
@@ -670,11 +469,7 @@ window.verTicketDetalle = async function(id) {
             });
         }
 
-        textoDetalle += `---------------------------\n`;
-        textoDetalle += `TOTAL: $${Number(t.total || t.monto || 0).toFixed(2)}\n`;
-        textoDetalle += `ESTATUS: ${(t.estatus || t.estado || 'PENDIENTE').toUpperCase()}\n`;
-        textoDetalle += `===========================`;
-
+        textoDetalle += `---------------------------\nTOTAL: $${Number(t.total || t.monto || 0).toFixed(2)}\nESTATUS: ${(t.estatus || t.estado || 'PENDIENTE').toUpperCase()}\n===========================`;
         alert(textoDetalle);
     } catch (err) {
         alert("Error al obtener ticket: " + err.message);
@@ -711,53 +506,34 @@ window.compartirWhatsAppTicket = async function(id) {
 
 window.anularTicket = async function(id) {
     if (!confirm("¿Está seguro de anular/cancelar este ticket?")) return;
-
     try {
-        const { error } = await window.supabase
-            .from('tickets')
-            .update({ estatus: 'cancelado', estado: 'cancelado' })
-            .eq('id', id);
-
+        const { error } = await window.supabase.from('tickets').update({ estatus: 'cancelado', estado: 'cancelado' }).eq('id', id);
         if (error) throw error;
-
         alert("✅ Ticket anulado correctamente.");
         await cargarHistorialTickets();
     } catch (err) {
         alert("❌ Error al anular ticket: " + err.message);
     }
 };
-
 window.cargarHistorialTickets = cargarHistorialTickets;
+
 // =================================================================
-// 1. CONTROL DE NAVEGACIÓN Y RECARGA DEL DASHBOARD ADMIN
+// 10. CONTROL DE NAVEGACIÓN Y CIERRE DE SESIÓN
 // =================================================================
 document.addEventListener('DOMContentLoaded', () => {
-    // Buscar botones o enlaces de navegación al Dashboard
     const btnNavDashboard = document.getElementById('nav-dashboard') || document.querySelector('[href="#dashboard"]');
-    
     if (btnNavDashboard) {
         btnNavDashboard.addEventListener('click', (e) => {
             e.preventDefault();
-
-            // Ocultar todas las secciones principales y mostrar la del Dashboard
             document.querySelectorAll('main > section, .tab-content').forEach(sec => sec.classList.add('hidden'));
-            
             const dashboardSection = document.getElementById('section-dashboard') || document.getElementById('dashboard-view');
-            if (dashboardSection) {
-                dashboardSection.classList.remove('hidden');
-            }
+            if (dashboardSection) dashboardSection.classList.remove('hidden');
 
-            // Forzar actualización de métricas del Dashboard
-            if (typeof window.cargarResumenOperacionesHoy === 'function') {
-                window.cargarResumenOperacionesHoy();
-            }
-            if (typeof window.cargarGridSorteosEnVivo === 'function') {
-                window.cargarGridSorteosEnVivo();
-            }
+            if (typeof window.cargarResumenOperacionesHoy === 'function') window.cargarResumenOperacionesHoy();
+            if (typeof window.cargarGridSorteosEnVivo === 'function') window.cargarGridSorteosEnVivo();
         });
     }
 
-    // Vinculación automática del botón de cerrar sesión por ID
     const btnLogout = document.getElementById('btn-logout') || document.getElementById('logout-btn');
     if (btnLogout) {
         btnLogout.addEventListener('click', (e) => {
@@ -767,58 +543,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// =================================================================
-// CIERRE DE SESIÓN DEFINITIVO (MUESTRA LOGIN Y LIMPIA SESIÓN)
-// =================================================================
 async function cerrarSesion() {
     console.log("🔒 Cerrando sesión...");
-
     try {
-        // 1. Usar los IDs REALES definidos en auth.js
         const loginWrapper = document.getElementById('auth-login-wrapper');
         const mainContainer = document.getElementById('main-app-container');
-
-        // Alternar visibilidad de contenedores inmediatamente
         if (mainContainer) mainContainer.classList.add('hidden');
         if (loginWrapper) loginWrapper.classList.remove('hidden');
 
-        // 2. Cerrar sesión en Supabase
         const client = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-        if (client && client.auth) {
-            await client.auth.signOut();
-        }
+        if (client && client.auth) await client.auth.signOut();
     } catch (err) {
         console.warn("Aviso durante el cierre de sesión:", err);
     } finally {
-        // 3. Borrar llaves de acceso en el navegador
         localStorage.clear();
         sessionStorage.clear();
-
-        // 4. Redirección limpia a la raíz sin parámetros (Evita error 404 en Vercel)
         window.location.href = './';
     }
 }
-
 window.cerrarSesion = cerrarSesion;
-// ==========================================================
-// RECARGA AUTOMÁTICA AL HACER CLIC EN DASHBOARD ADMIN
-// ==========================================================
-document.addEventListener('DOMContentLoaded', () => {
-    // Escuchar clics en botones de navegación hacia el Dashboard
-    document.querySelectorAll('[href="#dashboard"], #nav-dashboard, .nav-item-dashboard').forEach(btn => {
-        btn.addEventListener('click', () => {
-            console.log('🔄 Actualizando pestaña Dashboard Admin...');
-
-            // Forzar la recarga de métricas, gráficos y sorteos
-            if (typeof window.cargarResumenOperacionesHoy === 'function') {
-                window.cargarResumenOperacionesHoy();
-            }
-            if (typeof window.cargarHistorialTickets === 'function') {
-                window.cargarHistorialTickets();
-            }
-            if (typeof window.suscribirTiempoReal === 'function') {
-                window.suscribirTiempoReal();
-            }
-        });
-    });
-});

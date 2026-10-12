@@ -99,7 +99,15 @@ export async function initReportesModule() {
     await cargarFiltrosDesplegables(); 
     await generarReporte();
 
-    // Asegurar listener del botón consultar auditoría
+    // Vincular listeners automáticos para que los filtros funcionen al instante al seleccionarlos
+    ['rep-fecha-desde', 'rep-fecha-hasta', 'rep-filtro-vendedor', 'rep-filtro-zona', 'rep-filtro-supervisor', 'rep-filtro-loteria', 'rep-filtro-jugada'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el.dataset.listenerAttached) {
+            el.addEventListener('change', () => generarReporte());
+            el.dataset.listenerAttached = 'true';
+        }
+    });
+
     const btnConsultar = document.querySelector('button[onclick*="generarReporte"]') || document.getElementById('btn-consultar-auditoria');
     if (btnConsultar) {
         btnConsultar.onclick = (e) => {
@@ -111,7 +119,7 @@ export async function initReportesModule() {
 window.initReportesModule = initReportesModule;
 
 // ==========================================================
-// CARGA DINÁMICA DE FILTROS DESPLEGABLES (Corregida)
+// CARGA DINÁMICA DE FILTROS DESPLEGABLES
 // ==========================================================
 
 async function cargarFiltrosDesplegables() {
@@ -191,7 +199,6 @@ function renderizarTablaReporte(datos) {
         const balanceNeto = d.venta - d.comision - d.premios;
         const balanceClass = balanceNeto >= 0 ? 'text-emerald-400' : 'text-rose-400';
 
-        // Evaluar estatus real basado en si tiene pagos/cuadres registrados
         const estaCuadrado = pagosLocales.some(p => String(p.bancaId) === String(d.banca_id || d.vendedor));
         const estatusLabel = estaCuadrado ? 'CUADRADO' : 'PENDIENTE DE CUADRE';
         const estatusClass = estaCuadrado 
@@ -221,7 +228,7 @@ function renderizarTablaReporte(datos) {
 }
 
 // ==========================================================
-// EXPORTACIÓN EXCEL Y PDF (Limpias y funcionales)
+// EXPORTACIÓN EXCEL Y PDF
 // ==========================================================
 
 window.exportarReporteExcel = function() {
@@ -319,7 +326,7 @@ window.imprimirReportePDF = imprimirReportePDF;
 window.exportarReportePDF = imprimirReportePDF;
 
 // ==========================================================
-// CONSULTA PRINCIPAL Y FILTRADO (Con soporte para Zonas y Supervisores)
+// CONSULTA PRINCIPAL Y FILTRADO
 // ==========================================================
 
 export async function generarReporte() {
@@ -329,14 +336,13 @@ export async function generarReporte() {
 
     tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-emerald-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Consultando ventas y balances...</td></tr>`;
 
-    // Capturar todos los filtros de la interfaz
     const fechaDesde = document.getElementById('rep-fecha-desde')?.value || document.getElementById('reporte-fecha-desde')?.value;
     const fechaHasta = document.getElementById('rep-fecha-hasta')?.value || document.getElementById('reporte-fecha-hasta')?.value;
-    const vendedorFiltro = document.getElementById('rep-filtro-vendedor')?.value || document.getElementById('rep-filtro-banca')?.value || document.getElementById('reporte-banca-select')?.value || 'todos';
+    const vendedorFiltro = document.getElementById('rep-filtro-vendedor')?.value || document.getElementById('rep-filtro-banca')?.value || 'todos';
     const zonaFiltro = document.getElementById('rep-filtro-zona')?.value || 'todas';
     const supervisorFiltro = document.getElementById('rep-filtro-supervisor')?.value || 'todos';
-    const loteriaFiltro = document.getElementById('rep-filtro-loteria')?.value || document.getElementById('reporte-loteria-select')?.value || 'todas';
-    const tipoJugadaFiltro = document.getElementById('rep-filtro-tipo-jugada')?.value || document.querySelector('select[name*="jugada"]')?.value || 'todas';
+    const loteriaFiltro = document.getElementById('rep-filtro-loteria')?.value || 'todas';
+    const tipoJugadaFiltro = document.getElementById('rep-filtro-jugada')?.value || 'todas';
 
     await asegurarBancasCache();
 
@@ -364,10 +370,10 @@ export async function generarReporte() {
             const estado = String(t.estatus || t.status || t.estado || 'pendiente').toLowerCase();
             if (estado === 'cancelado' || estado === 'anulado') return;
 
-            // Filtro por Vendedor / Banca
+            // Filtro por Vendedor
             if (vendedorFiltro !== 'todos' && vendedorFiltro !== '' && String(t.banca_id) !== String(vendedorFiltro)) return;
 
-            // Filtro por Lotería / Sorteo
+            // Filtro por Lotería
             if (loteriaFiltro !== 'todas' && loteriaFiltro !== '' && String(t.sorteo_id) !== String(loteriaFiltro)) return;
 
             const bancaObj = obtenerObjetoBanca(t.banca_id, t);
@@ -463,12 +469,13 @@ window.generarReporte = generarReporte;
 
 export function limpiarFiltrosReportes() {
     const hoyStr = getHoyYMD();
-    const inputDesde = document.getElementById('rep-fecha-desde') || document.getElementById('reporte-fecha-desde');
-    const inputHasta = document.getElementById('rep-fecha-hasta') || document.getElementById('reporte-fecha-hasta');
-    const selVendedor = document.getElementById('rep-filtro-vendedor') || document.getElementById('rep-filtro-banca') || document.getElementById('reporte-banca-select');
+    const inputDesde = document.getElementById('rep-fecha-desde');
+    const inputHasta = document.getElementById('rep-fecha-hasta');
+    const selVendedor = document.getElementById('rep-filtro-vendedor');
     const selZona = document.getElementById('rep-filtro-zona');
     const selSupervisor = document.getElementById('rep-filtro-supervisor');
-    const selLoteria = document.getElementById('rep-filtro-loteria') || document.getElementById('reporte-loteria-select');
+    const selLoteria = document.getElementById('rep-filtro-loteria');
+    const selJugada = document.getElementById('rep-filtro-jugada');
 
     if (inputDesde) inputDesde.value = hoyStr;
     if (inputHasta) inputHasta.value = hoyStr;
@@ -476,13 +483,14 @@ export function limpiarFiltrosReportes() {
     if (selZona) selZona.value = 'todas';
     if (selSupervisor) selSupervisor.value = 'todos';
     if (selLoteria) selLoteria.value = 'todas';
+    if (selJugada) selJugada.value = 'todas';
 
     generarReporte();
 }
 window.limpiarFiltrosReportes = limpiarFiltrosReportes;
 
 // =================================================================
-// MÓDULO DE HISTORIAL DE TICKETS
+// MÓDULO DE HISTORIAL DE TICKETS (Intacto)
 // =================================================================
 
 export async function initTicketsHistoryModule() {
@@ -780,14 +788,16 @@ window.imprimirTicketHistorial = async function(uniqueId) {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    const ticketSection = document.getElementById('section-tickets');
+    const ticketSection = document.getElementById('section-reports');
     if (ticketSection) {
         const observerTickets = new MutationObserver(() => {
-            if (!ticketSection.classList.contains('hidden')) {
-                initTicketsHistoryModule();
+            if (ticketSection.classList.contains('hidden')) {
+                ticketSection.style.display = 'none';
+            } else {
+                ticketSection.style.display = 'block';
             }
         });
-        observerTickets.observe(ticketSection, { attributes: true });
+        observerTickets.observe(ticketSection, { attributes: true, attributeFilter: ['class'] });
     }
 });
 

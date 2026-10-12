@@ -873,44 +873,45 @@
     </div>
 </section>
 
-           <!-- SECCIÓN 5: GESTIÓN DE USUARIOS (ADMIN) -->
-            <section id="section-users" class="content-section space-y-6 hidden admin-only">
-                <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-4">
-                    <div class="flex items-center justify-between border-b border-slate-700 pb-3">
-                        <div>
-                            <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                                <i class="fa-solid fa-users-gear text-emerald-400"></i>
-                                <span>Gestión de Usuarios del Sistema</span>
-                            </h3>
-                            <p class="text-xs text-slate-400">Edita datos, restringe, activa, inhabilita o crea accesos para administradores, supervisores y operadores.</p>
-                        </div>
-                        <button id="btn-open-user-modal" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-lg shadow-emerald-500/20 flex items-center gap-2">
-                            <i class="fa-solid fa-user-plus"></i>
-                            <span>Nuevo Usuario</span>
-                        </button>
-                    </div>
+<!-- SECCIÓN 5: GESTIÓN DE USUARIOS (ADMIN) -->
+<section id="section-users" class="content-section space-y-6 hidden admin-only">
+    <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+            <div>
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-users-gear text-emerald-400"></i>
+                    <span>Gestión de Usuarios del Sistema</span>
+                </h3>
+                <p class="text-xs text-slate-400">Edita datos, restringe, activa, inhabilita o crea accesos para administradores, supervisores y operadores.</p>
+            </div>
+            <button onclick="window.abrirModalUsuario()" id="btn-open-user-modal" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-lg shadow-emerald-500/20 flex items-center gap-2">
+                <i class="fa-solid fa-user-plus"></i>
+                <span>Nuevo Usuario</span>
+            </button>
+        </div>
 
-                    <div class="overflow-x-auto custom-scrollbar">
-                        <table class="w-full text-left text-xs text-slate-300">
-                            <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] tracking-wider font-bold">
-                                <tr>
-                                    <th class="p-3">Usuario / Nombre</th>
-                                    <th class="p-3">Username</th>
-                                    <th class="p-3">Rol</th>
-                                    <th class="p-3">Banca Asignada</th>
-                                    <th class="p-3">Estatus</th>
-                                    <th class="p-3 text-center">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody id="users-table-body" class="divide-y divide-slate-700/60">
-                                <!-- Dinámico -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left text-xs text-slate-300">
+                <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] tracking-wider font-bold">
+                    <tr>
+                        <th class="p-3">Usuario / Nombre</th>
+                        <th class="p-3">Username</th>
+                        <th class="p-3">Rol</th>
+                        <th class="p-3">Zona Asignada</th> <!-- Actualizado para reflejar la zona -->
+                        <th class="p-3">Estatus</th>
+                        <th class="p-3 text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <!-- ID unificado con admin.js -->
+                <tbody id="usuarios-table-body" class="divide-y divide-slate-700/60">
+                    <!-- Dinámico -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
 
-            <!-- SECCIÓN 6: GESTIÓN DE BANCAS / VENDEDORES (ADMIN) -->
+           <!-- SECCIÓN 6: GESTIÓN DE BANCAS / VENDEDORES (ADMIN) -->
 <section id="section-bancas" class="content-section space-y-6 hidden admin-only">
     <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-4">
         <div class="flex items-center justify-between border-b border-slate-700 pb-3">
@@ -921,10 +922,10 @@
                 </h3>
                 <p class="text-xs text-slate-400">Configura comisiones %, límites de crédito, estatus y supervisores por zona.</p>
             </div>
-           <button type="button" onclick="window.abrirModalBanca()" id="btn-open-banca-modal" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-lg">
-    <i class="fa-solid fa-plus"></i>
-    <span>Nueva Banca</span>
-</button>
+            <button type="button" onclick="window.abrirModalBanca()" id="btn-open-banca-modal" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-lg">
+                <i class="fa-solid fa-plus"></i>
+                <span>Nueva Banca</span>
+            </button>
         </div>
 
         <div class="overflow-x-auto custom-scrollbar">

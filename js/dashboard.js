@@ -241,7 +241,7 @@ async function cargarMetricasSeguras() {
 window.cargarMetricasSeguras = cargarMetricasSeguras;
 
 // ==========================================================
-// CARGAR HISTORIAL DE TICKETS (AHORA FILTRADO POR EL DÍA DE HOY)
+// CARGAR HISTORIAL DE TICKETS (CON BLOQUEO ESTRICTO DE SORTEOS MÚLTIPLES)
 // ==========================================================
 async function cargarHistorialTickets() {
     const tbody = document.getElementById('tickets-table-body') || 
@@ -325,37 +325,64 @@ async function cargarHistorialTickets() {
                 motivoBloqueo = 'Escrutado';
             } else if (estado === 'no_premiado' || estado === 'perdedor') {
                 estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/20 text-slate-400">NO PREMIADO</span>`;
+                textoPremio = `<span class="text-slate-500 font-mono">$0.00</span>`;
                 motivoBloqueo = 'Escrutado';
             } else if (estado === 'cancelado' || estado === 'anulado') {
                 estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400">CANCELADO</span>`;
                 motivoBloqueo = 'Anulado';
             } else if (estado === 'pendiente' || estado === 'activo' || estado === 'en_juego') {
-                let sorteoCerrado = false;
-                const sorteoAsociado = sorteosCache.find(s => String(s.id) === String(t.sorteo_id));
+                puedeAnular = true;
 
-                if (sorteoAsociado) {
-                    const estatusSorteo = String(sorteoAsociado.estatus || sorteoAsociado.estado || 'activo').toLowerCase();
-                    if (['cerrado', 'finalizado', 'escrutado', 'realizado'].includes(estatusSorteo)) {
-                        sorteoCerrado = true;
-                    }
+                // RECOPILAR TODOS LOS IDs DE SORTEOS INVOLUCRADOS EN EL TICKET (SOPORTE MÚLTIPLE)
+                let sorteosIdsDelTicket = [];
+                if (t.sorteo_id) sorteosIdsDelTicket.push(String(t.sorteo_id));
 
-                    const horaCierreStr = sorteoAsociado.hora_cierre || sorteoAsociado.horario_cierre;
-                    if (horaCierreStr) {
-                        const [h, m] = horaCierreStr.split(':');
-                        const fechaCierre = new Date();
-                        fechaCierre.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
-                        if (ahora >= fechaCierre) {
-                            sorteoCerrado = true;
+                if (Array.isArray(lista)) {
+                    lista.forEach(j => {
+                        if (j.sorteo_id && !sorteosIdsDelTicket.includes(String(j.sorteo_id))) {
+                            sorteosIdsDelTicket.push(String(j.sorteo_id));
+                        }
+                    });
+                } else if (typeof lista === 'string') {
+                    try {
+                        const parsed = JSON.parse(lista);
+                        if (Array.isArray(parsed)) {
+                            parsed.forEach(j => {
+                                if (j.sorteo_id && !sorteosIdsDelTicket.includes(String(j.sorteo_id))) {
+                                    sorteosIdsDelTicket.push(String(j.sorteo_id));
+                                }
+                            });
+                        }
+                    } catch(e) {}
+                }
+
+                // VALIDAR SI CUALQUIERA DE LOS SORTEOS DEL TICKET YA CERRÓ
+                for (const sId of sorteosIdsDelTicket) {
+                    const sorteoAsociado = sorteosCache.find(s => String(s.id) === sId);
+                    if (sorteoAsociado) {
+                        const estatusSorteo = String(sorteoAsociado.estatus || sorteoAsociado.estado || 'activo').toLowerCase();
+                        if (['cerrado', 'finalizado', 'escrutado', 'realizado'].includes(estatusSorteo)) {
+                            puedeAnular = false;
+                            motivoBloqueo = 'Sorteo Cerrado';
+                            break;
+                        }
+
+                        const horaCierreStr = sorteoAsociado.hora_cierre || sorteoAsociado.horario_cierre;
+                        if (horaCierreStr) {
+                            const [h, m] = horaCierreStr.split(':');
+                            const fechaCierre = new Date();
+                            fechaCierre.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
+                            if (ahora >= fechaCierre) {
+                                puedeAnular = false;
+                                motivoBloqueo = 'Sorteo Cerrado';
+                                break;
+                            }
                         }
                     }
                 }
 
-                if (sorteoCerrado) {
+                if (!puedeAnular) {
                     estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">EN JUEGO (CERRADO)</span>`;
-                    puedeAnular = false;
-                    motivoBloqueo = 'Sorteo Cerrado';
-                } else {
-                    puedeAnular = true;
                 }
             }
 
@@ -447,7 +474,7 @@ function cambiarSeccion(seccionId) {
 }
 
 // ==========================================================
-// RESUMEN DE OPERACIONES Y MÉTRICAS HOY CON GRÁFICOS
+// RESUMEN DE OPERACIONES Y COMISIÓN DINÁMICA DE LA BANCA
 // ==========================================================
 if (typeof window.actualizarTexto !== 'function') {
     window.actualizarTexto = function(id, valor) {
@@ -486,12 +513,24 @@ async function cargarResumenOperacionesHoy() {
         let premiosTotal = 0;
         let totalGanadores = 0;
 
+        const bancasCache = window._bancasCache || [];
+
         tickets.forEach(t => {
             const monto = parseFloat(t.total || t.monto || t.monto_total || 0);
+            
+            // LECTURA DINÁMICA DEL PORCENTAJE DE COMISIÓN DE LA BANCA
             let pctComision = 10;
-            if (t.comision_porcentaje) pctComision = parseFloat(t.comision_porcentaje);
+            if (t.comision_porcentaje !== undefined && t.comision_porcentaje !== null) {
+                pctComision = parseFloat(t.comision_porcentaje);
+            } else {
+                const bancaIdStr = String(t.banca_id || t.usuario_id || '');
+                const bancaAsociada = bancasCache.find(b => String(b.id) === bancaIdStr);
+                if (bancaAsociada && bancaAsociada.comision !== undefined && bancaAsociada.comision !== null) {
+                    pctComision = parseFloat(bancaAsociada.comision);
+                }
+            }
 
-            const comision = t.comision_monto ? parseFloat(t.comision_monto) : parseFloat(t.comision || (monto * (pctComision / 100)));
+            const comision = t.comision_monto ? parseFloat(t.comision_monto) : parseFloat(monto * (pctComision / 100));
             
             ventaTotal += monto;
             comisionesTotal += comision;

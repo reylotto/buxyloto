@@ -3342,35 +3342,6 @@ if (btnProcessEl) {
     });
 }
 
-       function renderUsersTable() {
-    const tbody = document.getElementById('users-table-body');
-    tbody.innerHTML = '';
-    AppState.users.forEach(u => {
-        const banca = AppState.bancas.find(b => b.id === u.bancaId);
-        const isBlocked = u.status === 'bloqueado';
-
-        const tr = document.createElement('tr');
-        tr.className = 'hover:bg-slate-800/50';
-        tr.innerHTML = `
-            <td class="p-3 font-bold text-white">${u.name || 'Sin nombre'}</td>
-            <td class="p-3 font-mono text-slate-300">${u.username || '-'}</td>
-            <td class="p-3 uppercase text-[10px] font-bold text-emerald-400">${(u.role || '').toUpperCase()}</td>
-            <td class="p-3">${banca ? banca.name : 'Global'}</td>
-            <td class="p-3">
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isBlocked ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}">
-                    ${(u.status || 'activo').toUpperCase()}
-                </span>
-            </td>
-            <td class="p-3 text-center space-x-1">
-                <button onclick="editUser('${u.id}')" class="bg-slate-700 hover:bg-slate-600 text-emerald-400 px-2 py-1 rounded text-xs"><i class="fa-solid fa-pen-to-square"></i> Editar</button>
-                <button onclick="toggleUserStatus('${u.id}')" class="bg-slate-700 hover:bg-slate-600 ${isBlocked ? 'text-emerald-400' : 'text-rose-400'} px-2 py-1 rounded text-xs">
-                    ${isBlocked ? '<i class="fa-solid fa-lock-open"></i> Activar' : '<i class="fa-solid fa-lock"></i> Bloquear'}
-                </button>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
 
         function editUser(id) {
             const u = AppState.users.find(x => x.id === id);

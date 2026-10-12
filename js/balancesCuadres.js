@@ -1,5 +1,5 @@
 // ==========================================================
-// MÓDULO DE CONTROL DE CUADRES Y BALANCES (balancesCuadres.js)
+// MÓDULO DE CONTROL DE CUADRES Y BALANCES
 // ==========================================================
 
 let estadoBalances = {
@@ -9,7 +9,6 @@ let estadoBalances = {
 };
 
 export async function initBalancesCuadresModule() {
-    // Configurar fechas por defecto
     const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
     const btnDesde = document.getElementById('cuadre-fecha-desde');
     const btnHasta = document.getElementById('cuadre-fecha-hasta');
@@ -17,30 +16,9 @@ export async function initBalancesCuadresModule() {
     if (btnHasta && !btnHasta.value) btnHasta.value = hoy;
 
     await cargarListaVendedores();
-    await cargarResumenBalances();
+    await window.cargarResumenBalances();
 }
 window.initBalancesCuadresModule = initBalancesCuadresModule;
-
-// Cambio de vistas internas (Pestañas)
-window.cambiarVistaCuadre = function(vista) {
-    const vGeneral = document.getElementById('vista-balances-general');
-    const vDetalle = document.getElementById('vista-nuevo-cuadre');
-    const bGeneral = document.getElementById('btn-vista-general');
-    const bDetalle = document.getElementById('btn-vista-detalle');
-
-    if (vista === 'general') {
-        vGeneral.classList.remove('hidden');
-        vDetalle.classList.add('hidden');
-        bGeneral.className = 'px-4 py-2 rounded-lg font-bold text-xs bg-emerald-600 text-white transition-all';
-        bDetalle.className = 'px-4 py-2 rounded-lg font-bold text-xs text-slate-400 hover:text-white transition-all';
-        cargarResumenBalances();
-    } else {
-        vGeneral.classList.add('hidden');
-        vDetalle.classList.remove('hidden');
-        bDetalle.className = 'px-4 py-2 rounded-lg font-bold text-xs bg-emerald-600 text-white transition-all';
-        bGeneral.className = 'px-4 py-2 rounded-lg font-bold text-xs text-slate-400 hover:text-white transition-all';
-    }
-};
 
 async function cargarListaVendedores() {
     try {
@@ -83,13 +61,13 @@ window.cargarResumenBalances = async function() {
                 }
             });
 
-            // Restar los pagos que ya le hemos procesado
-            const pagosProcesados = estadoBalances.pagosLocales
-                .filter(p => String(p.bancaId) === String(b.id))
-                .reduce((acc, p) => acc + parseFloat(p.monto), 0);
+            // Contabilidad Inteligente
+            const pagosVendedor = estadoBalances.pagosLocales.filter(p => String(p.bancaId) === String(b.id));
+            const totIngresos = pagosVendedor.filter(p => p.tipo === 'ingreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
+            const totEgresos = pagosVendedor.filter(p => p.tipo === 'egreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
 
             const resultadoNeto = ventas - premios - comisiones;
-            const balanceFinal = resultadoNeto - pagosProcesados;
+            const balanceFinal = resultadoNeto - totIngresos + totEgresos; // Si recibimos plata (ingreso) la deuda baja. Si le pagamos (egreso) la deuda sube.
             
             const colorClass = balanceFinal >= 0 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
             const nombre = b.nombre_banca || b.vendedor_nombre;
@@ -106,7 +84,7 @@ window.cargarResumenBalances = async function() {
                     </td>
                     <td class="p-4 text-right text-slate-400">Calculado Hoy</td>
                     <td class="p-4 text-center">
-                        <button onclick="irACuadreDetalle('${b.id}')" class="bg-slate-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded text-xs transition">Cuadrar</button>
+                        <button onclick="window.irACuadreDetalle('${b.id}')" class="bg-slate-700 hover:bg-emerald-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition shadow">Cuadrar</button>
                     </td>
                 </tr>
             `;
@@ -118,15 +96,16 @@ window.cargarResumenBalances = async function() {
     }
 };
 
+// Se arregló el error de consola al hacer clic en "Cuadrar"
 window.irACuadreDetalle = function(bancaId) {
-    document.getElementById('cuadre-vendedor').value = bancaId;
-    window.cambiarVistaCuadre('detalle');
+    const select = document.getElementById('cuadre-vendedor');
+    if (select) select.value = bancaId;
+    if (typeof window.mostrarTabFinanzas === 'function') {
+        window.mostrarTabFinanzas('nuevo-cuadre');
+    }
     window.generarDetalleCuadre();
 };
 
-// ==============================================
-// MOTOR DEL NUEVO CUADRE Y DESGLOSE (IMG 1 Y 2)
-// ==============================================
 window.generarDetalleCuadre = async function() {
     const bancaId = document.getElementById('cuadre-vendedor').value;
     const fDesde = document.getElementById('cuadre-fecha-desde').value;
@@ -153,8 +132,6 @@ window.generarDetalleCuadre = async function() {
 
         let htmlVentas = '';
         let totVentas = 0; let totPremios = 0; let totComision = 0;
-        
-        // Agrupar tickets por día para la tabla detallada
         const agrupadoDias = {};
 
         (tickets || []).forEach(t => {
@@ -176,92 +153,84 @@ window.generarDetalleCuadre = async function() {
             totPremios += premio;
         });
 
-        // Imprimir desglose por días
         Object.keys(agrupadoDias).sort().forEach(dia => {
             const d = agrupadoDias[dia];
             const resultado = d.ventas - d.premios - d.comision;
             htmlVentas += `
                 <tr class="hover:bg-slate-700/40 border-b border-slate-700/50">
-                    <td class="p-3 font-mono">${dia}</td>
+                    <td class="p-3 font-mono pl-4">${dia}</td>
                     <td class="p-3 text-right font-mono">$${d.ventas.toFixed(2)}</td>
                     <td class="p-3 text-right font-mono text-rose-400">$${d.premios.toFixed(2)}</td>
                     <td class="p-3 text-right font-mono text-amber-400">$${d.comision.toFixed(2)}</td>
-                    <td class="p-3 text-right font-mono font-bold ${resultado >= 0 ? 'text-emerald-400' : 'text-rose-400'}">$${resultado.toFixed(2)}</td>
+                    <td class="p-3 text-right pr-4 font-mono font-bold ${resultado >= 0 ? 'text-emerald-400' : 'text-rose-400'}">$${resultado.toFixed(2)}</td>
                 </tr>
             `;
         });
         tbodyVentas.innerHTML = htmlVentas || '<tr><td colspan="5" class="text-center py-4 text-slate-500">No hay ventas en este rango.</td></tr>';
 
-        // Cargar Pagos Negativos (Abonos)
+        // Cargar Pagos Negativos/Positivos
         const pagosVendedor = estadoBalances.pagosLocales.filter(p => String(p.bancaId) === String(bancaId));
-        const totPagos = pagosVendedor.reduce((acc, p) => acc + parseFloat(p.monto), 0);
         
-        const tbodyPagos = document.getElementById('tabla-pagos-negativos');
-        tbodyPagos.innerHTML = pagosVendedor.map(p => `
-            <tr class="border-b border-slate-700/50">
-                <td class="p-3 font-mono text-[10px]">${p.fecha}</td>
-                <td class="p-3 text-slate-300">${p.concepto}</td>
-                <td class="p-3 text-right font-mono text-cyan-400">-$${parseFloat(p.monto).toFixed(2)}</td>
-                <td class="p-3 text-center text-slate-400">${p.responsable}</td>
-            </tr>
-        `).join('') || '<tr><td colspan="4" class="text-center py-4 text-slate-500">No hay pagos registrados.</td></tr>';
+        const totIngresos = pagosVendedor.filter(p => p.tipo === 'ingreso').reduce((a, b) => a + parseFloat(b.monto), 0);
+        const totEgresos = pagosVendedor.filter(p => p.tipo === 'egreso').reduce((a, b) => a + parseFloat(b.monto), 0);
+        const impactoVisualPagos = totIngresos - totEgresos; // Solo para mostrar en la tablita de pagos
 
-        // Actualizar Tarjeta de Cuadre
+        const tbodyPagos = document.getElementById('tabla-pagos-negativos');
+        tbodyPagos.innerHTML = pagosVendedor.map(p => {
+            const esIngreso = p.tipo === 'ingreso';
+            return `
+            <tr class="border-b border-slate-700/50">
+                <td class="p-3 pl-4 font-mono text-[10px]">${p.fecha}</td>
+                <td class="p-3 text-right font-mono font-bold ${esIngreso ? 'text-cyan-400' : 'text-rose-400'}">${esIngreso ? '+$' : '-$'}${parseFloat(p.monto).toFixed(2)}</td>
+                <td class="p-3 text-center text-slate-400">${esIngreso ? 'Banca Pagó a Casa' : 'Casa Pagó a Banca'}</td>
+            </tr>
+        `}).join('') || '<tr><td colspan="3" class="text-center py-4 text-slate-500">No hay pagos registrados.</td></tr>';
+
+        // Matemáticas perfectas
         const totResultado = totVentas - totPremios - totComision;
-        const balanceNeto = totResultado - totPagos;
+        const balanceNeto = totResultado - totIngresos + totEgresos;
 
         document.getElementById('cuadre-val-ventas').textContent = `$${totVentas.toFixed(2)}`;
         document.getElementById('cuadre-val-premios').textContent = `$${totPremios.toFixed(2)}`;
         document.getElementById('cuadre-val-comision').textContent = `$${totComision.toFixed(2)}`;
         document.getElementById('cuadre-val-resultado').textContent = `$${totResultado.toFixed(2)}`;
-        document.getElementById('cuadre-val-pagos').textContent = `-$${totPagos.toFixed(2)}`;
+        document.getElementById('cuadre-val-pagos').textContent = impactoVisualPagos >= 0 ? `-$${impactoVisualPagos.toFixed(2)}` : `+$${Math.abs(impactoVisualPagos).toFixed(2)}`;
         
         const balEl = document.getElementById('cuadre-val-balance');
         balEl.textContent = `$${balanceNeto.toFixed(2)}`;
-        balEl.className = `font-black font-mono text-lg ${balanceNeto >= 0 ? 'text-emerald-400' : 'text-rose-500'}`;
+        balEl.className = `font-black font-mono text-xl ${balanceNeto >= 0 ? 'text-emerald-400' : 'text-rose-500'}`;
         
     } catch (e) {
         console.error("Error al generar cuadre:", e);
     }
 };
 
-window.procesarPagoVendedor = function() {
+window.procesarPagoVendedor = function(tipoMovimiento) {
     if (!estadoBalances.vendedorActual) return alert("Seleccione un vendedor primero.");
     const balanceTexto = document.getElementById('cuadre-val-balance').textContent.replace('$', '');
     const maxSaldo = parseFloat(balanceTexto);
 
-    const montoStr = prompt(`PROCESAR PAGO / ABONO\n\nVendedor: ${estadoBalances.vendedorActual.nombre_banca}\nSaldo Actual: $${maxSaldo.toFixed(2)}\n\nIngrese el monto entregado por el vendedor (o monto a favor de la banca):`);
-    
+    let mensaje = tipoMovimiento === 'ingreso' 
+        ? `⬇️ RECIBIR DINERO DE BANCA\nLa banca le está entregando dinero a la Casa.\n\nIngrese el monto:`
+        : `⬆️ PAGAR A LA BANCA\nUsted (La Casa) le está entregando dinero a la Banca por premios acumulados.\n\nIngrese el monto:`;
+
+    const montoStr = prompt(mensaje);
     if (montoStr === null || montoStr.trim() === '') return;
     const monto = parseFloat(montoStr);
     
-    if (isNaN(monto) || monto <= 0) return alert("Monto inválido.");
+    if (isNaN(monto) || monto <= 0) return alert("Monto inválido. Ingrese un número mayor a 0 sin el signo de menos.");
 
-    // Guardamos el pago en el historial
     const nuevoPago = {
         bancaId: estadoBalances.vendedorActual.id,
         fecha: new Date().toLocaleString(),
         monto: monto,
-        concepto: 'Abono / Cuadre de Caja',
+        tipo: tipoMovimiento, // 'ingreso' o 'egreso'
         responsable: window.currentUserProfile?.email || 'Administrador'
     };
 
     estadoBalances.pagosLocales.push(nuevoPago);
     localStorage.setItem('buxy_pagos_vendedores', JSON.stringify(estadoBalances.pagosLocales));
 
-    alert(`✅ Pago de $${monto.toFixed(2)} procesado exitosamente.\nEl balance ha sido actualizado.`);
-    window.generarDetalleCuadre(); // Recalcular todo
+    alert(`✅ Registro guardado exitosamente.\nEl balance se ha actualizado.`);
+    window.generarDetalleCuadre(); 
 };
-
-// Autoiniciar el módulo al abrir la vista
-document.addEventListener('DOMContentLoaded', () => {
-    const secReports = document.getElementById('section-reports');
-    if (secReports) {
-        const obs = new MutationObserver(() => {
-            if (!secReports.classList.contains('hidden')) {
-                initBalancesCuadresModule();
-            }
-        });
-        obs.observe(secReports, { attributes: true });
-    }
-});

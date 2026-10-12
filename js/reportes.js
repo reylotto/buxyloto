@@ -89,70 +89,79 @@ function obtenerObjetoBanca(bancaId, ticket = {}) {
 
 export async function initReportesModule() {
     const hoyStr = getHoyYMD();
-    const inputDesde = document.getElementById('rep-fecha-desde') || document.getElementById('reporte-fecha-desde');
-    const inputHasta = document.getElementById('rep-fecha-hasta') || document.getElementById('reporte-fecha-hasta');
+    const inputDesde = document.getElementById('rep-fecha-desde');
+    const inputHasta = document.getElementById('rep-fecha-hasta');
 
     if (inputDesde && !inputDesde.value) inputDesde.value = hoyStr;
     if (inputHasta && !inputHasta.value) inputHasta.value = hoyStr;
 
-    await cargarFiltrosDesplegables();
+    await cargarFiltrosDesplegables(); 
     await generarReporte();
 }
 window.initReportesModule = initReportesModule;
 
-async function cargarFiltrosDesplegables() {
-    await asegurarBancasCache();
-    const supabase = window.supabase;
-
-    try {
-        if (supabase && usuariosCache.length === 0) {
-            const { data: usrs } = await supabase.from('usuarios').select('*');
-            if (usrs) usuariosCache = usrs;
-        }
-
-        if (supabase && loteriasCache.length === 0) {
-            const { data: sort } = await supabase.from('sorteos').select('*');
-            if (sort) loteriasCache = sort;
-        }
-
-        const selVendedor = document.getElementById('rep-filtro-vendedor') || document.getElementById('rep-filtro-banca') || document.getElementById('reporte-banca-select');
-        if (selVendedor && bancasCache.length > 0) {
-            selVendedor.innerHTML = '<option value="todos">Todas las bancas / vendedores</option>';
-            bancasCache.forEach(b => {
-                const nom = b.nombre_banca || b.vendedor_nombre || b.nombre || `Banca #${b.id}`;
-                selVendedor.innerHTML += `<option value="${b.id}">${nom}</option>`;
-            });
-        }
-
-        const selZona = document.getElementById('rep-filtro-zona');
-        if (selZona && bancasCache.length > 0) {
-            const zonas = new Set();
-            bancasCache.forEach(b => { if (b.zona && String(b.zona).trim() !== '') zonas.add(b.zona.trim()); });
-            selZona.innerHTML = '<option value="todas">Todas las zonas</option>';
-            zonas.forEach(z => selZona.innerHTML += `<option value="${z}">${z}</option>`);
-        }
-
-        const selSupervisor = document.getElementById('rep-filtro-supervisor');
-        if (selSupervisor) {
-            selSupervisor.innerHTML = '<option value="todos">Todos los supervisores</option>';
-            const supervisores = usuariosCache.filter(u => String(u.rol || u.role).toLowerCase() === 'supervisor');
-            supervisores.forEach(sup => {
-                selSupervisor.innerHTML += `<option value="${sup.id}">${sup.nombre || sup.username || sup.email}</option>`;
-            });
-        }
-
-        const selLoteria = document.getElementById('rep-filtro-loteria') || document.getElementById('reporte-loteria-select');
-        if (selLoteria && loteriasCache.length > 0) {
-            selLoteria.innerHTML = '<option value="todas">Todas las loterías</option>';
-            loteriasCache.forEach(s => {
-                selLoteria.innerHTML += `<option value="${s.id}">${s.nombre || s.descripcion}</option>`;
-            });
-        }
-
-    } catch (e) {
-        console.warn("Error cargando filtros desplegables de reportes:", e);
+export function exportarReporteExcel() {
+    if (!reporteDataCache || reporteDataCache.length === 0) {
+        return alert("No hay datos para exportar. Consulte el reporte primero.");
     }
+    // Usamos punto y coma (;) que funciona mejor en Excels en español, y forzamos codificación limpia
+    let csvContent = "FECHA;BANCA/VENDEDOR;ZONA;TICKETS;VENTA BRUTA;COMISION;PREMIOS;BALANCE NETO\n";
+
+    reporteDataCache.forEach(d => {
+        const neto = d.venta - d.comision - d.premios;
+        csvContent += `"${d.fecha}";"${d.vendedor}";"${d.zona}";${d.ticketsCount};${d.venta.toFixed(2)};${d.comision.toFixed(2)};${d.premios.toFixed(2)};${neto.toFixed(2)}\n`;
+    });
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Auditoria_${getHoyYMD()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
+window.exportarReporteExcel = exportarReporteExcel;
+
+export function imprimirReportePDF() {
+    const tbody = document.getElementById('reports-banca-table-body');
+    if (!tbody || tbody.innerText.includes("Haz clic en")) {
+        return alert("Genere el reporte en la tabla antes de imprimir.");
+    }
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Reporte de Auditoría - BuxyLoto</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+                h2 { text-align: center; color: #000; margin-bottom: 5px; }
+                p { text-align: center; font-size: 12px; color: #666; margin-bottom: 20px; }
+                table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+                th { background-color: #f2f2f2; font-weight: bold; }
+                .text-right { text-align: right; }
+                .text-center { text-align: center; }
+            </style>
+        </head>
+        <body>
+            <h2>BUXYLOTO POS - REPORTE DE AUDITORÍA</h2>
+            <p>Fecha de emisión: ${new Date().toLocaleString('es-PA')}</p>
+            <table>
+                <thead>
+                    <tr><th>Fecha</th><th>Vendedor</th><th>Zona</th><th class="text-center">Tickets</th><th class="text-right">Venta Bruta</th><th class="text-right">Comisión</th><th class="text-right">Premios</th><th class="text-right">Balance Neto</th></tr>
+                </thead>
+                <tbody>${tbody.innerHTML.replace(/<td class="p-3 text-center">.*?<\/td>/g, '')}</tbody>
+            </table>
+            <script>window.onload = function() { window.print(); window.close(); }<\/script>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+}
+window.imprimirReportePDF = imprimirReportePDF;
 
 export async function generarReporte() {
     const supabase = window.supabase;

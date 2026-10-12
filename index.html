@@ -1426,11 +1426,14 @@
                     </div>
                 </div>
 
-                <button onclick="window.procesarPagoVendedor()" class="w-full mt-5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl text-sm shadow-lg transition-all flex justify-center items-center gap-2">
-                    <i class="fa-solid fa-hand-holding-dollar"></i> Procesar Pago
-                </button>
-            </div>
-        </div>
+                <div class="grid grid-cols-2 gap-2 mt-5">
+                    <button onclick="window.procesarPagoVendedor('ingreso')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs shadow-lg transition-all flex justify-center items-center gap-1" title="La banca te entrega dinero">
+                        <i class="fa-solid fa-arrow-down"></i> Recibí Dinero
+                    </button>
+                    <button onclick="window.procesarPagoVendedor('egreso')" class="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-2.5 rounded-xl text-xs shadow-lg transition-all flex justify-center items-center gap-1" title="Tú le pagas a la banca">
+                        <i class="fa-solid fa-arrow-up"></i> Pagué a Vendedor
+                    </button>
+                </div>
 
         <!-- PANEL DERECHO: Tablas de Detalles (70%) -->
         <div class="lg:col-span-8 space-y-6">

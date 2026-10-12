@@ -220,11 +220,17 @@ export async function generarReporte() {
 
             const venta = parseFloat(t.monto_total || t.monto || t.total || 0);
             
-            let pctComision = 15;
+            let pctComision = 0;
+            
             if (bancaObj && bancaObj.comision !== undefined && bancaObj.comision !== null) {
+                // PRIORIDAD 1: Siempre usar el porcentaje actual de la Banca
                 pctComision = parseFloat(bancaObj.comision);
-            } else if (t.comision_porcentaje) {
+            } else if (t.comision_porcentaje !== undefined && t.comision_porcentaje !== null) {
+                // PRIORIDAD 2: Confía en el ticket
                 pctComision = parseFloat(t.comision_porcentaje);
+            } else {
+                 // PRIORIDAD 3: Rescate extremo
+                 pctComision = 10; 
             }
 
             const comisionMonto = t.comision_monto ? parseFloat(t.comision_monto) : (venta * (pctComision / 100));

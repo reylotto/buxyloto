@@ -532,18 +532,23 @@ async function cargarResumenOperacionesHoy() {
         tickets.forEach(t => {
             const monto = parseFloat(t.total || t.monto || t.monto_total || 0);
             
-            // LECTURA DINÁMICA DEL PORCENTAJE DE COMISIÓN DE LA BANCA
-            let pctComision = 10;
-            if (t.comision_porcentaje !== undefined && t.comision_porcentaje !== null) {
+           // --------------------------------------------------------
+            // LECTURA DINÁMICA ESTRICTA (LA BANCA MANDA)
+            // --------------------------------------------------------
+            let pctComision = 0; // Iniciamos en 0
+            
+            const bancaIdStr = String(t.banca_id || t.usuario_id || '');
+            const bancaAsociada = bancasCache.find(b => String(b.id) === bancaIdStr);
+            
+            if (bancaAsociada && bancaAsociada.comision !== undefined && bancaAsociada.comision !== null) {
+                // PRIORIDAD 1: Siempre usar el porcentaje actual de la Banca (ignora el del ticket)
+                pctComision = parseFloat(bancaAsociada.comision);
+            } else if (t.comision_porcentaje !== undefined && t.comision_porcentaje !== null) {
+                // PRIORIDAD 2: Solo si la banca fue borrada, confía en el ticket
                 pctComision = parseFloat(t.comision_porcentaje);
             } else {
-                const bancaIdStr = String(t.banca_id || t.usuario_id || '');
-                const bancaAsociada = bancasCache.find(b => String(b.id) === bancaIdStr);
-                
-                // Leemos la comisión real que viene de la base de datos
-                if (bancaAsociada && bancaAsociada.comision !== undefined && bancaAsociada.comision !== null) {
-                    pctComision = parseFloat(bancaAsociada.comision);
-                }
+                 // PRIORIDAD 3: Rescate extremo
+                 pctComision = 10; 
             }
 
             const comision = t.comision_monto ? parseFloat(t.comision_monto) : parseFloat(monto * (pctComision / 100));

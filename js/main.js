@@ -4,6 +4,8 @@ import { initDashboardModule } from './dashboard.js';
 import { initAdminModule } from './admin.js';
 import { initBalancesCuadresModule } from './balancesCuadres.js?v=10';
 import { initReportesModule, initTicketsHistoryModule } from './reportes.js'; // 👈 ¡AQUÍ CONECTAMOS EL MÓDULO DE REPORTES Y FILTROS!
+import { initLNBModule } from './loteriaNacionalPanama.js?v=1'; // 👈 ¡MÓDULO Lotería Nacional Pick 4 INTEGRADO!
+
 
 // 1. Detección inmediata de sesión al cargar la página (Anti-cierre con F5)
 document.addEventListener('DOMContentLoaded', async () => {
@@ -65,9 +67,12 @@ export function iniciarAplicacionPrincipal() {
     initAdminModule();
     initBalancesCuadresModule();
     
-    // 🚨 AQUÍ ENCENDEMOS LOS FILTROS DE AUDITORÍA Y EL HISTORIAL
+    // 🚨 ENCENDEMOS LOS FILTROS DE AUDITORÍA Y EL HISTORIAL
     initReportesModule();
     initTicketsHistoryModule();
+
+    // 🏛️ ENCENDEMOS EL MÓDULO DE LA LNB PICK 4
+    initLNBModule();
 
     restaurarUltimaVista();
 }

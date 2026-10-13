@@ -1,5 +1,6 @@
 // ==========================================================
 // MÓDULO POS Y VENTA DELEGADA CON TICKET DIGITAL Y SUPABASE (js/pos.js)
+// Con Integración Oficial LNB Panamá (Billetes Pick 4 y Chances Pick 2)
 // ==========================================================
 
 import {
@@ -11,6 +12,8 @@ import {
     mostrarOpcionesExportacionTicket as mostrarOpcionesManager,
     anularTicketCancelado
 } from './ticketManager.js';
+
+import { validarJugadaLNB } from './loteriaNacionalPanama.js';
 
 // Estado global de la venta activa
 window.modoJuegoActual = window.modoJuegoActual || 'directo';
@@ -27,12 +30,12 @@ let timerRefrescoPOS = null;
 // 1. INICIALIZACIÓN DEL MÓDULO POS
 // ----------------------------------------------------------
 export function initPOSModule() {
-    console.log("🚀 Módulo POS Inicializado correctamente con Validación Dinámica.");
+    console.log("🚀 Módulo POS Inicializado correctamente con Soporte LNB Panamá (Billete/Chance).");
     ejecutarCargaConReintento();
     cargarSorteosPOS();
     activarEventosPOS();
 
-    // Refresco automático en vivo cada 30 segundos para abrir/cerrar sorteos sin recargar F5
+    // Refresco automático en vivo cada 30 segundos
     if (timerRefrescoPOS) clearInterval(timerRefrescoPOS);
     timerRefrescoPOS = setInterval(() => {
         cargarSorteosPOS();
@@ -53,6 +56,8 @@ function ejecutarCargaConReintento(intentos = 0) {
 // ----------------------------------------------------------
 export function obtenerLimiteActualPOS() {
     const modo = (window.modoJuegoActual || 'directo').toLowerCase();
+    if (modo.includes('billete')) return 4;
+    if (modo.includes('chance')) return 2;
     if (modo.includes('pale') || modo.includes('palé')) return 4;
     if (modo.includes('tripleta')) return 6;
     return 2;
@@ -66,7 +71,7 @@ export function setModoPOS(modo) {
     const inputNum = document.getElementById('pos-input-numbers') || document.querySelector('input[placeholder*="Número"]');
     if (inputNum) {
         inputNum.value = '';
-        if (m.includes('pale') || m.includes('palé')) inputNum.maxLength = 5;
+        if (m.includes('billete') || m.includes('pale') || m.includes('palé')) inputNum.maxLength = 5;
         else if (m.includes('tripleta')) inputNum.maxLength = 8;
         else inputNum.maxLength = 2;
     }
@@ -76,20 +81,32 @@ window.setModoPOS = setModoPOS;
 export function validarJugadaCompleta(num, modo) {
     const digitos = String(num || '').replace(/\D/g, '');
     const m = (modo || window.modoJuegoActual || 'directo').toLowerCase();
-    let requeridos = 2;
-    let nombreModo = "Directo";
-
-    if (m.includes('pale') || m.includes('palé')) {
-        requeridos = 4;
-        nombreModo = "Palé";
+    
+    if (m.includes('billete')) {
+        if (digitos.length !== 4) {
+            alert("⚠️ JUGADA INCOMPLETA: Un Billete de Lotería Nacional (Pick 4) debe tener EXACTAMENTE 4 dígitos.");
+            return false;
+        }
+    } else if (m.includes('chance')) {
+        if (digitos.length !== 2) {
+            alert("⚠️ JUGADA INCOMPLETA: Un Chance de Lotería Nacional (Pick 2) debe tener EXACTAMENTE 2 dígitos.");
+            return false;
+        }
+    } else if (m.includes('pale') || m.includes('palé')) {
+        if (digitos.length !== 4) {
+            alert("⚠️ JUGADA INCOMPLETA: Un Palé debe tener EXACTAMENTE 4 dígitos.");
+            return false;
+        }
     } else if (m.includes('tripleta')) {
-        requeridos = 6;
-        nombreModo = "Tripleta";
-    }
-
-    if (digitos.length !== requeridos) {
-        alert(`⚠️ JUGADA INCOMPLETA: Un ${nombreModo} debe tener EXACTAMENTE ${requeridos} dígitos.`);
-        return false;
+        if (digitos.length !== 6) {
+            alert("⚠️ JUGADA INCOMPLETA: Una Tripleta debe tener EXACTAMENTE 6 dígitos.");
+            return false;
+        }
+    } else {
+        if (digitos.length !== 2) {
+            alert("⚠️ JUGADA INCOMPLETA: Un Directo debe tener EXACTAMENTE 2 dígitos.");
+            return false;
+        }
     }
     return true;
 }
@@ -163,19 +180,16 @@ window.obtenerNombreBancaActual = obtenerNombreBancaActual;
 export function esSorteoAbiertoParaVenta(sorteo) {
     if (!sorteo) return false;
 
-    // 1. Interruptor administrativo maestro
     const est = String(sorteo.estatus || sorteo.estado || '').toUpperCase().trim();
     if (['PAUSADO', 'INACTIVO', 'CERRADO', 'FINALIZADO', 'ESCRUTADO', 'DESACTIVADO', 'PAUSA'].includes(est)) {
         return false;
     }
 
-    // 2. Obtener hora actual exacta en Panamá (Formato 24h HH:MM:SS)
     const ahoraPanama = new Date().toLocaleTimeString('en-GB', { 
         timeZone: 'America/Panama', 
         hour12: false 
     });
 
-    // 3. Verificación de días de juego
     const diasJuego = sorteo.dias_juego || sorteo.dias || '';
     if (diasJuego && String(diasJuego).trim() !== '') {
         const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -190,7 +204,6 @@ export function esSorteoAbiertoParaVenta(sorteo) {
         }
     }
 
-    // 4. Normalización de horas de apertura y cierre
     const normalizarHora = (hStr, defecto) => {
         if (!hStr) return defecto;
         let s = String(hStr).trim();
@@ -202,7 +215,6 @@ export function esSorteoAbiertoParaVenta(sorteo) {
     const horaApertura = normalizarHora(sorteo.horario_apertura || sorteo.hora_apertura, '06:00:00');
     const horaCierre = normalizarHora(sorteo.horario_cierre || sorteo.hora_cierre, '23:59:00');
 
-    // 5. Comparación estricta de ventana horaria
     if (ahoraPanama < horaApertura || ahoraPanama >= horaCierre) {
         return false;
     }
@@ -235,11 +247,10 @@ export async function cargarSorteosPOS() {
             return;
         }
 
-        // Filtrado dinámico estricto por horario Panamá
         const sorteosDisponibles = sorteos.filter(s => esSorteoAbiertoParaVenta(s));
 
         if (sorteosDisponibles.length === 0) {
-            contCheckboxes.innerHTML = '<p class="text-amber-400/90 text-xs font-semibold p-3 col-span-full text-center bg-amber-950/20 border border-amber-800/30 rounded-lg">🕒 No hay sorteos disponibles para venta en este momento (fuera de horario o cerrados).</p>';
+            contCheckboxes.innerHTML = '<p class="text-amber-400/90 text-xs font-semibold p-3 col-span-full text-center bg-amber-950/20 border border-amber-800/30 rounded-lg">🕒 No hay sorteos disponibles para venta en este momento.</p>';
             actualizarResumenSorteos();
             return;
         }
@@ -315,15 +326,32 @@ export function agregarJugadaAlCarrito() {
     }
 
     const numLen = numero.replace(/\D/g, '').length;
-    let tipo = window.modoJuegoActual || 'directo';
+    let tipo = (window.modoJuegoActual || 'directo').toLowerCase();
 
-    if (numLen === 2) tipo = 'directo';
-    else if (numLen === 4) tipo = 'pale';
-    else if (numLen === 6) tipo = 'tripleta';
-    else {
-        alert("⚠️ La cantidad de dígitos no corresponde a una jugada válida (2 dígitos = Directo, 4 = Palé, 6 = Tripleta).");
-        inputNum.focus();
-        return;
+    // Validar según modalidad LNB o tradicional
+    if (tipo.includes('billete')) {
+        const valLNB = validarJugadaLNB('billete', numero, monto);
+        if (!valLNB.valido) {
+            alert(`⚠️ ${valLNB.error}`);
+            inputNum.focus();
+            return;
+        }
+    } else if (tipo.includes('chance')) {
+        const valLNB = validarJugadaLNB('chance', numero, monto);
+        if (!valLNB.valido) {
+            alert(`⚠️ ${valLNB.error}`);
+            inputNum.focus();
+            return;
+        }
+    } else {
+        if (numLen === 2) tipo = 'directo';
+        else if (numLen === 4) tipo = 'pale';
+        else if (numLen === 6) tipo = 'tripleta';
+        else {
+            alert("⚠️ La cantidad de dígitos no corresponde a una jugada válida.");
+            inputNum.focus();
+            return;
+        }
     }
 
     window.ultimoMontoIngresado = monto;
@@ -338,7 +366,8 @@ export function agregarJugadaAlCarrito() {
             monto: monto,
             tipo: tipo,
             sorteo_id: cb.value ? parseInt(cb.value, 10) : null,
-            sorteo_nombre: nombreSorteo
+            sorteo_nombre: nombreSorteo,
+            denominacion: tipo.includes('billete') || tipo.includes('chance') ? monto : null
         });
     });
 
@@ -469,7 +498,8 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
                 monto: mnt,
                 tipo: String(j.tipo || 'directo').toLowerCase(),
                 sorteo_id: j.sorteo_id ? parseInt(j.sorteo_id, 10) : null,
-                sorteo_nombre: j.sorteo_nombre || 'SORTEO'
+                sorteo_nombre: j.sorteo_nombre || 'SORTEO',
+                denominacion: j.denominacion || mnt
             };
         });
 
@@ -478,32 +508,18 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         const codigoTicket = "BX-" + Math.floor(Math.random() * 900000 + 100000);
         const nombreBanca = typeof obtenerNombreBancaActual === 'function' ? obtenerNombreBancaActual() : 'Banca Principal';
 
-        // 🚨 CAPTURA INTELIGENTE DE LA BANCA Y SU COMISIÓN REAL
         let usuarioId = null;
         let bancaId = null;
-        let porcentajeComisionFinal = 10; // Valor por defecto
 
-        // 1. Intentar leer del selector desplegable del POS si está activo
         const selectBancaPOS = document.getElementById('select-vendedor-asignado') || document.getElementById('pos-select-banca');
         if (selectBancaPOS && selectBancaPOS.value) {
             bancaId = selectBancaPOS.value;
             usuarioId = selectBancaPOS.options[selectBancaPOS.selectedIndex]?.dataset?.uuid || bancaId;
-            
-            // Buscar el porcentaje en la caché global de bancas
-            const bancasCache = window._bancasCache || [];
-            const bancaEncontrada = bancasCache.find(b => String(b.id) === String(bancaId));
-            if (bancaEncontrada && bancaEncontrada.comision !== undefined) {
-                porcentajeComisionFinal = parseFloat(bancaEncontrada.comision);
-            }
         } else {
-            // 2. Si no, leer de la sesión del usuario logueado
             try {
                 const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || localStorage.getItem('usuario') || '{}');
                 usuarioId = sesion.id || sesion.user_id || sesion.uuid || null;
                 bancaId = sesion.banca_id || sesion.id || null;
-                if (sesion.comision !== undefined) {
-                    porcentajeComisionFinal = parseFloat(sesion.comision);
-                }
             } catch (e) {}
         }
 
@@ -524,7 +540,6 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             banca_nombre: nombreBanca
         };
 
-        // 1. Insertar Ticket
         const { data: ticketData, error: ticketError } = await supabase
             .from('tickets')
             .insert([payloadTicket])
@@ -537,13 +552,13 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             throw new Error("No se obtuvo el ID del ticket generado.");
         }
 
-        // 2. Mapear e insertar en la tabla jugadas
         const registrosJugadas = listaJugadas.map(j => ({
             ticket_id: ticketCreado.id,
             numero: String(j.numero).trim(),
             monto: parseFloat(j.monto) || 0,
             tipo: String(j.tipo || 'directo').toLowerCase(),
-            sorteo_id: j.sorteo_id || ticketCreado.sorteo_id || null
+            sorteo_id: j.sorteo_id || ticketCreado.sorteo_id || null,
+            denominacion: j.denominacion || j.monto
         }));
 
         const { error: jugadasError } = await supabase
@@ -552,10 +567,8 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
 
         if (jugadasError) {
             console.error("❌ Error al insertar en tabla 'jugadas':", jugadasError);
-            alert(`⚠️ El ticket fue guardado, pero ocurrió un error registrando las jugadas individuales: ${jugadasError.message}`);
         }
 
-        // Limpiar estado
         if (typeof vaciarCarrito === 'function') vaciarCarrito();
         document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = false);
         if (typeof actualizarResumenSorteos === 'function') actualizarResumenSorteos();
@@ -720,7 +733,6 @@ window.compartirTicketWhatsApp = compartirTicketWhatsApp;
 window.descargarPDFTicket = descargarPDFTicket;
 window.mostrarOpcionesExportacionTicket = mostrarOpcionesExportacionTicket;
 
-// Inicialización automática
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initPOSModule);
 } else {

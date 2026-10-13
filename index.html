@@ -1756,57 +1756,78 @@
         </div>
     </div>
 
-    <!-- 6. MODAL VISUALIZADOR & IMPRESOR DE TICKET EMITIDO (CON OPCIÓN DIGITAL WHATSAPP O IMPRESIÓN) -->
-    <div id="modal-ticket-view" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-700 pb-2">
-                <h3 class="text-xs font-bold text-white uppercase tracking-wider">Ticket Generado</h3>
-                <button class="btn-close-modal text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+    <!-- MODAL DE TICKET UNIFICADO (2 Columnas) -->
+<div id="modal-ticket-view" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 text-slate-100 font-mono text-xs">
+        
+        <!-- Cabecera del Modal -->
+        <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-receipt text-emerald-400"></i> TICKET OFICIAL
+            </h3>
+            <button onclick="document.getElementById('modal-ticket-view').classList.add('hidden')" class="text-slate-400 hover:text-white text-base">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <!-- Área Imprimible / Térmica a 2 Columnas -->
+        <div id="printable-ticket" class="bg-white text-slate-900 p-4 rounded-xl space-y-3 shadow-inner">
+            <div class="text-center space-y-1">
+                <div class="font-bold text-sm tracking-wider uppercase" id="ticket-view-company-name">BUXY LOTO</div>
+                <div class="text-[10px] text-slate-600" id="ticket-view-banca">Banca Central</div>
+                <div class="text-[10px] text-slate-500" id="ticket-view-date">--/--/---- --:--</div>
             </div>
 
-            <!-- Billete térmico estilo POS imprimible -->
-            <div id="printable-ticket" class="bg-white text-black p-4 rounded shadow font-mono text-xs space-y-3">
-                <div class="text-center border-b border-black/20 pb-2">
-                    <div class="flex items-center justify-center space-x-1 mb-1">
-                        <i id="ticket-view-logo-icon" class="fa-solid fa-clover text-emerald-600 text-base"></i>
-                        <span id="ticket-view-company-name" class="font-black text-base tracking-widest uppercase">BUXYLOTO POS</span>
-                    </div>
-                    <div class="text-[10px] text-gray-600" id="ticket-view-banca">Banca Principal #001</div>
-                    <div class="text-[10px] text-gray-500" id="ticket-view-date">2026-09-19 20:28</div>
-                </div>
-
-                <div class="text-[11px] space-y-1">
-                    <div class="flex justify-between">
-                        <span class="font-bold">FOLIO:</span>
-                        <span id="ticket-view-folio" class="font-bold">#BX-9999</span>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="font-bold">SORTEO(S):</span>
-                        <span id="ticket-view-loterias" class="font-bold text-[10px]">Lotería Nacional</span>
-                    </div>
-                </div>
-
-                <div class="border-t border-b border-black/20 py-2 space-y-1">
-                    <div class="flex justify-between text-[10px] font-bold uppercase border-b border-black/10 pb-1">
-                        <span>Jugada / Núm</span>
-                        <span>Monto</span>
-                    </div>
-                    <div id="ticket-view-items-list" class="space-y-1 text-[11px]">
-                        <!-- Renglones de ticket -->
-                    </div>
-                </div>
-
-                <div class="flex justify-between items-center text-sm font-black pt-1">
-                    <span>TOTAL:</span>
-                    <span id="ticket-view-total">$0.00</span>
-                </div>
-
-                <div class="flex flex-col items-center justify-center pt-2 border-t border-black/20 space-y-1">
-                    <div id="ticket-qrcode" class="p-1 bg-white"></div>
-                    <span id="ticket-view-footer-msg" class="text-[9px] text-gray-600 text-center font-medium">¡Gracias por su jugada! Verifique su billete antes de retirarse.</span>
-                    <span id="ticket-view-phone" class="text-[8px] text-gray-500">Tel: +507 0000-0000</span>
-                </div>
+            <div class="border-t border-dashed border-slate-400 pt-2 flex justify-between text-[11px] font-bold">
+                <span>FOLIO:</span>
+                <span id="ticket-view-folio">#BX-000000</span>
             </div>
+
+            <div class="text-[10px] text-slate-600 pb-1 border-b border-dashed border-slate-400" id="ticket-view-loterias">
+                Sorteo General
+            </div>
+
+            <!-- Listado de Jugadas a 2 Columnas -->
+            <div class="space-y-1 py-1" id="ticket-view-items-list">
+                <!-- Los ítems se inyectan dinámicamente aquí -->
+            </div>
+
+            <!-- Total y QR -->
+            <div class="border-t border-dashed border-slate-400 pt-2 flex justify-between font-bold text-sm">
+                <span>TOTAL:</span>
+                <span id="ticket-view-total">$0.00</span>
+            </div>
+
+            <div class="flex justify-center pt-2" id="ticket-qrcode">
+                <!-- Código QR dinámico -->
+            </div>
+
+            <div class="text-center text-[9px] text-slate-500 pt-1 space-y-0.5">
+                <p id="ticket-view-footer-msg">¡Gracias por su compra!</p>
+                <p id="ticket-view-phone">Tel: 507-0000-0000</p>
+            </div>
+        </div>
+
+        <!-- Acciones de Exportación / Cierre -->
+        <div class="space-y-2 pt-1">
+            <div class="flex gap-2">
+                <input type="text" id="whatsapp-phone-input" placeholder="+507 6000-0000" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                <button id="btn-send-whatsapp-api" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs transition-colors flex items-center gap-1">
+                    <i class="fa-brands fa-whatsapp"></i> Enviar
+                </button>
+            </div>
+            <div class="flex gap-2">
+                <button id="btn-print-ticket-window" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2.5 rounded-xl text-xs transition-colors">
+                    <i class="fa-solid fa-print mr-1"></i> Imprimir Ticket
+                </button>
+                <button id="btn-download-ticket-img" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2.5 rounded-xl text-xs transition-colors">
+                    <i class="fa-solid fa-download mr-1"></i> Descargar Img
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
 
            <!-- Botones de Acción Digital / WhatsApp / Impresión -->
 <div class="space-y-3 pt-1 border-t border-slate-700">

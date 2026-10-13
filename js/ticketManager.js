@@ -116,7 +116,7 @@ export async function renderizarPlantillaTicket(ticketData) {
 
     const totalItems = conteoTotalJugadas.toString().padStart(3, '0');
 
-    // CONSTRUCCIÓN DE BLOQUES POR SORTEO (1 COLUMNA CON ETIQUETAS EXACTAS)
+    // 🏛️ DISEÑO ORIGINAL RESTAURADO: 2 COLUMNAS LIMPIAS
     let bloquesSorteosHTML = '';
 
     for (const [sorteoNombre, listaJugadasSorteo] of Object.entries(jugadasPorSorteo)) {
@@ -124,32 +124,32 @@ export async function renderizarPlantillaTicket(ticketData) {
             <div style="margin-top: 8px;">
                 <div style="font-weight: bold; font-size: 12px; text-transform: uppercase;">${sorteoNombre}</div>
                 <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; margin-top: 2px; margin-bottom: 2px;">
-                    <span style="text-align: left;">JUGADA / NÚM</span>
-                    <span style="text-align: right;">MONTO</span>
+                    <span style="width: 25%; text-align: left;">JUGADA</span>
+                    <span style="width: 25%; text-align: right;">MONTO</span>
+                    <span style="width: 25%; text-align: center;">JUGADA</span>
+                    <span style="width: 25%; text-align: right;">MONTO</span>
                 </div>
-                <div style="border-top: 1px dashed #000; margin-bottom: 4px;"></div>
         `;
 
-        listaJugadasSorteo.forEach(j => {
-            const num = j.numero || j.jugada || '';
-            const mnt = parseFloat(j.monto || j.valor || 0).toFixed(2);
-            const tipoRaw = String(j.tipo || 'directo').toUpperCase();
-            
-            // 🏛️ MAPEO ESTRICTO PARA TICKET IMPRESO
-            let etiquetaTipo = tipoRaw;
-            if (tipoRaw === 'BILLETE') etiquetaTipo = 'BILLETE';
-            else if (tipoRaw === 'CHANCE') etiquetaTipo = 'CHANCE';
-            else if (tipoRaw === 'DIRECTO') etiquetaTipo = 'DIRECTO';
-            else if (tipoRaw === 'PALE' || tipoRaw === 'PALÉ') etiquetaTipo = 'PALÉ';
-            else if (tipoRaw === 'TRIPLETA') etiquetaTipo = 'TRIPLETA';
+        for (let i = 0; i < listaJugadasSorteo.length; i += 2) {
+            const j1 = listaJugadasSorteo[i];
+            const j2 = listaJugadasSorteo[i + 1];
+
+            const num1 = j1.numero || j1.jugada || '';
+            const mnt1 = parseFloat(j1.monto || j1.valor || 0).toFixed(2);
+
+            const num2 = j2 ? (j2.numero || j2.jugada || '') : '';
+            const mnt2 = j2 ? parseFloat(j2.monto || j2.valor || 0).toFixed(2) : '';
 
             bloquesSorteosHTML += `
-                <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; line-height: 1.4; padding: 1px 0;">
-                    <span style="text-align: left;">[${etiquetaTipo}] ${num}</span>
-                    <span style="text-align: right;">$${mnt}</span>
+                <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; line-height: 1.2;">
+                    <span style="width: 25%; text-align: left;">${num1}</span>
+                    <span style="width: 25%; text-align: right;">${mnt1}</span>
+                    <span style="width: 25%; text-align: center;">${num2}</span>
+                    <span style="width: 25%; text-align: right;">${mnt2}</span>
                 </div>
             `;
-        });
+        }
 
         bloquesSorteosHTML += `</div>`;
     }
@@ -190,7 +190,7 @@ export async function renderizarPlantillaTicket(ticketData) {
         <!-- TOTAL GENERAL -->
         <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: bold;">
             <span>Total: ${totalItems}</span>
-            <span>$${montoTotal}</span>
+            <span>${montoTotal}</span>
         </div>
 
         <!-- REGLAS Y CONDICIONES DEL PIE -->

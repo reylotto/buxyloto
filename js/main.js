@@ -2,7 +2,7 @@
 import { initPOSModule } from './pos.js';
 import { initDashboardModule } from './dashboard.js';
 import { initAdminModule } from './admin.js';
-import { initBalancesCuadresModule } from './balancesCuadres.js';
+import { initBalancesCuadresModule } from './balancesCuadres.js?v=10';
 import { initReportesModule, initTicketsHistoryModule } from './reportes.js'; // 👈 ¡AQUÍ CONECTAMOS EL MÓDULO DE REPORTES Y FILTROS!
 
 // 1. Detección inmediata de sesión al cargar la página (Anti-cierre con F5)

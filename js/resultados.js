@@ -211,17 +211,16 @@ function inicializarFormularioResultados() {
 
             if (errSorteo) throw errSorteo;
 
-            // 3. Ejecutar evaluación de tickets vía RPC
+            // 3. 🚀 Ejecutar la evaluación de tickets en Supabase (RPC)
             try {
+                // Aquí usamos EXACTAMENTE los parámetros que la función SQL pide: p_sorteo_id y p_fecha
                 const { error: errRpc } = await supabase.rpc('evaluar_tickets_sorteo', {
-                    p_id_sorteo: sorteoIdNum,
-                    p_num1: primero,
-                    p_num2: segundo,
-                    p_num3: tercero
+                    p_sorteo_id: sorteoIdNum,
+                    p_fecha: fecha
                 });
 
                 if (errRpc) {
-                    console.warn("Aviso en evaluar_tickets_sorteo:", errRpc.message);
+                    console.error("Aviso en evaluar_tickets_sorteo:", errRpc.message);
                 }
             } catch (rpcErr) {
                 console.error("Error al ejecutar RPC evaluar_tickets_sorteo:", rpcErr);
@@ -229,6 +228,7 @@ function inicializarFormularioResultados() {
 
             alert(`🚀 Resultado guardado y tickets evaluados correctamente (${fecha})`);
 
+            // Limpiar los inputs
             document.getElementById('result-p1').value = '';
             document.getElementById('result-p2').value = '';
             document.getElementById('result-p3').value = '';

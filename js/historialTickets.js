@@ -49,7 +49,7 @@ export async function cargarHistorialTicketsCentral() {
             const codigoRef = t.codigo || t.codigo_ticket || t.folio || t.id;
             const fecha = t.created_at ? new Date(t.created_at).toLocaleString() : '--';
             
-            // Usamos tu estilo original: "6 ap." o el nombre del sorteo
+            // Estilo conservado: "6 ap." o el nombre del sorteo
             const cantJugadas = t.detalles?.length || t.jugadas?.length ? `${t.detalles?.length || t.jugadas?.length} ap.` : (t.sorteos?.nombre || 'Varias');
             const bancaNom = t.bancas?.nombre || t.banca_nombre || t.vendedor_nombre || 'Banca General';
             const montoVenta = Number(t.total || t.monto_total || t.monto || 0).toFixed(2);
@@ -73,7 +73,6 @@ export async function cargarHistorialTicketsCentral() {
 
             const esAnulable = (estatus === 'pendiente');
 
-            // 🚨 BOTÓN ACTUALIZADO PARA EVITAR EL MODAL VIEJO
             tr.innerHTML = `
                 <td class="p-3 font-mono font-bold text-cyan-400">${codigoRef}</td>
                 <td class="p-3 text-slate-300 text-[11px]">${fecha}</td>
@@ -141,7 +140,6 @@ export async function cancelarTicketDefinitivo(ticketRef) {
 // 🏛️ INTERCEPTOR: CONECTAR HISTORIAL AL MOTOR PRINCIPAL DE TICKET MANAGER
 // =========================================================================
 if (typeof window !== 'undefined') {
-    // 🚨 NUEVA FUNCIÓN: Esquiva por completo el modal viejo del HTML
     window.reimpresionUnificadaPOS = async function(ticketId) {
         try {
             const supabase = window.supabaseClient || window.supabase;
@@ -164,12 +162,13 @@ if (typeof window !== 'undefined') {
 
             const ticketData = {
                 ...ticket,
+                codigo_ticket: ticket.codigo_ticket || ticket.folio || ticket.codigo || 'BX-000000',
+                monto_total: parseFloat(ticket.monto_total || ticket.total || ticket.monto || 0).toFixed(2),
                 banca_nombre: ticket.bancas?.nombre || ticket.banca_nombre || ticket.vendedor_nombre || 'Banca',
                 detalles: jugadas,
                 jugadas: jugadas
             };
 
-            // Llama exclusivamente a la ventana negra del ticketManager (el diseño a 2 columnas)
             if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
                 window.mostrarOpcionesExportacionTicket(ticketData);
             } else {
@@ -184,7 +183,5 @@ if (typeof window !== 'undefined') {
 
     window.cancelarTicketDefinitivo = cancelarTicketDefinitivo;
     window.anularTicket = window.cancelarTicketDefinitivo;
-    
-    // Anulamos la función vieja para que no dé problemas
     window.verTicketDetalleDirecto = window.reimpresionUnificadaPOS;
 }

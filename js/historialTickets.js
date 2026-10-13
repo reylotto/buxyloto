@@ -1,5 +1,6 @@
 // ==========================================================
 // MÓDULO EXCLUSIVO DE HISTORIAL Y ANULACIÓN DE TICKETS
+// Integrado con Motor Unificado de Impresión a 2 Columnas
 // ==========================================================
 
 export async function cargarHistorialTicketsCentral() {
@@ -86,9 +87,9 @@ export async function cargarHistorialTicketsCentral() {
                     </span>
                 </td>
                 <td class="p-3 text-center space-x-1">
-                    <button onclick="window.verTicketDetalleDirecto('${t.id}')" title="Ver Detalle"
+                    <button onclick="window.verTicketDetalleDirecto('${t.id}')" title="Ver Detalle / Reimprimir"
                             class="bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold">
-                        <i class="fa-solid fa-eye mr-1"></i> Ver
+                        <i class="fa-solid fa-print mr-1"></i> Imprimir
                     </button>
                     ${esAnulable ? `
                     <button onclick="window.cancelarTicketDefinitivo('${codigoRef}')" title="Anular Ticket"
@@ -117,7 +118,6 @@ export async function cancelarTicketDefinitivo(ticketRef) {
         const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
         if (!supabase) throw new Error("Cliente de Supabase no disponible.");
 
-        // Ejecutar la función RPC comprobada en PostgreSQL
         const { data, error } = await supabase.rpc('cancelar_ticket_universal', { 
             p_referencia: String(ticketRef) 
         });
@@ -137,52 +137,53 @@ export async function cancelarTicketDefinitivo(ticketRef) {
     }
 }
 
-// Exposición explícita en el ámbito global del navegador
+// =========================================================================
+// 🏛️ INTERCEPTOR: CONECTAR HISTORIAL AL MOTOR PRINCIPAL DE TICKET MANAGER
+// =========================================================================
 if (typeof window !== 'undefined') {
-    window.cancelarTicketDefinitivo = async function(ticketRef) {
-        if (!ticketRef || ticketRef === 'undefined' || ticketRef === 'null') {
-            alert("⚠️ Error: La referencia del ticket es inválida.");
-            return;
-        }
-
-        if (!confirm(`¿Desea anular definitivamente el ticket "${ticketRef}"?`)) return;
-
+    window.verTicketDetalleDirecto = async function(ticketId) {
         try {
-            const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-            
-            if (!supabase) {
-                alert("❌ Error: Cliente de Supabase no disponible.");
-                return;
-            }
+            const supabase = window.supabaseClient || window.supabase;
+            if (!supabase) return alert("❌ Error: Sin conexión a la base de datos.");
 
-            // Llamada RPC a la función SQL
-            const { data, error } = await supabase.rpc('cancelar_ticket_universal', { 
-                p_referencia: String(ticketRef).trim() 
-            });
+            // 1. Obtener ticket principal
+            const { data: ticket, error: errTicket } = await supabase
+                .from('tickets')
+                .select('*, bancas(nombre)')
+                .eq('id', ticketId)
+                .single();
 
-            if (error) {
-                console.error("Error devuelto por Supabase RPC:", error);
-                alert("❌ Error en BD: " + error.message);
-                return;
-            }
+            if (errTicket || !ticket) throw new Error("Ticket no encontrado en el sistema.");
 
-            if (data && data.success) {
-                alert(`✅ ${data.message}`);
-                // Recargar historial
-                if (typeof window.cargarHistorialTicketsCentral === 'function') {
-                    await window.cargarHistorialTicketsCentral();
-                } else {
-                    location.reload();
-                }
+            // 2. Obtener las jugadas detalladas (para saber si es billete, chance, etc.)
+            const { data: jugadas, error: errJugadas } = await supabase
+                .from('jugadas')
+                .select('*')
+                .eq('ticket_id', ticketId);
+
+            if (errJugadas) throw errJugadas;
+
+            // 3. Formatear los datos como los espera nuestro formato 2 Columnas de POS
+            const ticketData = {
+                ...ticket,
+                banca_nombre: ticket.bancas?.nombre || ticket.banca_nombre || ticket.vendedor_nombre || 'Banca',
+                detalles: jugadas,
+                jugadas: jugadas
+            };
+
+            // 4. Lanzar la ventana de opciones oficial
+            if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
+                window.mostrarOpcionesExportacionTicket(ticketData);
             } else {
-                alert(`⚠️ ${data?.message || 'No se pudo cancelar el ticket.'}`);
+                alert("⚠️ Error: El Gestor de Tickets (ticketManager) no está cargado.");
             }
 
         } catch (err) {
-            console.error("Excepción al cancelar ticket:", err);
-            alert("❌ Error: " + (err.message || "Fallo inesperado."));
+            console.error("Error cargando detalle del ticket:", err);
+            alert("❌ No se pudo cargar el ticket: " + err.message);
         }
     };
 
+    window.cancelarTicketDefinitivo = cancelarTicketDefinitivo;
     window.anularTicket = window.cancelarTicketDefinitivo;
 }

@@ -88,11 +88,26 @@ export async function renderizarPlantillaTicket(ticketData) {
     ticketElem.style.boxSizing = 'border-box';
     ticketElem.style.zIndex = '-9999';
 
+    // 🌟 APLICAR PERSONALIZACIÓN (Lectura directa de localStorage)
+    const configTitulo = localStorage.getItem('buxy_ticket_titulo') || ticketData.titulo_empresa || 'BUXYLOTO POS';
+    const configIconoGuardado = localStorage.getItem('buxy_ticket_icono') || '☘️';
+    
+    // Convertir classnames de FontAwesome a Emojis para el ticket impreso
+    let configIcono = '☘️';
+    if (configIconoGuardado.includes('gem') || configIconoGuardado === '💎') configIcono = '💎';
+    else if (configIconoGuardado.includes('crown') || configIconoGuardado === '👑') configIcono = '👑';
+    else if (configIconoGuardado.includes('star') || configIconoGuardado === '⭐') configIcono = '⭐';
+    else if (configIconoGuardado.includes('money') || configIconoGuardado === '💰') configIcono = '💰';
+    else if (configIconoGuardado.includes('check') || configIconoGuardado === '✔️') configIcono = '✔️';
+
+    const configTelefono = localStorage.getItem('buxy_ticket_telefono') || '';
+    const configPieRaw = localStorage.getItem('buxy_ticket_pie') || 'REVISE SU TICKET\nSIN TICKET NO SE PAGA\nLNP 1ER 2500-2DO 700-3ER 300\nPALE 1000-1000-200\nTRIPLETA 10000X1 2Num 100x1\nNO SE PAGA EL PALE DOBLE';
+    const configPieHTML = configPieRaw.split('\n').map(line => `<div>${line}</div>`).join('');
+
     // Datos principales
     const codigo = ticketData.codigo_ticket || ticketData.codigo || ticketData.ticket_id || '9312-0917-4579-1660';
     const montoTotal = parseFloat(ticketData.monto_total || ticketData.monto || ticketData.total || 0).toFixed(2);
-    const nombreBanca = ticketData.banca_nombre || ticketData.nombre_banca || ticketData.banca || 'Jey';
-    const tituloHeader = ticketData.titulo_empresa || 'BuxyLoto';
+    const nombreBanca = ticketData.banca_nombre || ticketData.nombre_banca || ticketData.banca || 'General';
 
     const ahora = ticketData.created_at ? new Date(ticketData.created_at) : new Date();
     const fechaStr = ticketData.fecha || ahora.toLocaleDateString('es-ES');
@@ -116,7 +131,7 @@ export async function renderizarPlantillaTicket(ticketData) {
 
     const totalItems = conteoTotalJugadas.toString().padStart(3, '0');
 
-    // 🏛️ DISEÑO ORIGINAL RESTAURADO: 2 COLUMNAS LIMPIAS
+    // CONSTRUCCIÓN DE BLOQUES POR SORTEO EN 2 COLUMNAS
     let bloquesSorteosHTML = '';
 
     for (const [sorteoNombre, listaJugadasSorteo] of Object.entries(jugadasPorSorteo)) {
@@ -159,8 +174,8 @@ export async function renderizarPlantillaTicket(ticketData) {
     ticketElem.innerHTML = `
         <!-- ENCABEZADO CENTRAL -->
         <div style="text-align: center;">
-            <div style="font-size: 22px; line-height: 1;">☘️</div>
-            <div style="font-size: 16px; font-weight: bold;">${tituloHeader}</div>
+            <div style="font-size: 22px; line-height: 1;">${configIcono}</div>
+            <div style="font-size: 16px; font-weight: bold;">${configTitulo}</div>
             <div style="font-size: 11px; font-weight: bold; margin-top: 2px;">$$ DINERO SEGURO $$</div>
         </div>
 
@@ -195,12 +210,8 @@ export async function renderizarPlantillaTicket(ticketData) {
 
         <!-- REGLAS Y CONDICIONES DEL PIE -->
         <div style="text-align: center; font-size: 9px; font-weight: bold; margin-top: 12px; line-height: 1.2;">
-            <div>REVISE SU TICKET</div>
-            <div>SIN TICKET NO SE PAGA</div>
-            <div>LNP 1ER 2500-2DO 700-3ER 300</div>
-            <div>PALE 1000-1000-200</div>
-            <div>TRIPLETA 10000X1 2Num 100x1</div>
-            <div>NO SE PAGA EL PALE DOBLE</div>
+            ${configPieHTML}
+            ${configTelefono ? `<div style="margin-top: 5px; border-top: 1px dotted #000; padding-top: 2px;">Atención: ${configTelefono}</div>` : ''}
         </div>
 
         <!-- CÓDIGO QR -->
@@ -490,3 +501,43 @@ export async function anularTicketCancelado(identificadorTicket) {
 }
 
 window.anularTicketCancelado = anularTicketCancelado;
+
+// ==========================================================
+// MÓDULO ACTIVO DE PERSONALIZACIÓN DE TICKET
+// ==========================================================
+
+window.cargarPersonalizacionTicket = function() {
+    const iTitulo = document.getElementById('cfg-ticket-title');
+    const iIcono = document.getElementById('cfg-ticket-icon');
+    const iTelefono = document.getElementById('cfg-ticket-phone');
+    const tPie = document.getElementById('cfg-ticket-footer');
+
+    if (iTitulo) iTitulo.value = localStorage.getItem('buxy_ticket_titulo') || 'BUXYLOTO POS';
+    if (iIcono) iIcono.value = localStorage.getItem('buxy_ticket_icono') || 'fa-clover';
+    if (iTelefono) iTelefono.value = localStorage.getItem('buxy_ticket_telefono') || '';
+    if (tPie) tPie.value = localStorage.getItem('buxy_ticket_pie') || 'REVISE SU TICKET\nSIN TICKET NO SE PAGA\nLNP 1ER 2500-2DO 700-3ER 300\nPALE 1000-1000-200\nTRIPLETA 10000X1 2Num 100x1\nNO SE PAGA EL PALE DOBLE';
+};
+
+// Escuchar automáticamente la carga y el botón Guardar del formulario
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(window.cargarPersonalizacionTicket, 1000);
+
+    const formPersonalizacion = document.getElementById('form-ticket-custom');
+    if (formPersonalizacion) {
+        formPersonalizacion.addEventListener('submit', function(e) {
+            e.preventDefault(); // Evita que la página se recargue al dar clic en Guardar
+
+            const iTitulo = document.getElementById('cfg-ticket-title');
+            const iIcono = document.getElementById('cfg-ticket-icon');
+            const iTelefono = document.getElementById('cfg-ticket-phone');
+            const tPie = document.getElementById('cfg-ticket-footer');
+
+            if (iTitulo) localStorage.setItem('buxy_ticket_titulo', iTitulo.value);
+            if (iIcono) localStorage.setItem('buxy_ticket_icono', iIcono.value);
+            if (iTelefono) localStorage.setItem('buxy_ticket_telefono', iTelefono.value);
+            if (tPie) localStorage.setItem('buxy_ticket_pie', tPie.value);
+
+            alert("✅ ¡Personalización Guardada Exitosamente!\nTodos los tickets impresos a partir de ahora tendrán este diseño.");
+        });
+    }
+});

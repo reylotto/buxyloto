@@ -320,35 +320,41 @@ export function agregarJugadaAlCarrito() {
     }
 
     if (isNaN(monto) || monto <= 0) {
-        alert("⚠️ Ingrese un monto válido mayor a 0.");
+        alert("⚠️ Ingrese un monto válido (Denominación permitida: $0.25, $0.50, $0.75 o $1.00).");
         inputMnt.focus();
         return;
     }
 
     const numLen = numero.replace(/\D/g, '').length;
-    let tipo = (window.modoJuegoActual || 'directo').toLowerCase();
+    let tipoDetectado = 'directo';
 
-    // Validar según modalidad LNB o tradicional
-    if (tipo.includes('billete')) {
-        const valLNB = validarJugadaLNB('billete', numero, monto);
-        if (!valLNB.valido) {
-            alert(`⚠️ ${valLNB.error}`);
-            inputNum.focus();
-            return;
+    // 🏛️ DETECCIÓN AUTOMÁTICA INTELIGENTE PARA LA LOTERÍA NACIONAL DE PANAMÁ (LNB)
+    // Verificamos si los sorteos seleccionados son de la LNB (Lominical, Miercolito, etc.)
+    let esSorteoLNB = false;
+    checkboxesCheck.forEach(cb => {
+        const nombreS = (cb.dataset.nombre || '').toUpperCase();
+        if (nombreS.includes('LNB') || nombreS.includes('NACIONAL') || nombreS.includes('DOMINICAL') || nombreS.includes('MIERCOLITO')) {
+            esSorteoLNB = true;
         }
-    } else if (tipo.includes('chance')) {
-        const valLNB = validarJugadaLNB('chance', numero, monto);
-        if (!valLNB.valido) {
-            alert(`⚠️ ${valLNB.error}`);
+    });
+
+    if (esSorteoLNB) {
+        if (numLen === 2) {
+            tipoDetectado = 'chance'; // 2 dígitos en LNB = Chance
+        } else if (numLen === 4) {
+            tipoDetectado = 'billete'; // 4 dígitos en LNB = Billete
+        } else {
+            alert("⚠️ En los sorteos de la Lotería Nacional de Panamá solo se permiten Chances (2 dígitos) y Billetes (4 dígitos). No aplican palés ni tripletas.");
             inputNum.focus();
             return;
         }
     } else {
-        if (numLen === 2) tipo = 'directo';
-        else if (numLen === 4) tipo = 'pale';
-        else if (numLen === 6) tipo = 'tripleta';
+        // Lógica tradicional para otros sorteos
+        if (numLen === 2) tipoDetectado = 'directo';
+        else if (numLen === 4) tipoDetectado = 'pale';
+        else if (numLen === 6) tipoDetectado = 'tripleta';
         else {
-            alert("⚠️ La cantidad de dígitos no corresponde a una jugada válida.");
+            alert("⚠️ La cantidad de dígitos no corresponde a una jugada válida (2 dígitos = Directo, 4 = Palé, 6 = Tripleta).");
             inputNum.focus();
             return;
         }
@@ -364,10 +370,10 @@ export function agregarJugadaAlCarrito() {
             id: Date.now() + Math.random(),
             numero: numero,
             monto: monto,
-            tipo: tipo,
+            tipo: tipoDetectado,
             sorteo_id: cb.value ? parseInt(cb.value, 10) : null,
             sorteo_nombre: nombreSorteo,
-            denominacion: tipo.includes('billete') || tipo.includes('chance') ? monto : null
+            denominacion: monto
         });
     });
 

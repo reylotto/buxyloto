@@ -603,6 +603,56 @@ window.reimprimirTicketUnificado = async function(ticketId) {
     }
 };
 
-// Sincronizar alias globales de forma estricta
-window.reimpresionUnificadaPOS = window.reimprimirTicketUnificado;
-window.verTicketDetalleDirecto = window.reimprimirTicketUnificado;
+// ==========================================================
+// INTERCEPTOR ABSOLUTO: ELIMINA ALERTAS Y FUERZA EL DISEÑO A 2 COLUMNAS
+// ==========================================================
+if (typeof window !== 'undefined') {
+    window.showTicketModal = async function(ticketInput) {
+        // Bloquear alertas nativas momentáneamente
+        const originalAlert = window.alert;
+        window.alert = function(msg) {
+            if (typeof msg === 'string' && (msg.includes('JUGADAS:') || msg.includes('TOTAL:'))) return; 
+            originalAlert(msg);
+        };
+
+        try {
+            if (!ticketInput) return;
+            let ticketData = ticketInput;
+
+            if (typeof ticketInput === 'string' || typeof ticketInput === 'number') {
+                const supabase = window.supabaseClient || window.supabase;
+                if (supabase) {
+                    const { data: tData } = await supabase.from('tickets').select('*, bancas(nombre)').eq('id', ticketInput).single();
+                    const { data: jData } = await supabase.from('jugadas').select('*').eq('ticket_id', ticketInput);
+                    if (tData) {
+                        ticketData = { ...tData, banca_nombre: tData.bancas?.nombre || 'Banca', detalles: jData || [] };
+                    }
+                }
+            } else {
+                ticketData = {
+                    ...ticketInput,
+                    codigo_ticket: ticketInput.codigo_ticket || ticketInput.folio || 'BX-000000',
+                    monto_total: parseFloat(ticketInput.monto_total || ticketInput.total || 0).toFixed(2),
+                    detalles: ticketInput.detalles || ticketInput.jugadas || []
+                };
+            }
+
+            // Ocultar el modal HTML viejo si está abierto
+            const oldModal = document.getElementById('modal-ticket-view');
+            if (oldModal) oldModal.style.display = 'none';
+
+            // Lanzar el panel moderno de 2 columnas
+            if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
+                window.mostrarOpcionesExportacionTicket(ticketData);
+            }
+        } finally {
+            // Restaurar alertas normales
+            setTimeout(() => { window.alert = originalAlert; }, 500);
+        }
+    };
+    
+    // Conectar botones del historial
+    window.reimprimirTicketUnificado = window.showTicketModal;
+    window.reimpresionUnificadaPOS = window.showTicketModal;
+    window.verTicketDetalleDirecto = window.showTicketModal;
+}

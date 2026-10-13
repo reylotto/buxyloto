@@ -541,3 +541,47 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+// ==========================================================
+// MÓDULO DE REIMPRESIÓN UNIFICADA (Evita modales antiguos)
+// ==========================================================
+window.reimprimirTicketUnificado = async function(ticketId) {
+    try {
+        const supabase = window.supabaseClient || window.supabase;
+        if (!supabase) return alert("❌ Error: Sin conexión a la base de datos.");
+
+        // 1. Obtener ticket principal
+        const { data: ticket, error: errTicket } = await supabase
+            .from('tickets')
+            .select('*, bancas(nombre)')
+            .eq('id', ticketId)
+            .single();
+
+        if (errTicket || !ticket) throw new Error("Ticket no encontrado en el sistema.");
+
+        // 2. Obtener las jugadas limpias
+        const { data: jugadas, error: errJugadas } = await supabase
+            .from('jugadas')
+            .select('*')
+            .eq('ticket_id', ticketId);
+
+        if (errJugadas) throw errJugadas;
+
+        // 3. Formatear y lanzar nuestro diseño perfecto de 2 columnas
+        const ticketData = {
+            ...ticket,
+            banca_nombre: ticket.bancas?.nombre || ticket.banca_nombre || ticket.vendedor_nombre || 'Banca',
+            detalles: jugadas,
+            jugadas: jugadas
+        };
+
+        if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
+            window.mostrarOpcionesExportacionTicket(ticketData);
+        } else {
+            alert("⚠️ Error: El motor de impresión no está listo.");
+        }
+
+    } catch (err) {
+        console.error("Error al reimprimir:", err);
+        alert("❌ No se pudo cargar el ticket: " + err.message);
+    }
+};

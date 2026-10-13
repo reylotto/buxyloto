@@ -23,11 +23,9 @@ export async function cargarHistorialTicketsCentral() {
             </tr>
         `;
 
-       // 1. Calcular la fecha exacta de hoy
         const hoy = new Date();
         const fechaHoyStr = hoy.toISOString().split('T')[0];
 
-        // 2. Ejecutar consulta filtrando solo los tickets de hoy
         const { data: tickets, error } = await supabase
             .from('tickets')
             .select('*, sorteos(nombre), bancas(nombre)')
@@ -46,12 +44,13 @@ export async function cargarHistorialTicketsCentral() {
 
         tickets.forEach(t => {
             const tr = document.createElement('tr');
-            tr.className = 'hover:bg-slate-800/50 border-b border-slate-700/50 text-xs';
+            tr.className = 'hover:bg-slate-800/50 border-b border-slate-700/50 text-xs text-center';
 
-            // Identificador prioritario para la cancelación (Código > Folio > ID)
             const codigoRef = t.codigo || t.codigo_ticket || t.folio || t.id;
             const fecha = t.created_at ? new Date(t.created_at).toLocaleString() : '--';
-            const sorteoNom = t.sorteos?.nombre || t.sorteo_nombre || t.sorteo || `Sorteo #${t.sorteo_id || ''}`;
+            
+            // Usamos tu estilo original: "6 ap." o el nombre del sorteo
+            const cantJugadas = t.detalles?.length || t.jugadas?.length ? `${t.detalles?.length || t.jugadas?.length} ap.` : (t.sorteos?.nombre || 'Varias');
             const bancaNom = t.bancas?.nombre || t.banca_nombre || t.vendedor_nombre || 'Banca General';
             const montoVenta = Number(t.total || t.monto_total || t.monto || 0).toFixed(2);
             const montoPremio = Number(t.premio || t.monto_premio || 0).toFixed(2);
@@ -74,11 +73,12 @@ export async function cargarHistorialTicketsCentral() {
 
             const esAnulable = (estatus === 'pendiente');
 
+            // 🚨 BOTÓN ACTUALIZADO PARA EVITAR EL MODAL VIEJO
             tr.innerHTML = `
                 <td class="p-3 font-mono font-bold text-cyan-400">${codigoRef}</td>
                 <td class="p-3 text-slate-300 text-[11px]">${fecha}</td>
-                <td class="p-3 text-slate-300 font-semibold">${sorteoNom}</td>
                 <td class="p-3 text-slate-300">${bancaNom}</td>
+                <td class="p-3 text-slate-300">${cantJugadas}</td>
                 <td class="p-3 font-mono font-bold text-emerald-400">$${montoVenta}</td>
                 <td class="p-3 font-mono font-bold text-white">$${montoPremio}</td>
                 <td class="p-3">
@@ -86,16 +86,16 @@ export async function cargarHistorialTicketsCentral() {
                         ${estatusText}
                     </span>
                 </td>
-                <td class="p-3 text-center space-x-1">
-                    <button onclick="window.verTicketDetalleDirecto('${t.id}')" title="Ver Detalle / Reimprimir"
+                <td class="p-3 flex justify-center items-center space-x-2">
+                    <button onclick="window.reimpresionUnificadaPOS('${t.id}')" title="Reimprimir (Formato Oficial)"
                             class="bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold">
-                        <i class="fa-solid fa-print mr-1"></i> Imprimir
+                        <i class="fa-solid fa-print mr-1"></i> Ver / Imprimir
                     </button>
                     ${esAnulable ? `
                     <button onclick="window.cancelarTicketDefinitivo('${codigoRef}')" title="Anular Ticket"
                             class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold">
-                        <i class="fa-solid fa-ban mr-1"></i> Cancelar
-                    </button>` : '<span class="text-slate-500 text-[10px] bg-slate-800 px-1.5 py-0.5 rounded">Cerrado</span>'}
+                        <i class="fa-solid fa-ban"></i>
+                    </button>` : '<span class="text-slate-500 text-[10px] bg-slate-800 px-1.5 py-0.5 rounded"><i class="fa-solid fa-lock"></i></span>'}
                 </td>
             `;
             tbody.appendChild(tr);
@@ -141,12 +141,12 @@ export async function cancelarTicketDefinitivo(ticketRef) {
 // 🏛️ INTERCEPTOR: CONECTAR HISTORIAL AL MOTOR PRINCIPAL DE TICKET MANAGER
 // =========================================================================
 if (typeof window !== 'undefined') {
-    window.verTicketDetalleDirecto = async function(ticketId) {
+    // 🚨 NUEVA FUNCIÓN: Esquiva por completo el modal viejo del HTML
+    window.reimpresionUnificadaPOS = async function(ticketId) {
         try {
             const supabase = window.supabaseClient || window.supabase;
             if (!supabase) return alert("❌ Error: Sin conexión a la base de datos.");
 
-            // 1. Obtener ticket principal
             const { data: ticket, error: errTicket } = await supabase
                 .from('tickets')
                 .select('*, bancas(nombre)')
@@ -155,7 +155,6 @@ if (typeof window !== 'undefined') {
 
             if (errTicket || !ticket) throw new Error("Ticket no encontrado en el sistema.");
 
-            // 2. Obtener las jugadas detalladas (para saber si es billete, chance, etc.)
             const { data: jugadas, error: errJugadas } = await supabase
                 .from('jugadas')
                 .select('*')
@@ -163,7 +162,6 @@ if (typeof window !== 'undefined') {
 
             if (errJugadas) throw errJugadas;
 
-            // 3. Formatear los datos como los espera nuestro formato 2 Columnas de POS
             const ticketData = {
                 ...ticket,
                 banca_nombre: ticket.bancas?.nombre || ticket.banca_nombre || ticket.vendedor_nombre || 'Banca',
@@ -171,7 +169,7 @@ if (typeof window !== 'undefined') {
                 jugadas: jugadas
             };
 
-            // 4. Lanzar la ventana de opciones oficial
+            // Llama exclusivamente a la ventana negra del ticketManager (el diseño a 2 columnas)
             if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
                 window.mostrarOpcionesExportacionTicket(ticketData);
             } else {
@@ -186,4 +184,7 @@ if (typeof window !== 'undefined') {
 
     window.cancelarTicketDefinitivo = cancelarTicketDefinitivo;
     window.anularTicket = window.cancelarTicketDefinitivo;
+    
+    // Anulamos la función vieja para que no dé problemas
+    window.verTicketDetalleDirecto = window.reimpresionUnificadaPOS;
 }

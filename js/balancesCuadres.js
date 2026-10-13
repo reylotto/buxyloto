@@ -1,10 +1,10 @@
 // ==========================================================
-// MÓDULO DE CONTROL DE CUADRES Y BALANCES
+// MÓDULO DE CONTROL DE CUADRES Y BALANCES (NUBE - SUPABASE)
 // ==========================================================
 
 let estadoBalances = {
     vendedores: [],
-    pagosLocales: JSON.parse(localStorage.getItem('buxy_pagos_vendedores')) || [],
+    pagosLocales: [], // Ahora vendrá de la base de datos
     vendedorActual: null
 };
 
@@ -43,7 +43,13 @@ window.cargarResumenBalances = async function() {
     tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-emerald-400"><i class="fa-solid fa-spinner fa-spin"></i> Calculando balances globales...</td></tr>';
 
     try {
+        // Cargar tickets de la nube
         const { data: tickets } = await window.supabase.from('tickets').select('*');
+        
+        // 🚨 NUEVO: Cargar los pagos directamente desde Supabase
+        const { data: pagosBD } = await window.supabase.from('pagos_bancas').select('*');
+        estadoBalances.pagosLocales = pagosBD || [];
+
         let html = '';
 
         estadoBalances.vendedores.forEach(b => {
@@ -61,13 +67,13 @@ window.cargarResumenBalances = async function() {
                 }
             });
 
-            // Contabilidad Inteligente
-            const pagosVendedor = estadoBalances.pagosLocales.filter(p => String(p.bancaId) === String(b.id));
+            // Contabilidad Inteligente con los datos de Supabase (usamos banca_id)
+            const pagosVendedor = estadoBalances.pagosLocales.filter(p => String(p.banca_id) === String(b.id));
             const totIngresos = pagosVendedor.filter(p => p.tipo === 'ingreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
             const totEgresos = pagosVendedor.filter(p => p.tipo === 'egreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
 
             const resultadoNeto = ventas - premios - comisiones;
-            const balanceFinal = resultadoNeto - totIngresos + totEgresos; // Si recibimos plata (ingreso) la deuda baja. Si le pagamos (egreso) la deuda sube.
+            const balanceFinal = resultadoNeto - totIngresos + totEgresos; 
             
             const colorClass = balanceFinal >= 0 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
             const nombre = b.nombre_banca || b.vendedor_nombre || b.name || `Banca #${b.id}`;
@@ -96,7 +102,6 @@ window.cargarResumenBalances = async function() {
     }
 };
 
-// Se arregló el error de consola al hacer clic en "Cuadrar"
 window.irACuadreDetalle = function(bancaId) {
     const select = document.getElementById('cuadre-vendedor');
     if (select) select.value = bancaId;
@@ -168,21 +173,22 @@ window.generarDetalleCuadre = async function() {
         });
         tbodyVentas.innerHTML = htmlVentas || '<tr><td colspan="5" class="text-center py-4 text-slate-500">No hay ventas en este rango.</td></tr>';
 
-        // Cargar Pagos Negativos/Positivos
-        const pagosVendedor = estadoBalances.pagosLocales.filter(p => String(p.bancaId) === String(bancaId));
+        // 🚨 NUEVO: Obtener los pagos desde el estado sincronizado de la nube
+        const pagosVendedor = estadoBalances.pagosLocales.filter(p => String(p.banca_id) === String(bancaId));
         
         const totIngresos = pagosVendedor.filter(p => p.tipo === 'ingreso').reduce((a, b) => a + parseFloat(b.monto), 0);
         const totEgresos = pagosVendedor.filter(p => p.tipo === 'egreso').reduce((a, b) => a + parseFloat(b.monto), 0);
-        const impactoVisualPagos = totIngresos - totEgresos; // Solo para mostrar en la tablita de pagos
+        const impactoVisualPagos = totIngresos - totEgresos;
 
         const tbodyPagos = document.getElementById('tabla-pagos-negativos');
         tbodyPagos.innerHTML = pagosVendedor.map(p => {
             const esIngreso = p.tipo === 'ingreso';
+            const fechaDisplay = p.created_at ? new Date(p.created_at).toLocaleString('es-PA', { dateStyle: 'short', timeStyle: 'short' }) : 'Reciente';
             return `
             <tr class="border-b border-slate-700/50">
-                <td class="p-3 pl-4 font-mono text-[10px]">${p.fecha}</td>
+                <td class="p-3 pl-4 font-mono text-[10px]">${fechaDisplay}</td>
                 <td class="p-3 text-right font-mono font-bold ${esIngreso ? 'text-cyan-400' : 'text-rose-400'}">${esIngreso ? '+$' : '-$'}${parseFloat(p.monto).toFixed(2)}</td>
-                <td class="p-3 text-center text-slate-400">${esIngreso ? 'Banca Pagó a Casa' : 'Casa Pagó a Banca'}</td>
+                <td class="p-3 text-center text-slate-400 text-[10px]">${p.responsable || 'Admin'}</td>
             </tr>
         `}).join('') || '<tr><td colspan="3" class="text-center py-4 text-slate-500">No hay pagos registrados.</td></tr>';
 
@@ -205,10 +211,9 @@ window.generarDetalleCuadre = async function() {
     }
 };
 
-window.procesarPagoVendedor = function(tipoMovimiento) {
+window.procesarPagoVendedor = async function(tipoMovimiento) {
     if (!estadoBalances.vendedorActual) return alert("Seleccione un vendedor primero.");
     const balanceTexto = document.getElementById('cuadre-val-balance').textContent.replace('$', '');
-    const maxSaldo = parseFloat(balanceTexto);
 
     let mensaje = tipoMovimiento === 'ingreso' 
         ? `⬇️ RECIBIR DINERO DE BANCA\nLa banca le está entregando dinero a la Casa.\n\nIngrese el monto:`
@@ -220,17 +225,32 @@ window.procesarPagoVendedor = function(tipoMovimiento) {
     
     if (isNaN(monto) || monto <= 0) return alert("Monto inválido. Ingrese un número mayor a 0 sin el signo de menos.");
 
-    const nuevoPago = {
-        bancaId: estadoBalances.vendedorActual.id,
-        fecha: new Date().toLocaleString(),
-        monto: monto,
-        tipo: tipoMovimiento, // 'ingreso' o 'egreso'
-        responsable: window.currentUserProfile?.email || 'Administrador'
-    };
+    try {
+        let responsable = 'Administrador';
+        if (window.currentUserProfile) {
+            responsable = window.currentUserProfile.email || window.currentUserProfile.user_metadata?.full_name || 'Administrador';
+        }
 
-    estadoBalances.pagosLocales.push(nuevoPago);
-    localStorage.setItem('buxy_pagos_vendedores', JSON.stringify(estadoBalances.pagosLocales));
+        const nuevoPago = {
+            banca_id: estadoBalances.vendedorActual.id,
+            monto: monto,
+            tipo: tipoMovimiento, // 'ingreso' o 'egreso'
+            responsable: responsable
+        };
 
-    alert(`✅ Registro guardado exitosamente.\nEl balance se ha actualizado.`);
-    window.generarDetalleCuadre(); 
+        // 🚨 NUEVO: Guardar pago directamente en Supabase
+        const { error } = await window.supabase.from('pagos_bancas').insert([nuevoPago]);
+
+        if (error) throw error;
+
+        alert(`✅ Registro guardado exitosamente en la nube.\nEl balance se ha sincronizado para todos los dispositivos.`);
+        
+        // Refrescar vistas conectadas a la base de datos
+        await window.cargarResumenBalances();
+        await window.generarDetalleCuadre(); 
+        
+    } catch (e) {
+        console.error("Error al registrar pago en Supabase:", e);
+        alert("❌ Error al guardar el pago. Verifique su conexión.");
+    }
 };

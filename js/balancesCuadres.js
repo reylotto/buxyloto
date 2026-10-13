@@ -268,12 +268,13 @@ window.procesarPagoVendedor = async function(tipoMovimiento) {
             responsable = window.currentUserProfile.email || window.currentUserProfile.user_metadata?.full_name || 'Administrador';
         }
 
-        // 🚨 NUEVO: Incluir banca_nombre para mayor legibilidad en BD
-        const bancaNombre = estadoBalances.vendedorActual.nombre_banca || estadoBalances.vendedorActual.vendedor_nombre || `Banca ${estadoBalances.vendedorActual.id}`;
+        // Obtener el nombre de la banca de forma segura
+        const b = estadoBalances.vendedorActual;
+        const nombreBancaReal = b.nombre_banca || b.vendedor_nombre || b.name || `Banca ${b.id}`;
 
         const nuevoPago = {
-            banca_id: estadoBalances.vendedorActual.id,
-            banca_nombre: bancaNombre, 
+            banca_id: String(b.id),
+            banca_nombre: String(nombreBancaReal), // 👈 Aseguramos que se envíe explícitamente como texto
             monto: monto,
             tipo: tipoMovimiento,
             responsable: responsable
@@ -290,7 +291,7 @@ window.procesarPagoVendedor = async function(tipoMovimiento) {
         
     } catch (e) {
         console.error("Error al registrar pago en Supabase:", e);
-        alert("❌ Error al guardar el pago. Verifique su conexión.");
+        alert("❌ Error al guardar el pago: " + e.message);
     }
 };
 

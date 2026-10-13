@@ -4,7 +4,7 @@
 
 let estadoBalances = {
     vendedores: [],
-    pagosLocales: [], // Ahora vendrá de la base de datos
+    pagosLocales: [], 
     vendedorActual: null
 };
 
@@ -43,17 +43,14 @@ window.cargarResumenBalances = async function() {
     tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-emerald-400"><i class="fa-solid fa-spinner fa-spin"></i> Calculando balances globales...</td></tr>';
 
     try {
-        // Cargar tickets de la nube
         const { data: tickets } = await window.supabase.from('tickets').select('*');
-        
-        // 🚨 NUEVO: Cargar los pagos directamente desde Supabase
         const { data: pagosBD } = await window.supabase.from('pagos_bancas').select('*');
         estadoBalances.pagosLocales = pagosBD || [];
 
         let html = '';
 
         estadoBalances.vendedores.forEach(b => {
-            const ticketsVendedor = (tickets || []).filter(t => String(t.banca_id) === String(b.id) && t.estatus !== 'cancelado');
+            const ticketsVendedor = (tickets || []).filter(t => String(t.banca_id) === String(b.id) && String(t.estatus).toLowerCase() !== 'cancelado' && String(t.estatus).toLowerCase() !== 'anulado');
             
             let ventas = 0; let premios = 0; let comisiones = 0;
             const comisionPct = parseFloat(b.comision || 10) / 100;
@@ -62,12 +59,17 @@ window.cargarResumenBalances = async function() {
                 const ventaT = parseFloat(t.monto_total || 0);
                 ventas += ventaT;
                 comisiones += ventaT * comisionPct;
-                if (String(t.estatus).toLowerCase() === 'premiado') {
-                    premios += parseFloat(t.monto_premio || 0);
+                if (String(t.estatus).toLowerCase() === 'premiado' || String(t.estatus).toLowerCase() === 'ganador') {
+                    let premioVal = parseFloat(t.monto_premio || t.premio || 0);
+                    if(premioVal === 0 && Array.isArray(t.jugadas || t.detalles)){
+                        (t.jugadas || t.detalles).forEach(j => {
+                            premioVal += parseFloat(j.premio || j.monto_premio || 0);
+                        });
+                    }
+                    premios += premioVal;
                 }
             });
 
-            // Contabilidad Inteligente con los datos de Supabase (usamos banca_id)
             const pagosVendedor = estadoBalances.pagosLocales.filter(p => String(p.banca_id) === String(b.id));
             const totIngresos = pagosVendedor.filter(p => p.tipo === 'ingreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
             const totEgresos = pagosVendedor.filter(p => p.tipo === 'egreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
@@ -140,14 +142,26 @@ window.generarDetalleCuadre = async function() {
         const agrupadoDias = {};
 
         (tickets || []).forEach(t => {
-            if (t.estatus === 'cancelado') return;
-            const dia = t.created_at.split('T')[0];
+            const estatus = String(t.estatus || t.estado || '').toLowerCase();
+            if (estatus === 'cancelado' || estatus === 'anulado') return;
+            
+            const dia = (t.created_at || t.createdAt).split('T')[0];
             if (!agrupadoDias[dia]) agrupadoDias[dia] = { ventas: 0, premios: 0, comision: 0 };
             
-            const venta = parseFloat(t.monto_total || 0);
-            const comision = venta * comisionPct;
+            const venta = parseFloat(t.monto_total || t.monto || t.total || 0);
+            let pctComisionIndividual = comisionPct;
+            if(t.comision_porcentaje) pctComisionIndividual = parseFloat(t.comision_porcentaje)/100;
+            
+            const comision = venta * pctComisionIndividual;
             let premio = 0;
-            if (String(t.estatus).toLowerCase() === 'premiado') premio = parseFloat(t.monto_premio || 0);
+            if (estatus === 'premiado' || estatus === 'ganador') {
+                premio = parseFloat(t.monto_premio || t.premio || 0);
+                if(premio === 0 && Array.isArray(t.jugadas || t.detalles)){
+                    (t.jugadas || t.detalles).forEach(j => {
+                        premio += parseFloat(j.premio || j.monto_premio || 0);
+                    });
+                }
+            }
 
             agrupadoDias[dia].ventas += venta;
             agrupadoDias[dia].comision += comision;
@@ -173,7 +187,10 @@ window.generarDetalleCuadre = async function() {
         });
         tbodyVentas.innerHTML = htmlVentas || '<tr><td colspan="5" class="text-center py-4 text-slate-500">No hay ventas en este rango.</td></tr>';
 
-        // 🚨 NUEVO: Obtener los pagos desde el estado sincronizado de la nube
+        // RECARGAR PAGOS PARA ESTAR 100% SEGUROS
+        const { data: pagosBD } = await window.supabase.from('pagos_bancas').select('*');
+        estadoBalances.pagosLocales = pagosBD || [];
+
         const pagosVendedor = estadoBalances.pagosLocales.filter(p => String(p.banca_id) === String(bancaId));
         
         const totIngresos = pagosVendedor.filter(p => p.tipo === 'ingreso').reduce((a, b) => a + parseFloat(b.monto), 0);
@@ -181,16 +198,24 @@ window.generarDetalleCuadre = async function() {
         const impactoVisualPagos = totIngresos - totEgresos;
 
         const tbodyPagos = document.getElementById('tabla-pagos-negativos');
+        
+        // 🚨 NUEVO: Ahora incluimos el botón de anular (eliminar)
         tbodyPagos.innerHTML = pagosVendedor.map(p => {
             const esIngreso = p.tipo === 'ingreso';
             const fechaDisplay = p.created_at ? new Date(p.created_at).toLocaleString('es-PA', { dateStyle: 'short', timeStyle: 'short' }) : 'Reciente';
+            const tipoIcono = esIngreso ? '<i class="fa-solid fa-arrow-down text-emerald-400 mr-1" title="Banca Pagó"></i>' : '<i class="fa-solid fa-arrow-up text-rose-400 mr-1" title="Casa Pagó"></i>';
             return `
-            <tr class="border-b border-slate-700/50">
-                <td class="p-3 pl-4 font-mono text-[10px]">${fechaDisplay}</td>
+            <tr class="border-b border-slate-700/50 hover:bg-slate-800/50 transition">
+                <td class="p-3 pl-4 font-mono text-[10px] text-slate-300">${tipoIcono} ${fechaDisplay}</td>
                 <td class="p-3 text-right font-mono font-bold ${esIngreso ? 'text-cyan-400' : 'text-rose-400'}">${esIngreso ? '+$' : '-$'}${parseFloat(p.monto).toFixed(2)}</td>
                 <td class="p-3 text-center text-slate-400 text-[10px]">${p.responsable || 'Admin'}</td>
+                <td class="p-3 text-center pr-4">
+                     <button onclick="window.eliminarPagoRegistrado('${p.id}')" class="text-rose-500 hover:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-1 rounded transition text-[10px]" title="Anular / Eliminar Pago">
+                        <i class="fa-solid fa-xmark"></i>
+                     </button>
+                </td>
             </tr>
-        `}).join('') || '<tr><td colspan="3" class="text-center py-4 text-slate-500">No hay pagos registrados.</td></tr>';
+        `}).join('') || '<tr><td colspan="4" class="text-center py-4 text-slate-500">No hay pagos registrados.</td></tr>';
 
         // Matemáticas perfectas
         const totResultado = totVentas - totPremios - totComision;
@@ -223,7 +248,7 @@ window.procesarPagoVendedor = async function(tipoMovimiento) {
     if (montoStr === null || montoStr.trim() === '') return;
     const monto = parseFloat(montoStr);
     
-    if (isNaN(monto) || monto <= 0) return alert("Monto inválido. Ingrese un número mayor a 0 sin el signo de menos.");
+    if (isNaN(monto) || monto <= 0) return alert("Monto inválido. Ingrese un número mayor a 0.");
 
     try {
         let responsable = 'Administrador';
@@ -231,26 +256,53 @@ window.procesarPagoVendedor = async function(tipoMovimiento) {
             responsable = window.currentUserProfile.email || window.currentUserProfile.user_metadata?.full_name || 'Administrador';
         }
 
+        // 🚨 NUEVO: Incluir banca_nombre para mayor legibilidad en BD
+        const bancaNombre = estadoBalances.vendedorActual.nombre_banca || estadoBalances.vendedorActual.vendedor_nombre || `Banca ${estadoBalances.vendedorActual.id}`;
+
         const nuevoPago = {
             banca_id: estadoBalances.vendedorActual.id,
+            banca_nombre: bancaNombre, 
             monto: monto,
-            tipo: tipoMovimiento, // 'ingreso' o 'egreso'
+            tipo: tipoMovimiento,
             responsable: responsable
         };
 
-        // 🚨 NUEVO: Guardar pago directamente en Supabase
         const { error } = await window.supabase.from('pagos_bancas').insert([nuevoPago]);
 
         if (error) throw error;
 
-        alert(`✅ Registro guardado exitosamente en la nube.\nEl balance se ha sincronizado para todos los dispositivos.`);
+        alert(`✅ Registro guardado exitosamente en la nube.`);
         
-        // Refrescar vistas conectadas a la base de datos
         await window.cargarResumenBalances();
         await window.generarDetalleCuadre(); 
         
     } catch (e) {
         console.error("Error al registrar pago en Supabase:", e);
         alert("❌ Error al guardar el pago. Verifique su conexión.");
+    }
+};
+
+// 🚨 NUEVO: Función para eliminar / anular un pago
+window.eliminarPagoRegistrado = async function(pagoId) {
+    if (!pagoId) return;
+    
+    if(!confirm("¿Está seguro de que desea eliminar este pago? Esta acción revertirá el balance y no se puede deshacer.")) {
+        return;
+    }
+
+    try {
+        const { error } = await window.supabase.from('pagos_bancas').delete().eq('id', pagoId);
+        
+        if (error) throw error;
+
+        alert("✅ Pago eliminado correctamente. El balance se ha recalculado.");
+        
+        // Recargar datos para mostrar los cambios
+        await window.cargarResumenBalances();
+        await window.generarDetalleCuadre();
+        
+    } catch (e) {
+        console.error("Error al eliminar pago:", e);
+        alert("❌ Error al eliminar el pago: " + e.message);
     }
 };

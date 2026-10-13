@@ -120,11 +120,25 @@ window.generarDetalleCuadre = async function() {
 
     if (!bancaId) return alert("Por favor seleccione un vendedor para ver el cuadre.");
 
-    const vendedor = estadoBalances.vendedores.find(v => String(v.id) === String(bancaId));
+    // 🛡️ BLINDAJE: Si la lista está vacía, intentamos cargarla o rescatarla de Supabase
+    if (!estadoBalances.vendedores || estadoBalances.vendedores.length === 0) {
+        const { data: bancasSupabase } = await window.supabase.from('bancas').select('*');
+        estadoBalances.vendedores = bancasSupabase || [];
+    }
+
+    let vendedor = estadoBalances.vendedores.find(v => String(v.id) === String(bancaId));
+    
+    // Si aún así no se encuentra en memoria, hacemos una consulta directa de rescate
+    if (!vendedor) {
+        const { data: bancaDirecta } = await window.supabase.from('bancas').select('*').eq('id', bancaId).maybeSingle();
+        vendedor = bancaDirecta || { id: bancaId, nombre_banca: 'Banca ' + bancaId, comision: 10 };
+    }
+
     estadoBalances.vendedorActual = vendedor;
     const comisionPct = parseFloat(vendedor?.comision || 10) / 100;
 
-    document.getElementById('cuadre-nombre-vendedor').textContent = vendedor.nombre_banca || vendedor.vendedor_nombre;
+    const nombreVendedorDisplay = vendedor.nombre_banca || vendedor.vendedor_nombre || vendedor.name || `Banca ${bancaId}`;
+    document.getElementById('cuadre-nombre-vendedor').textContent = nombreVendedorDisplay;
     document.getElementById('cuadre-rango-fechas').textContent = `${fDesde} al ${fHasta}`;
 
     const tbodyVentas = document.getElementById('tabla-detalles-ventas');
@@ -187,7 +201,7 @@ window.generarDetalleCuadre = async function() {
         });
         tbodyVentas.innerHTML = htmlVentas || '<tr><td colspan="5" class="text-center py-4 text-slate-500">No hay ventas en este rango.</td></tr>';
 
-        // RECARGAR PAGOS PARA ESTAR 100% SEGUROS
+        // RECARGAR PAGOS DESDE SUPABASE
         const { data: pagosBD } = await window.supabase.from('pagos_bancas').select('*');
         estadoBalances.pagosLocales = pagosBD || [];
 
@@ -199,7 +213,6 @@ window.generarDetalleCuadre = async function() {
 
         const tbodyPagos = document.getElementById('tabla-pagos-negativos');
         
-        // 🚨 NUEVO: Ahora incluimos el botón de anular (eliminar)
         tbodyPagos.innerHTML = pagosVendedor.map(p => {
             const esIngreso = p.tipo === 'ingreso';
             const fechaDisplay = p.created_at ? new Date(p.created_at).toLocaleString('es-PA', { dateStyle: 'short', timeStyle: 'short' }) : 'Reciente';
@@ -217,7 +230,6 @@ window.generarDetalleCuadre = async function() {
             </tr>
         `}).join('') || '<tr><td colspan="4" class="text-center py-4 text-slate-500">No hay pagos registrados.</td></tr>';
 
-        // Matemáticas perfectas
         const totResultado = totVentas - totPremios - totComision;
         const balanceNeto = totResultado - totIngresos + totEgresos;
 

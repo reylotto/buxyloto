@@ -67,28 +67,48 @@ export function iniciarAplicacionPrincipal() {
 }
 
 function configurarNavegacion() {
-    const navButtons = document.querySelectorAll('[data-target-view]');
+    // 1. Ampliamos el radar para detectar cualquier botón de menú sin importar su estructura
+    const navButtons = document.querySelectorAll('[data-target], [data-target-view], [data-section]');
 
     navButtons.forEach(btn => {
-        // Clonar el botón para evitar duplicar listeners si se llama varias veces
-        const nuevoBtn = btn.cloneNode(true);
-        btn.replaceWith(nuevoBtn);
-
-        nuevoBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            const targetViewId = nuevoBtn.getAttribute('data-target-view');
-            cambiarVista(targetViewId);
+        // 🚨 SOLUCIÓN: Eliminamos la clonación (btn.cloneNode) que destruía los eventos nativos.
+        // Ahora solo "escuchamos" el clic en paralelo a tu plantilla sin romper nada.
+        btn.addEventListener('click', () => {
+            const targetViewId = btn.getAttribute('data-target') || btn.getAttribute('data-target-view') || btn.getAttribute('data-section');
+            if (targetViewId) {
+                cambiarVista(targetViewId);
+            }
         });
     });
 }
 
 export function cambiarVista(targetViewId) {
-    const vistas = document.querySelectorAll('.app-view');
-    vistas.forEach(vista => vista.classList.add('hidden'));
+    // 2. Control aislado y forzado sobre la sección de Balances y Cuadres
+    const sectionReports = document.getElementById('section-reports');
+    if (sectionReports) {
+        if (targetViewId === 'section-reports') {
+            sectionReports.classList.remove('hidden');
+            sectionReports.style.display = 'block';
+        } else {
+            sectionReports.classList.add('hidden');
+            sectionReports.style.display = 'none'; // Cortar de raíz cualquier superposición
+        }
+    }
 
+    // 3. Control seguro sobre todas las demás vistas posibles de la plantilla
+    const vistas = document.querySelectorAll('.app-view, .content-section, section[id^="section-"]');
+    vistas.forEach(vista => {
+        if (vista.id !== targetViewId && vista.id !== 'section-reports') {
+            vista.classList.add('hidden');
+            vista.style.display = 'none';
+        }
+    });
+
+    // 4. Activar visualmente la vista solicitada
     const vistaActiva = document.getElementById(targetViewId);
     if (vistaActiva) {
         vistaActiva.classList.remove('hidden');
+        vistaActiva.style.display = 'block'; 
         localStorage.setItem('buxy_active_tab', targetViewId);
     }
 }

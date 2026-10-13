@@ -604,11 +604,10 @@ window.reimprimirTicketUnificado = async function(ticketId) {
 };
 
 // ==========================================================
-// INTERCEPTOR ABSOLUTO: ELIMINA ALERTAS Y FUERZA EL DISEÑO A 2 COLUMNAS
+// INTERCEPTOR ABSOLUTO: EXTRAE JUGADAS DESDE CUALQUIER FORMATO
 // ==========================================================
 if (typeof window !== 'undefined') {
     window.showTicketModal = async function(ticketInput) {
-        // Bloquear alertas nativas momentáneamente
         const originalAlert = window.alert;
         window.alert = function(msg) {
             if (typeof msg === 'string' && (msg.includes('JUGADAS:') || msg.includes('TOTAL:'))) return; 
@@ -618,40 +617,63 @@ if (typeof window !== 'undefined') {
         try {
             if (!ticketInput) return;
             let ticketData = ticketInput;
+            let jugadasExtraidas = [];
 
             if (typeof ticketInput === 'string' || typeof ticketInput === 'number') {
                 const supabase = window.supabaseClient || window.supabase;
                 if (supabase) {
+                    // Obtener el ticket principal
                     const { data: tData } = await supabase.from('tickets').select('*, bancas(nombre)').eq('id', ticketInput).single();
+                    
+                    // Buscar en la tabla jugadas
                     const { data: jData } = await supabase.from('jugadas').select('*').eq('ticket_id', ticketInput);
+                    
+                    if (jData && jData.length > 0) {
+                        jugadasExtraidas = jData;
+                    } else if (tData) {
+                        // Si no hay en tabla jugadas, intentar extraer del JSON en 'detalles' o 'jugadas' del ticket
+                        let posiblesJugadas = tData.detalles || tData.jugadas || tData.items || [];
+                        if (typeof posiblesJugadas === 'string') {
+                            try {
+                                posiblesJugadas = JSON.parse(posiblesJugadas);
+                            } catch (e) {
+                                posiblesJugadas = [];
+                            }
+                        }
+                        if (Array.isArray(posiblesJugadas)) {
+                            jugadasExtraidas = posiblesJugadas;
+                        }
+                    }
+
                     if (tData) {
-                        ticketData = { ...tData, banca_nombre: tData.bancas?.nombre || 'Banca', detalles: jData || [] };
+                        ticketData = { ...tData, banca_nombre: tData.bancas?.nombre || 'Banca', detalles: jugadasExtraidas };
                     }
                 }
             } else {
+                let posiblesJugadas = ticketInput.detalles || ticketInput.jugadas || ticketInput.items || [];
+                if (typeof posiblesJugadas === 'string') {
+                    try { posiblesJugadas = JSON.parse(posiblesJugadas); } catch (e) { posiblesJugadas = []; }
+                }
                 ticketData = {
                     ...ticketInput,
                     codigo_ticket: ticketInput.codigo_ticket || ticketInput.folio || 'BX-000000',
                     monto_total: parseFloat(ticketInput.monto_total || ticketInput.total || 0).toFixed(2),
-                    detalles: ticketInput.detalles || ticketInput.jugadas || []
+                    detalles: posiblesJugadas,
+                    jugadas: posiblesJugadas
                 };
             }
 
-            // Ocultar el modal HTML viejo si está abierto
             const oldModal = document.getElementById('modal-ticket-view');
             if (oldModal) oldModal.style.display = 'none';
 
-            // Lanzar el panel moderno de 2 columnas
             if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
                 window.mostrarOpcionesExportacionTicket(ticketData);
             }
         } finally {
-            // Restaurar alertas normales
             setTimeout(() => { window.alert = originalAlert; }, 500);
         }
     };
     
-    // Conectar botones del historial
     window.reimprimirTicketUnificado = window.showTicketModal;
     window.reimpresionUnificadaPOS = window.showTicketModal;
     window.verTicketDetalleDirecto = window.showTicketModal;

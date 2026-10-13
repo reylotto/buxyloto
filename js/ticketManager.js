@@ -569,6 +569,8 @@ window.reimprimirTicketUnificado = async function(ticketId) {
         // 3. Formatear y lanzar nuestro diseño perfecto de 2 columnas
         const ticketData = {
             ...ticket,
+            codigo_ticket: ticket.codigo_ticket || ticket.folio || ticket.codigo || 'BX-000000',
+            monto_total: parseFloat(ticket.monto_total || ticket.total || ticket.monto || 0).toFixed(2),
             banca_nombre: ticket.bancas?.nombre || ticket.banca_nombre || ticket.vendedor_nombre || 'Banca',
             detalles: jugadas,
             jugadas: jugadas
@@ -585,3 +587,7 @@ window.reimprimirTicketUnificado = async function(ticketId) {
         alert("❌ No se pudo cargar el ticket: " + err.message);
     }
 };
+
+// 🌟 ALIAS UNIVERSALES: Conectan cualquier nombre de función directamente al motor moderno de 2 columnas
+window.reimpresionUnificadaPOS = window.reimprimirTicketUnificado;
+window.verTicketDetalleDirecto = window.reimprimirTicketUnificado;

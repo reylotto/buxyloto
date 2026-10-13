@@ -2690,38 +2690,70 @@ if (btnProcessEl) {
        function showTicketModal(ticket) {
     if (!ticket) return;
 
-    // Normalizar items/apuestas/jugadas para asegurar compatibilidad total con el motor unificado
+    // Proteger cfg para evitar ReferenceError
+    const cfg = (window.AppState && window.AppState.config) || window.cfg || {
+        companyName: 'BUXY LOTO',
+        iconClass: 'fa-ticket',
+        footerMessage: '¡Gracias por su compra! Conserve este boleto.',
+        phone: '507-0000-0000'
+    };
+
+    // Normalizar items/apuestas/jugadas
     let items = ticket.items || ticket.apuestas || ticket.jugadas || ticket.detalles || [];
     if (typeof items === 'string') {
         try { items = JSON.parse(items); } catch(e) { items = []; }
     }
     if (!Array.isArray(items)) items = [];
+    ticket.items = items;
 
-    // Resolver el nombre de la banca y del sorteo correctamente
+    // Normalizar datos de banca y loterías
     const banca = ticket.bancaObj || (window.AppState?.bancas?.find(b => b.id === ticket.bancaId));
-    const bancaNombreFinal = ticket.bancaNombre || banca?.nombre || banca?.name || ticket.banca_nombre || 'Banca Central';
-    const sorteoNombreFinal = ticket.loteriaNombre || ticket.sorteo_nombre || ticket.sorteo || 'Sorteo General';
+    const loteriaNames = ticket.loteriaNombre || ticket.sorteo_nombre || ticket.sorteo || 'Sorteo General';
 
-    // Construir el objeto de datos unificado para el motor moderno de 2 columnas
-    const ticketData = {
-        ...ticket,
-        codigo_ticket: ticket.folio || ticket.codigo_ticket || ticket.codigo || 'BX-000000',
-        monto_total: parseFloat(ticket.total || ticket.monto_total || ticket.monto || 0).toFixed(2),
-        banca_nombre: bancaNombreFinal,
-        sorteo_nombre: sorteoNombreFinal,
-        detalles: items,
-        jugadas: items
-    };
+    // Rellenar datos en la plantilla
+    const compEl = document.getElementById('ticket-view-company-name');
+    if (compEl) compEl.textContent = cfg.companyName || 'BUXY LOTO';
 
-    // Redirigir la visualización al motor moderno unificado (ticketManager.js)
-    if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
-        window.mostrarOpcionesExportacionTicket(ticketData);
-    } else {
-        console.error("⚠️ El gestor de tickets unificado (ticketManager) no está cargado.");
-        alert("Error al mostrar el ticket. Verifique la consola.");
+    const iconEl = document.getElementById('ticket-view-logo-icon');
+    if (iconEl) iconEl.className = `fa-solid ${cfg.iconClass || 'fa-ticket'} text-emerald-600 text-base mr-1`;
+
+    const footEl = document.getElementById('ticket-view-footer-msg');
+    if (footEl) footEl.textContent = cfg.footerMessage || '¡Gracias por su compra!';
+
+    const phoneEl = document.getElementById('ticket-view-phone');
+    if (phoneEl) phoneEl.textContent = `Tel: ${cfg.phone || 'N/A'}`;
+
+    const bancaEl = document.getElementById('ticket-view-banca');
+    if (bancaEl) bancaEl.textContent = ticket.bancaNombre || (banca ? `${banca.nombre || banca.name} (${banca.codigo || banca.code || ''})` : 'Banca Central');
+
+    const dateEl = document.getElementById('ticket-view-date');
+    if (dateEl) dateEl.textContent = ticket.createdAt || new Date().toLocaleString();
+
+    const folioEl = document.getElementById('ticket-view-folio');
+    if (folioEl) folioEl.textContent = `#${ticket.folio}`;
+
+    const loteriaEl = document.getElementById('ticket-view-loterias');
+    if (loteriaEl) loteriaEl.textContent = loteriaNames;
+
+    const totalEl = document.getElementById('ticket-view-total');
+    if (totalEl) totalEl.textContent = `$${parseFloat(ticket.total || 0).toFixed(2)}`;
+
+    // Manejar etiqueta de COPIA si aplica
+    const copyBadge = document.getElementById('ticket-view-copy-badge');
+    if (ticket.esCopia) {
+        if (!copyBadge) {
+            const badge = document.createElement('div');
+            badge.id = 'ticket-view-copy-badge';
+            badge.className = 'text-center font-bold text-red-500 text-sm border border-dashed border-red-500 my-2 p-1 rounded';
+            badge.textContent = '*** REIMPRESIÓN / COPIA ***';
+            const printable = document.getElementById('printable-ticket') || document.getElementById('modal-ticket-view');
+            if (printable) printable.insertBefore(badge, printable.firstChild);
+        } else {
+            copyBadge.classList.remove('hidden');
+        }
+    } else if (copyBadge) {
+        copyBadge.classList.add('hidden');
     }
-}
-window.showTicketModal = showTicketModal;
 
     // Renderizar lista de jugadas
     const itemsContainer = document.getElementById('ticket-view-items-list');

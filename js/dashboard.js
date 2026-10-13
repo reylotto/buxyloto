@@ -1004,5 +1004,34 @@ document.addEventListener('DOMContentLoaded', () => {
         suscribirEventosTiempoReal();
     }
 });
+// ==========================================================
+// CONTROL DEFINITIVO DE LA ALERTA DE SORTEO INMINENTE
+// ==========================================================
+document.addEventListener('DOMContentLoaded', () => {
+    // Buscar el botón Entendido de la alerta superior
+    const btnEntendido = document.querySelector('#section-dashboard button, .admin-only button, button') ;
+    
+    // Si el usuario ya le dio clic anteriormente en esta sesión, ocultarla de inmediato
+    const alertaSilenciada = sessionStorage.getItem('buxy_alerta_silenciada');
+    if (alertaSilenciada) {
+        const contenedorAlerta = document.querySelector('.bg-red-500\\/10, [class*="bg-red"], [class*="border-red"]');
+        if (contenedorAlerta) contenedorAlerta.style.display = 'none';
+    }
+
+    // Escuchar el clic en el botón Entendido para silenciarla y pausar cualquier sonido
+    document.addEventListener('click', (e) => {
+        if (e.target && (e.target.textContent.includes('Entendido') || e.target.closest('button')?.textContent.includes('Entendido'))) {
+            sessionStorage.setItem('buxy_alerta_silenciada', 'true');
+            
+            // Buscar y ocultar el banner rojo de alerta de forma suave
+            const banner = e.target.closest('div[class*="bg-"]');
+            if (banner) {
+                banner.style.transition = 'opacity 0.3s ease';
+                banner.style.opacity = '0';
+                setTimeout(() => banner.style.display = 'none', 300);
+            }
+        }
+    });
+});
 window.initPerfilAdmin = initPerfilAdmin;
 window.guardarPerfilAdmin = guardarPerfilAdmin;

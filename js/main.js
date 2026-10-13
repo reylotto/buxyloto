@@ -2,7 +2,8 @@
 import { initPOSModule } from './pos.js';
 import { initDashboardModule } from './dashboard.js';
 import { initAdminModule } from './admin.js';
-import { initBalancesCuadresModule } from './balancesCuadres.js'; // 👈 ¡Nuevo módulo integrado!
+import { initBalancesCuadresModule } from './balancesCuadres.js';
+import { initReportesModule, initTicketsHistoryModule } from './reportes.js'; // 👈 ¡AQUÍ CONECTAMOS EL MÓDULO DE REPORTES Y FILTROS!
 
 // 1. Detección inmediata de sesión al cargar la página (Anti-cierre con F5)
 document.addEventListener('DOMContentLoaded', async () => {
@@ -62,17 +63,19 @@ export function iniciarAplicacionPrincipal() {
     initDashboardModule();
     initPOSModule();
     initAdminModule();
-    initBalancesCuadresModule(); // 👈 ¡Inicializamos el módulo de balances y cuadres aquí!
+    initBalancesCuadresModule();
+    
+    // 🚨 AQUÍ ENCENDEMOS LOS FILTROS DE AUDITORÍA Y EL HISTORIAL
+    initReportesModule();
+    initTicketsHistoryModule();
+
     restaurarUltimaVista();
 }
 
 function configurarNavegacion() {
-    // 1. Ampliamos el radar para detectar cualquier botón de menú sin importar su estructura
+    // Escucha universal para que el menú lateral funcione perfectamente sin importar la clase
     const navButtons = document.querySelectorAll('[data-target], [data-target-view], [data-section]');
-
     navButtons.forEach(btn => {
-        // 🚨 SOLUCIÓN: Eliminamos la clonación (btn.cloneNode) que destruía los eventos nativos.
-        // Ahora solo "escuchamos" el clic en paralelo a tu plantilla sin romper nada.
         btn.addEventListener('click', () => {
             const targetViewId = btn.getAttribute('data-target') || btn.getAttribute('data-target-view') || btn.getAttribute('data-section');
             if (targetViewId) {
@@ -83,7 +86,7 @@ function configurarNavegacion() {
 }
 
 export function cambiarVista(targetViewId) {
-    // 2. Control aislado y forzado sobre la sección de Balances y Cuadres
+    // Aislamiento forzado para la vista de balances y cuadres (evita que se pegue abajo)
     const sectionReports = document.getElementById('section-reports');
     if (sectionReports) {
         if (targetViewId === 'section-reports') {
@@ -91,11 +94,10 @@ export function cambiarVista(targetViewId) {
             sectionReports.style.display = 'block';
         } else {
             sectionReports.classList.add('hidden');
-            sectionReports.style.display = 'none'; // Cortar de raíz cualquier superposición
+            sectionReports.style.display = 'none';
         }
     }
 
-    // 3. Control seguro sobre todas las demás vistas posibles de la plantilla
     const vistas = document.querySelectorAll('.app-view, .content-section, section[id^="section-"]');
     vistas.forEach(vista => {
         if (vista.id !== targetViewId && vista.id !== 'section-reports') {
@@ -104,7 +106,6 @@ export function cambiarVista(targetViewId) {
         }
     });
 
-    // 4. Activar visualmente la vista solicitada
     const vistaActiva = document.getElementById(targetViewId);
     if (vistaActiva) {
         vistaActiva.classList.remove('hidden');

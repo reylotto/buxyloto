@@ -112,7 +112,7 @@
         }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen flex flex-col custom-scrollbar">
+<body class="bg-slate-900 text-slate-100 font-sans antialiased h-screen overflow-hidden flex flex-col custom-scrollbar">
 
     <!-- 1. PANTALLA DE LOGIN -->
     <div id="auth-login-wrapper" class="fixed inset-0 bg-slate-950 z-50 flex items-center justify-center p-4">
@@ -1506,7 +1506,20 @@
     </script>
 </section>
 
-</main> <!-- 👈 ESTE CIERRE AHORA ESTÁ EN SU LUGAR CORRECTO -->
+<!-- ================================================================= -->
+<!-- 🚨 CORRECCIÓN QUIRÚRGICA: CIERRES ESTRUCTURALES DEL LAYOUT 🚨     -->
+<!-- ================================================================= -->
+</main> <!-- Cierre del contenedor principal con scroll -->
+</div>  <!-- Cierre del flex-1 overflow-hidden -->
+</div>  <!-- Cierre de main-app-container -->
+<!-- ================================================================= -->
+
+<!-- ========================================== -->
+<!-- MÓDULOS Y LÓGICA JAVASCRIPT DEL SISTEMA -->
+<!-- ========================================== -->
+
+<!-- 1. Carga de Librería Supabase y Conexión Global -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 
     <!-- MODALES DE CONTROL & EDICIÓN -->

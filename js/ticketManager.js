@@ -116,7 +116,7 @@ export async function renderizarPlantillaTicket(ticketData) {
 
     const totalItems = conteoTotalJugadas.toString().padStart(3, '0');
 
-    // CONSTRUCCIÓN DE BLOQUES POR SORTEO EN 2 COLUMNAS
+    // CONSTRUCCIÓN DE BLOQUES POR SORTEO (1 COLUMNA CON ETIQUETAS EXACTAS)
     let bloquesSorteosHTML = '';
 
     for (const [sorteoNombre, listaJugadasSorteo] of Object.entries(jugadasPorSorteo)) {
@@ -124,29 +124,29 @@ export async function renderizarPlantillaTicket(ticketData) {
             <div style="margin-top: 8px;">
                 <div style="font-weight: bold; font-size: 12px; text-transform: uppercase;">${sorteoNombre}</div>
                 <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; margin-top: 2px; margin-bottom: 2px;">
-                    <span style="width: 50%; text-align: left;">JUGADA</span>
-                    <span style="width: 50%; text-align: right;">MONTO</span>
+                    <span style="text-align: left;">JUGADA / NÚM</span>
+                    <span style="text-align: right;">MONTO</span>
                 </div>
+                <div style="border-top: 1px dashed #000; margin-bottom: 4px;"></div>
         `;
 
-        // Iterar sobre las jugadas de este sorteo para mostrarlas de forma limpia y clara
         listaJugadasSorteo.forEach(j => {
             const num = j.numero || j.jugada || '';
             const mnt = parseFloat(j.monto || j.valor || 0).toFixed(2);
             const tipoRaw = String(j.tipo || 'directo').toUpperCase();
             
-            // Mapeo visual exacto para LNB y tradicional
+            // 🏛️ MAPEO ESTRICTO PARA TICKET IMPRESO
             let etiquetaTipo = tipoRaw;
             if (tipoRaw === 'BILLETE') etiquetaTipo = 'BILLETE';
             else if (tipoRaw === 'CHANCE') etiquetaTipo = 'CHANCE';
             else if (tipoRaw === 'DIRECTO') etiquetaTipo = 'DIRECTO';
-            else if (tipoRaw === 'PALE') etiquetaTipo = 'PALÉ';
+            else if (tipoRaw === 'PALE' || tipoRaw === 'PALÉ') etiquetaTipo = 'PALÉ';
             else if (tipoRaw === 'TRIPLETA') etiquetaTipo = 'TRIPLETA';
 
             bloquesSorteosHTML += `
-                <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; line-height: 1.3; border-bottom: 1px dotted #e2e8f0; padding: 2px 0;">
-                    <span>[${etiquetaTipo}] ${num}</span>
-                    <span>$${mnt}</span>
+                <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; line-height: 1.4; padding: 1px 0;">
+                    <span style="text-align: left;">[${etiquetaTipo}] ${num}</span>
+                    <span style="text-align: right;">$${mnt}</span>
                 </div>
             `;
         });

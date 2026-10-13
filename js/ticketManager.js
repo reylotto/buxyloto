@@ -604,7 +604,7 @@ window.reimprimirTicketUnificado = async function(ticketId) {
 };
 
 // ==========================================================
-// INTERCEPTOR ABSOLUTO: EXTRAE JUGADAS DESDE CUALQUIER FORMATO
+// INTERCEPTOR ABSOLUTO: EXTRAE JUGADAS E INYECTA SELLO "COPIA"
 // ==========================================================
 if (typeof window !== 'undefined') {
     window.showTicketModal = async function(ticketInput) {
@@ -622,44 +622,27 @@ if (typeof window !== 'undefined') {
             if (typeof ticketInput === 'string' || typeof ticketInput === 'number') {
                 const supabase = window.supabaseClient || window.supabase;
                 if (supabase) {
-                    // Obtener el ticket principal
                     const { data: tData } = await supabase.from('tickets').select('*, bancas(nombre)').eq('id', ticketInput).single();
-                    
-                    // Buscar en la tabla jugadas
                     const { data: jData } = await supabase.from('jugadas').select('*').eq('ticket_id', ticketInput);
                     
                     if (jData && jData.length > 0) {
                         jugadasExtraidas = jData;
                     } else if (tData) {
-                        // Si no hay en tabla jugadas, intentar extraer del JSON en 'detalles' o 'jugadas' del ticket
                         let posiblesJugadas = tData.detalles || tData.jugadas || tData.items || [];
-                        if (typeof posiblesJugadas === 'string') {
-                            try {
-                                posiblesJugadas = JSON.parse(posiblesJugadas);
-                            } catch (e) {
-                                posiblesJugadas = [];
-                            }
-                        }
-                        if (Array.isArray(posiblesJugadas)) {
-                            jugadasExtraidas = posiblesJugadas;
-                        }
+                        if (typeof posiblesJugadas === 'string') { try { posiblesJugadas = JSON.parse(posiblesJugadas); } catch(e){posiblesJugadas=[];} }
+                        if (Array.isArray(posiblesJugadas)) jugadasExtraidas = posiblesJugadas;
                     }
 
-                    if (tData) {
-                        ticketData = { ...tData, banca_nombre: tData.bancas?.nombre || 'Banca', detalles: jugadasExtraidas };
-                    }
+                    if (tData) ticketData = { ...tData, banca_nombre: tData.bancas?.nombre || 'Banca', detalles: jugadasExtraidas };
                 }
             } else {
                 let posiblesJugadas = ticketInput.detalles || ticketInput.jugadas || ticketInput.items || [];
-                if (typeof posiblesJugadas === 'string') {
-                    try { posiblesJugadas = JSON.parse(posiblesJugadas); } catch (e) { posiblesJugadas = []; }
-                }
+                if (typeof posiblesJugadas === 'string') { try { posiblesJugadas = JSON.parse(posiblesJugadas); } catch(e){posiblesJugadas=[];} }
                 ticketData = {
                     ...ticketInput,
                     codigo_ticket: ticketInput.codigo_ticket || ticketInput.folio || 'BX-000000',
                     monto_total: parseFloat(ticketInput.monto_total || ticketInput.total || 0).toFixed(2),
-                    detalles: posiblesJugadas,
-                    jugadas: posiblesJugadas
+                    detalles: posiblesJugadas, jugadas: posiblesJugadas
                 };
             }
 
@@ -668,6 +651,21 @@ if (typeof window !== 'undefined') {
 
             if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
                 window.mostrarOpcionesExportacionTicket(ticketData);
+                
+                // INYECTAR SELLO DE COPIA VISUALMENTE
+                setTimeout(() => {
+                    const ticketContainer = document.getElementById('printable-ticket');
+                    if (ticketContainer && !document.getElementById('ticket-view-copia-badge')) {
+                        const companyName = document.getElementById('ticket-view-company-name');
+                        if (companyName) {
+                            const copiaBadge = document.createElement('div');
+                            copiaBadge.id = 'ticket-view-copia-badge';
+                            copiaBadge.className = 'font-bold text-xs text-center border-y border-dashed border-slate-400 py-1 my-1 uppercase tracking-widest text-slate-700';
+                            copiaBadge.innerText = '*** REIMPRESIÓN / COPIA ***';
+                            companyName.parentNode.insertBefore(copiaBadge, companyName.nextSibling);
+                        }
+                    }
+                }, 100);
             }
         } finally {
             setTimeout(() => { window.alert = originalAlert; }, 500);

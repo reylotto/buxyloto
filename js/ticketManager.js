@@ -542,12 +542,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 // ==========================================================
-// MÓDULO DE REIMPRESIÓN UNIFICADA (Evita modales antiguos)
+// MOTOR DE REIMPRESIÓN DIAGNOSTICADO Y ASEGURADO
 // ==========================================================
 window.reimprimirTicketUnificado = async function(ticketId) {
+    alert("🔍 Clic detectado en ticket ID: " + ticketId); // Alerta de prueba para verificar ejecución
+
     try {
         const supabase = window.supabaseClient || window.supabase;
-        if (!supabase) return alert("❌ Error: Sin conexión a la base de datos.");
+        if (!supabase) {
+            alert("❌ Error: Cliente de Supabase no disponible en la ventana.");
+            return;
+        }
 
         // 1. Obtener ticket principal
         const { data: ticket, error: errTicket } = await supabase
@@ -556,38 +561,48 @@ window.reimprimirTicketUnificado = async function(ticketId) {
             .eq('id', ticketId)
             .single();
 
-        if (errTicket || !ticket) throw new Error("Ticket no encontrado en el sistema.");
+        if (errTicket) {
+            alert("❌ Error de BD al buscar ticket: " + errTicket.message);
+            throw errTicket;
+        }
+        if (!ticket) {
+            alert("⚠️ Ticket no encontrado en la base de datos.");
+            return;
+        }
 
-        // 2. Obtener las jugadas limpias
+        // 2. Obtener las jugadas
         const { data: jugadas, error: errJugadas } = await supabase
             .from('jugadas')
             .select('*')
             .eq('ticket_id', ticketId);
 
-        if (errJugadas) throw errJugadas;
+        if (errJugadas) {
+            alert("❌ Error al buscar jugadas: " + errJugadas.message);
+        }
 
-        // 3. Formatear y lanzar nuestro diseño perfecto de 2 columnas
+        // 3. Formatear datos para el motor de 2 columnas
         const ticketData = {
             ...ticket,
             codigo_ticket: ticket.codigo_ticket || ticket.folio || ticket.codigo || 'BX-000000',
             monto_total: parseFloat(ticket.monto_total || ticket.total || ticket.monto || 0).toFixed(2),
             banca_nombre: ticket.bancas?.nombre || ticket.banca_nombre || ticket.vendedor_nombre || 'Banca',
-            detalles: jugadas,
-            jugadas: jugadas
+            detalles: jugadas || [],
+            jugadas: jugadas || []
         };
 
+        // 4. Lanzar el menú de exportación
         if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
             window.mostrarOpcionesExportacionTicket(ticketData);
         } else {
-            alert("⚠️ Error: El motor de impresión no está listo.");
+            alert("⚠️ Error: 'mostrarOpcionesExportacionTicket' no está cargada en window.");
         }
 
     } catch (err) {
-        console.error("Error al reimprimir:", err);
-        alert("❌ No se pudo cargar el ticket: " + err.message);
+        console.error("Error crítico al reimprimir:", err);
+        alert("❌ Excepción capturada: " + (err.message || JSON.stringify(err)));
     }
 };
 
-// 🌟 ALIAS UNIVERSALES: Conectan cualquier nombre de función directamente al motor moderno de 2 columnas
+// Sincronizar alias globales de forma estricta
 window.reimpresionUnificadaPOS = window.reimprimirTicketUnificado;
 window.verTicketDetalleDirecto = window.reimprimirTicketUnificado;

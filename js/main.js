@@ -115,11 +115,14 @@ export function cambiarVista(targetViewId) {
 }
 
 function restaurarUltimaVista() {
-    const ultimaSeccion = localStorage.getItem('buxy_active_tab');
-    if (ultimaSeccion) {
-        const vistaGuardada = document.getElementById(ultimaSeccion);
-        if (vistaGuardada) {
-            cambiarVista(ultimaSeccion);
-        }
+    // Busca la última sección guardada, si no existe, fuerza 'section-dashboard'
+    const ultimaSeccion = localStorage.getItem('buxy_active_tab') || 'section-dashboard';
+    
+    const vistaGuardada = document.getElementById(ultimaSeccion);
+    if (vistaGuardada) {
+        cambiarVista(ultimaSeccion);
+    } else {
+        // Fallback absoluto al inicio de sesión
+        cambiarVista('section-dashboard');
     }
 }

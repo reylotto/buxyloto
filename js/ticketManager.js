@@ -604,9 +604,24 @@ window.reimprimirTicketUnificado = async function(ticketId) {
 };
 
 // ==========================================================
-// INTERCEPTOR ABSOLUTO: EXTRAE JUGADAS E INYECTA SELLO "COPIA"
+// INTERCEPTOR ABSOLUTO: EXTRACCIÓN Y SELLO DE COPIA INFALIBLE
 // ==========================================================
 if (typeof window !== 'undefined') {
+    // 1. Inyectar CSS global para el sello de COPIA
+    if (!document.getElementById('css-copia-sello')) {
+        const style = document.createElement('style');
+        style.id = 'css-copia-sello';
+        style.innerHTML = `
+            #printable-ticket::before { 
+                content: "*** REIMPRESIÓN / COPIA ***"; 
+                display: block; text-align: center; font-weight: bold; font-size: 11px;
+                border-bottom: 1px dashed #64748b; padding-bottom: 6px; margin-bottom: 8px; 
+                color: #334155; letter-spacing: 1px;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     window.showTicketModal = async function(ticketInput) {
         const originalAlert = window.alert;
         window.alert = function(msg) {
@@ -651,21 +666,6 @@ if (typeof window !== 'undefined') {
 
             if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
                 window.mostrarOpcionesExportacionTicket(ticketData);
-                
-                // INYECTAR SELLO DE COPIA VISUALMENTE
-                setTimeout(() => {
-                    const ticketContainer = document.getElementById('printable-ticket');
-                    if (ticketContainer && !document.getElementById('ticket-view-copia-badge')) {
-                        const companyName = document.getElementById('ticket-view-company-name');
-                        if (companyName) {
-                            const copiaBadge = document.createElement('div');
-                            copiaBadge.id = 'ticket-view-copia-badge';
-                            copiaBadge.className = 'font-bold text-xs text-center border-y border-dashed border-slate-400 py-1 my-1 uppercase tracking-widest text-slate-700';
-                            copiaBadge.innerText = '*** REIMPRESIÓN / COPIA ***';
-                            companyName.parentNode.insertBefore(copiaBadge, companyName.nextSibling);
-                        }
-                    }
-                }, 100);
             }
         } finally {
             setTimeout(() => { window.alert = originalAlert; }, 500);

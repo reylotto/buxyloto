@@ -549,20 +549,26 @@
                 </div>
 
                 <!-- Selector de Modalidad -->
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 uppercase mb-1">2. Modalidad de Jugada (Control estricto de dígitos):</label>
-                    <div class="grid grid-cols-3 gap-2" id="pos-modalidad-buttons">
-                        <button data-mod="directo" class="pos-mod-btn active bg-emerald-600 text-slate-950 font-bold py-2 rounded-xl text-xs text-center border border-emerald-500 shadow-md">
-                            DIRECTO (2 Dígitos)
-                        </button>
-                        <button data-mod="pale" class="pos-mod-btn bg-slate-700 text-slate-300 font-semibold py-2 rounded-xl text-xs text-center border border-slate-600 hover:bg-slate-600">
-                            PALÉ (4 Dígitos)
-                        </button>
-                        <button data-mod="tripleta" class="pos-mod-btn bg-slate-700 text-slate-300 font-semibold py-2 rounded-xl text-xs text-center border border-slate-600 hover:bg-slate-600">
-                            TRIPLETA (6 Dígitos)
-                        </button>
-                    </div>
-                </div>
+<div>
+    <label class="block text-xs font-bold text-slate-300 uppercase mb-1">2. Modalidad de Jugada (Control estricto de dígitos):</label>
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-2" id="pos-modalidad-buttons">
+        <button type="button" data-mod="directo" class="pos-mod-btn active bg-emerald-600 text-slate-950 font-bold py-2 rounded-xl text-xs text-center border border-emerald-500 shadow-md">
+            DIRECTO (2 Dígitos)
+        </button>
+        <button type="button" data-mod="chance" class="pos-mod-btn bg-slate-700 text-slate-300 font-semibold py-2 rounded-xl text-xs text-center border border-slate-600 hover:bg-slate-600">
+            CHANCE LNB (2 Dígitos)
+        </button>
+        <button type="button" data-mod="billete" class="pos-mod-btn bg-slate-700 text-slate-300 font-semibold py-2 rounded-xl text-xs text-center border border-slate-600 hover:bg-slate-600">
+            BILLETE LNB (4 Dígitos)
+        </button>
+        <button type="button" data-mod="pale" class="pos-mod-btn bg-slate-700 text-slate-300 font-semibold py-2 rounded-xl text-xs text-center border border-slate-600 hover:bg-slate-600">
+            PALÉ (4 Dígitos)
+        </button>
+        <button type="button" data-mod="tripleta" class="pos-mod-btn bg-slate-700 text-slate-300 font-semibold py-2 rounded-xl text-xs text-center border border-slate-600 hover:bg-slate-600">
+            TRIPLETA (6 Dígitos)
+        </button>
+    </div>
+</div>
 
                 <!-- Entrada de Números y Monto -->
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2">

@@ -71,9 +71,9 @@ export function setModoPOS(modo) {
     const inputNum = document.getElementById('pos-input-numbers') || document.querySelector('input[placeholder*="Número"]');
     if (inputNum) {
         inputNum.value = '';
-        if (m.includes('billete') || m.includes('pale') || m.includes('palé')) inputNum.maxLength = 5;
-        else if (m.includes('tripleta')) inputNum.maxLength = 8;
-        else inputNum.maxLength = 2;
+        if (m.includes('billete') || m.includes('pale') || m.includes('palé')) inputNum.maxLength = 4;
+        else if (m.includes('tripleta')) inputNum.maxLength = 6;
+        else inputNum.maxLength = 2; // Directo o Chance
     }
 }
 window.setModoPOS = setModoPOS;

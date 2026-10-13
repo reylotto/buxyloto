@@ -328,8 +328,6 @@ export function agregarJugadaAlCarrito() {
     const numLen = numero.replace(/\D/g, '').length;
     let tipoDetectado = 'directo';
 
-    // 🏛️ DETECCIÓN AUTOMÁTICA INTELIGENTE PARA LA LOTERÍA NACIONAL DE PANAMÁ (LNB)
-    // Verificamos si los sorteos seleccionados son de la LNB (Lominical, Miercolito, etc.)
     let esSorteoLNB = false;
     checkboxesCheck.forEach(cb => {
         const nombreS = (cb.dataset.nombre || '').toUpperCase();
@@ -342,19 +340,18 @@ export function agregarJugadaAlCarrito() {
         if (numLen === 2) {
             tipoDetectado = 'chance'; // 2 dígitos en LNB = Chance
         } else if (numLen === 4) {
-            tipoDetectado = 'billete'; // 4 dígitos en LNB = Billete
+            tipoDetectado = 'billete'; // 4 dígitos en LNB = Billete (EXACTO)
         } else {
-            alert("⚠️ En los sorteos de la Lotería Nacional de Panamá solo se permiten Chances (2 dígitos) y Billetes (4 dígitos). No aplican palés ni tripletas.");
+            alert("⚠️ En los sorteos de la Lotería Nacional de Panamá solo se permiten Chances (2 dígitos) y Billetes (4 dígitos).");
             inputNum.focus();
             return;
         }
     } else {
-        // Lógica tradicional para otros sorteos
         if (numLen === 2) tipoDetectado = 'directo';
         else if (numLen === 4) tipoDetectado = 'pale';
         else if (numLen === 6) tipoDetectado = 'tripleta';
         else {
-            alert("⚠️ La cantidad de dígitos no corresponde a una jugada válida (2 dígitos = Directo, 4 = Palé, 6 = Tripleta).");
+            alert("⚠️ La cantidad de dígitos no corresponde a una jugada válida.");
             inputNum.focus();
             return;
         }
@@ -370,7 +367,7 @@ export function agregarJugadaAlCarrito() {
             id: Date.now() + Math.random(),
             numero: numero,
             monto: monto,
-            tipo: tipoDetectado,
+            tipo: tipoDetectado, // 👈 Aquí se guarda 'billete' o 'chance' correctamente
             sorteo_id: cb.value ? parseInt(cb.value, 10) : null,
             sorteo_nombre: nombreSorteo,
             denominacion: monto

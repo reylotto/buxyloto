@@ -124,32 +124,32 @@ export async function renderizarPlantillaTicket(ticketData) {
             <div style="margin-top: 8px;">
                 <div style="font-weight: bold; font-size: 12px; text-transform: uppercase;">${sorteoNombre}</div>
                 <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; margin-top: 2px; margin-bottom: 2px;">
-                    <span style="width: 25%; text-align: left;">JUGADA</span>
-                    <span style="width: 25%; text-align: right;">MONTO</span>
-                    <span style="width: 25%; text-align: center;">JUGADA</span>
-                    <span style="width: 25%; text-align: right;">MONTO</span>
+                    <span style="width: 50%; text-align: left;">JUGADA</span>
+                    <span style="width: 50%; text-align: right;">MONTO</span>
                 </div>
         `;
 
-        for (let i = 0; i < listaJugadasSorteo.length; i += 2) {
-            const j1 = listaJugadasSorteo[i];
-            const j2 = listaJugadasSorteo[i + 1];
-
-            const num1 = j1.numero || j1.jugada || '';
-            const mnt1 = parseFloat(j1.monto || j1.valor || 0).toFixed(2);
-
-            const num2 = j2 ? (j2.numero || j2.jugada || '') : '';
-            const mnt2 = j2 ? parseFloat(j2.monto || j2.valor || 0).toFixed(2) : '';
+        // Iterar sobre las jugadas de este sorteo para mostrarlas de forma limpia y clara
+        listaJugadasSorteo.forEach(j => {
+            const num = j.numero || j.jugada || '';
+            const mnt = parseFloat(j.monto || j.valor || 0).toFixed(2);
+            const tipoRaw = String(j.tipo || 'directo').toUpperCase();
+            
+            // Mapeo visual exacto para LNB y tradicional
+            let etiquetaTipo = tipoRaw;
+            if (tipoRaw === 'BILLETE') etiquetaTipo = 'BILLETE';
+            else if (tipoRaw === 'CHANCE') etiquetaTipo = 'CHANCE';
+            else if (tipoRaw === 'DIRECTO') etiquetaTipo = 'DIRECTO';
+            else if (tipoRaw === 'PALE') etiquetaTipo = 'PALÉ';
+            else if (tipoRaw === 'TRIPLETA') etiquetaTipo = 'TRIPLETA';
 
             bloquesSorteosHTML += `
-                <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; line-height: 1.2;">
-                    <span style="width: 25%; text-align: left;">${num1}</span>
-                    <span style="width: 25%; text-align: right;">${mnt1}</span>
-                    <span style="width: 25%; text-align: center;">${num2}</span>
-                    <span style="width: 25%; text-align: right;">${mnt2}</span>
+                <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; line-height: 1.3; border-bottom: 1px dotted #e2e8f0; padding: 2px 0;">
+                    <span>[${etiquetaTipo}] ${num}</span>
+                    <span>$${mnt}</span>
                 </div>
             `;
-        }
+        });
 
         bloquesSorteosHTML += `</div>`;
     }
@@ -190,7 +190,7 @@ export async function renderizarPlantillaTicket(ticketData) {
         <!-- TOTAL GENERAL -->
         <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: bold;">
             <span>Total: ${totalItems}</span>
-            <span>${montoTotal}</span>
+            <span>$${montoTotal}</span>
         </div>
 
         <!-- REGLAS Y CONDICIONES DEL PIE -->
@@ -417,7 +417,6 @@ export async function validarTicket(identificadorTicket) {
     try {
         const refStr = String(identificadorTicket).trim();
 
-        // Consultar ticket por id o por código
         const { data, error } = await supabase
             .from('tickets')
             .select('*, ticket_detalles(*), sorteos(*)')
@@ -454,7 +453,6 @@ export async function validarTicket(identificadorTicket) {
     }
 }
 
-// Exposición global de validación
 window.validarTicket = validarTicket;
 
 // ==========================================================
@@ -469,7 +467,6 @@ export async function anularTicketCancelado(identificadorTicket) {
     try {
         const refStr = String(identificadorTicket).trim();
 
-        // Validar estado previo antes de anular
         const validacion = await validarTicket(refStr);
         if (validacion.success && validacion.esAnulado) {
             return { success: false, error: 'El ticket ya se encuentra anulado/cancelado.' };
@@ -492,5 +489,4 @@ export async function anularTicketCancelado(identificadorTicket) {
     }
 }
 
-// Exposición global corrigiendo cualquier fe de errata en el nombre
 window.anularTicketCancelado = anularTicketCancelado;

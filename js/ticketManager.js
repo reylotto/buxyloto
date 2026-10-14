@@ -622,11 +622,6 @@ if (typeof window !== 'undefined') {
         document.head.appendChild(style);
     }
 
-    window.showTicketModal = async function(ticketInput) {
-        // Redirigir a la nueva función central
-        if (typeof window.verTicketSolo === 'function') {
-            let idExtraido = typeof ticketInput === 'object' ? (ticketInput.id || ticketInput.codigo_ticket) : ticketInput;
-            window.verTicketSolo(idExtraido);
-        }
-    };
+    // ❌ SE ELIMINÓ EL SECUESTRADOR GLOBAL. 
+    // Ahora respetamos si el usuario llamó a 'verTicketSolo' (Modal) o 'imprimirTicketDirecto' (Térmica)
 }

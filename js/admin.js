@@ -289,8 +289,12 @@ window.guardarBancaSistema = async function(e) {
             if (error) throw error;
             alert("✅ Nueva banca/vendedor registrada con éxito.");
         }
-        window.cerrarTodosLosModales();
-        await cargarBancasSistema();
+       window.cerrarTodosLosModales();
+
+// Le damos 1.5 segundos a Supabase para que enlace el nombre correctamente
+setTimeout(() => {
+    cargarBancasSistema();
+}, 1500);
     } catch(err) {
         alert("Error al guardar banca: " + err.message);
     }
@@ -388,7 +392,9 @@ window.cambiarEstatusBanca = async function(id, estatusActual) {
     const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
     if (supabase) {
         await supabase.from('bancas').update({ estatus: nuevo }).eq('id', id);
-        cargarBancasSistema();
+        setTimeout(() => {
+            cargarBancasSistema();
+        }, 1500);
     }
 };
 
@@ -397,6 +403,8 @@ window.eliminarBancaSistema = async function(id) {
     const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
     if (supabase) {
         await supabase.from('bancas').delete().eq('id', id);
-        cargarBancasSistema();
+        setTimeout(() => {
+            cargarBancasSistema();
+        }, 1500);
     }
 };

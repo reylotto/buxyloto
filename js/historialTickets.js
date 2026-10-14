@@ -1,13 +1,12 @@
 // ==========================================================
 // MÓDULO EXCLUSIVO DE HISTORIAL Y ANULACIÓN DE TICKETS
-// Integrado con Motor Unificado de Impresión a 2 Columnas
+// VERSIÓN BLINDADA (Botones Separados y Búsqueda Segura)
 // ==========================================================
 
 export async function cargarHistorialTicketsCentral() {
     const tbody = document.getElementById('tabla-historial-tickets') || 
                   document.getElementById('tickets-table-body') ||
-                  document.getElementById('historial-tickets-body') ||
-                  document.querySelector('#section-tickets tbody');
+                  document.getElementById('historial-tickets-body');
 
     if (!tbody) return;
 
@@ -15,30 +14,24 @@ export async function cargarHistorialTicketsCentral() {
         const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
         if (!supabase) return;
 
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="8" class="text-center p-4 text-slate-400">
-                    <i class="fa-solid fa-spinner fa-spin mr-2"></i> Cargando historial de tickets...
-                </td>
-            </tr>
-        `;
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center p-4 text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Cargando historial...</td></tr>`;
 
         const hoy = new Date();
         const fechaHoyStr = hoy.toISOString().split('T')[0];
 
+        // Consulta limpia para evitar el Error 400 (Bad Request)
         const { data: tickets, error } = await supabase
             .from('tickets')
-            .select('*, sorteos(nombre), bancas(nombre)')
+            .select('*, sorteos(nombre)')
             .gte('created_at', `${fechaHoyStr}T00:00:00.000Z`)
             .lte('created_at', `${fechaHoyStr}T23:59:59.999Z`)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-
         tbody.innerHTML = '';
 
         if (!tickets || tickets.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center p-4 text-slate-400">No hay tickets registrados.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center p-4 text-slate-400">No hay tickets registrados hoy.</td></tr>';
             return;
         }
 
@@ -48,15 +41,12 @@ export async function cargarHistorialTicketsCentral() {
 
             const codigoRef = t.codigo || t.codigo_ticket || t.folio || t.id;
             const fecha = t.created_at ? new Date(t.created_at).toLocaleString() : '--';
-            
-            // Estilo conservado: "6 ap." o el nombre del sorteo
             const cantJugadas = t.detalles?.length || t.jugadas?.length ? `${t.detalles?.length || t.jugadas?.length} ap.` : (t.sorteos?.nombre || 'Varias');
-            const bancaNom = t.bancas?.nombre || t.banca_nombre || t.vendedor_nombre || 'Banca General';
+            const bancaNom = t.banca_nombre || t.vendedor_nombre || 'Banca';
             const montoVenta = Number(t.total || t.monto_total || t.monto || 0).toFixed(2);
             const montoPremio = Number(t.premio || t.monto_premio || 0).toFixed(2);
 
             const estatus = String(t.estatus || t.estado || 'pendiente').toLowerCase();
-
             let badgeClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
             let estatusText = 'PENDIENTE';
 
@@ -73,6 +63,7 @@ export async function cargarHistorialTicketsCentral() {
 
             const esAnulable = (estatus === 'pendiente');
 
+            // 🎯 BOTONES DEFINITIVOS CON FUNCIONES INDEPENDIENTES
             tr.innerHTML = `
                 <td class="p-3 font-mono font-bold text-cyan-400">${codigoRef}</td>
                 <td class="p-3 text-slate-300 text-[11px]">${fecha}</td>
@@ -80,154 +71,116 @@ export async function cargarHistorialTicketsCentral() {
                 <td class="p-3 text-slate-300">${cantJugadas}</td>
                 <td class="p-3 font-mono font-bold text-emerald-400">$${montoVenta}</td>
                 <td class="p-3 font-mono font-bold text-white">$${montoPremio}</td>
-                <td class="p-3">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${badgeClass}">
-                        ${estatusText}
-                    </span>
-                </td>
+                <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold border ${badgeClass}">${estatusText}</span></td>
                 <td class="p-3 flex justify-center items-center space-x-1.5">
-                    <button onclick="window.verTicketSolo('${t.id}')" title="Ver Ticket (Menú)"
+                    <button onclick="window.buxyAccionTicket('${t.id}', 'ver')" title="Ver Opciones (WhatsApp, Descargar)" 
                             class="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold flex items-center">
                         <i class="fa-solid fa-eye mr-1"></i> Ver
                     </button>
-                    <button onclick="window.imprimirTicketDirecto('${t.id}')" title="Impresión Rápida"
+                    <button onclick="window.buxyAccionTicket('${t.id}', 'imprimir')" title="Imprimir Directo en POS" 
                             class="bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold flex items-center">
                         <i class="fa-solid fa-print mr-1"></i> Imprimir
                     </button>
                     ${esAnulable ? `
-                    <button onclick="window.cancelarTicketDefinitivo('${codigoRef}')" title="Anular Ticket"
+                    <button onclick="window.cancelarTicketDefinitivo('${codigoRef}')" title="Anular Ticket" 
                             class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold">
                         <i class="fa-solid fa-ban"></i>
-                    </button>` : '<span class="text-slate-500 text-[10px] bg-slate-800 px-1.5 py-0.5 rounded" title="Sorteo Cerrado"><i class="fa-solid fa-lock"></i></span>'}
+                    </button>` : '<span class="text-slate-500 text-[10px] bg-slate-800 px-1.5 py-0.5 rounded" title="No Anulable"><i class="fa-solid fa-lock"></i></span>'}
                 </td>
             `;
             tbody.appendChild(tr);
         });
 
     } catch (err) {
-        console.error("❌ Error al cargar historial de tickets:", err);
+        console.error("❌ Error al cargar historial:", err);
     }
 }
 
-export async function cancelarTicketDefinitivo(ticketRef) {
-    if (!ticketRef || ticketRef === 'undefined' || ticketRef === 'null') {
-        alert("⚠️ Error: La referencia del ticket está vacía.");
-        return;
-    }
-
-    if (!confirm(`¿Está seguro de que desea CANCELAR el ticket "${ticketRef}"?`)) return;
-
-    try {
-        const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-        if (!supabase) throw new Error("Cliente de Supabase no disponible.");
-
-        const { data, error } = await supabase.rpc('cancelar_ticket_universal', { 
-            p_referencia: String(ticketRef) 
-        });
-
-        if (error) throw error;
-
-        if (data && data.success) {
-            alert(`✅ ${data.message}`);
-            await cargarHistorialTicketsCentral();
-        } else {
-            alert(`⚠️ ${data?.message || 'No se pudo cancelar el ticket.'}`);
-        }
-
-    } catch (err) {
-        console.error("❌ Error al cancelar ticket:", err);
-        alert("❌ Error: " + (err.message || JSON.stringify(err)));
-    }
-}
-
-// =========================================================================
-// 🏛️ INTERCEPTOR: BOTONES SEPARADOS Y BÚSQUEDA BLINDADA (SIN ERROR 400)
-// =========================================================================
+// ==========================================================
+// 🧠 CEREBRO DE ACCIONES Y ELIMINADOR DE VENTANA ANTIGUA
+// ==========================================================
 if (typeof window !== 'undefined') {
-    
-    async function buscarTicketYJugadas(ticketInput) {
-        const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-        if (!supabase) throw new Error("Sin conexión a la Base de Datos.");
 
-        let identificador = typeof ticketInput === 'object' ? (ticketInput.id || ticketInput.codigo_ticket) : String(ticketInput).trim();
-        if (!identificador) throw new Error("Identificador vacío.");
+    // Destruir la ventana blanca vieja automáticamente si existe
+    const cssNeutralizador = document.createElement('style');
+    cssNeutralizador.innerHTML = `#modal-ticket-view { display: none !important; opacity: 0 !important; pointer-events: none !important; }`;
+    document.head.appendChild(cssNeutralizador);
 
-        // ❌ ELIMINAMOS la consulta relacional "bancas(nombre)" para evitar el Error 400
-        let query = supabase.from('tickets').select('*');
-        
-        if (/^\d+$/.test(identificador)) {
-            query = query.eq('id', parseInt(identificador));
-        } else {
-            query = query.eq('codigo_ticket', identificador);
-        }
-
-        const { data: ticket, error: errT } = await query.maybeSingle();
-
-        if (errT) throw new Error("Error consultando ticket: " + errT.message);
-        if (!ticket) throw new Error("Ticket no encontrado en el sistema.");
-
-        // Buscar jugadas
-        const { data: jugadas } = await supabase.from('jugadas').select('*').eq('ticket_id', ticket.id);
-
-        // Rescate del nombre de la banca de manera segura
-        let nombreDeBanca = ticket.banca_nombre || ticket.vendedor_nombre || ticket.banca || 'Banca General';
-        if (!ticket.banca_nombre && ticket.banca_id) {
-            try {
-                const { data: bData } = await supabase.from('bancas').select('nombre').eq('id', ticket.banca_id).maybeSingle();
-                if (bData && bData.nombre) nombreDeBanca = bData.nombre;
-            } catch(e) {} // Silenciamos para que no rompa si falla
-        }
-
-        return {
-            ...ticket,
-            codigo_ticket: ticket.codigo_ticket || ticket.folio || ticket.codigo || 'BX-000000',
-            monto_total: parseFloat(ticket.monto_total || ticket.total || ticket.monto || 0).toFixed(2),
-            banca_nombre: nombreDeBanca,
-            detalles: jugadas || [], 
-            jugadas: jugadas || []
-        };
-    }
-
-    // -----------------------------------------------------
-    // A. FUNCIÓN SOLO PARA VER (Abre el modal oscuro)
-    // -----------------------------------------------------
-    window.verTicketSolo = async function(ticketInput) {
+    window.buxyAccionTicket = async function(ticketInput, accion) {
         try {
-            const ticketData = await buscarTicketYJugadas(ticketInput);
-            if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
-                window.mostrarOpcionesExportacionTicket(ticketData);
+            const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+            if (!supabase) throw new Error("Sin conexión a la Base de Datos.");
+
+            let identificador = typeof ticketInput === 'object' ? (ticketInput.id || ticketInput.codigo_ticket) : String(ticketInput).trim();
+            let query = supabase.from('tickets').select('*');
+            
+            if (/^\d+$/.test(identificador)) {
+                query = query.eq('id', parseInt(identificador));
             } else {
-                alert("⚠️ Gestor de exportación no cargado.");
+                query = query.eq('codigo_ticket', identificador);
+            }
+
+            let { data: ticket } = await query.maybeSingle();
+            
+            // Respaldo por folio
+            if (!ticket) {
+                let { data: fallback } = await supabase.from('tickets').select('*').eq('folio', identificador).maybeSingle();
+                ticket = fallback;
+            }
+
+            if (!ticket) throw new Error("Ticket no encontrado.");
+
+            // Buscar jugadas y banca segura
+            const { data: jugadas } = await supabase.from('jugadas').select('*').eq('ticket_id', ticket.id);
+            let nombreBanca = ticket.banca_nombre || ticket.vendedor_nombre || 'Banca General';
+            if (!ticket.banca_nombre && ticket.banca_id) {
+                try {
+                    const { data: bData } = await supabase.from('bancas').select('nombre').eq('id', ticket.banca_id).maybeSingle();
+                    if (bData && bData.nombre) nombreBanca = bData.nombre;
+                } catch(e) {}
+            }
+
+            const ticketData = {
+                ...ticket,
+                codigo_ticket: ticket.codigo_ticket || ticket.folio || ticket.codigo || 'BX-000000',
+                monto_total: parseFloat(ticket.monto_total || ticket.total || ticket.monto || 0).toFixed(2),
+                banca_nombre: nombreBanca,
+                detalles: jugadas || [], jugadas: jugadas || []
+            };
+
+            // Ruteo de acciones
+            if (accion === 'ver') {
+                if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
+                    window.mostrarOpcionesExportacionTicket(ticketData);
+                } else { alert("Error: El gestor de ventanas no está cargado."); }
+            } else if (accion === 'imprimir') {
+                if (typeof window.imprimirTicketTermica === 'function') {
+                    window.imprimirTicketTermica(ticketData);
+                } else { alert("Error: El gestor de impresión no está cargado."); }
             }
         } catch (err) { 
             console.error(err);
-            alert("❌ No se pudo cargar el ticket: " + err.message); 
+            alert("❌ " + err.message); 
         }
     };
 
-    // -----------------------------------------------------
-    // B. FUNCIÓN IMPRESIÓN DIRECTA (Bypass a la impresora térmica)
-    // -----------------------------------------------------
-    window.imprimirTicketDirecto = async function(ticketInput) {
+    window.cancelarTicketDefinitivo = async function(ticketRef) {
+        if (!confirm(`¿Está seguro de que desea CANCELAR el ticket "${ticketRef}"?`)) return;
         try {
-            const ticketData = await buscarTicketYJugadas(ticketInput);
-            if (typeof window.imprimirTicketTermica === 'function') {
-                window.imprimirTicketTermica(ticketData);
-            } else {
-                alert("⚠️ Gestor de impresión térmica no cargado.");
-            }
-        } catch (err) { 
-            console.error(err);
-            alert("❌ No se pudo imprimir el ticket: " + err.message); 
-        }
+            const supabase = window.supabaseClient || window.supabase;
+            const { data, error } = await supabase.rpc('cancelar_ticket_universal', { p_referencia: String(ticketRef) });
+            if (error) throw error;
+            if (data && data.success) {
+                alert(`✅ ${data.message}`);
+                cargarHistorialTicketsCentral();
+            } else { alert(`⚠️ ${data?.message || 'Error al cancelar'}`); }
+        } catch (err) { alert("❌ Error: " + err.message); }
     };
 
-    // -----------------------------------------------------
-    // ENLACES DE COMPATIBILIDAD
-    // -----------------------------------------------------
-    window.cancelarTicketDefinitivo = cancelarTicketDefinitivo;
+    // Apagar todos los enlaces viejos y obligarlos a usar la función nueva
+    window.reimpresionUnificadaPOS = (id) => window.buxyAccionTicket(id, 'ver');
+    window.verTicketDetalleDirecto = (id) => window.buxyAccionTicket(id, 'ver');
+    window.verTicketDetalle = (id) => window.buxyAccionTicket(id, 'ver');
+    window.showTicketModal = (id) => window.buxyAccionTicket(id, 'ver');
     window.anularTicket = window.cancelarTicketDefinitivo;
-    window.reimpresionUnificadaPOS = window.verTicketSolo; 
-    window.verTicketDetalleDirecto = window.verTicketSolo; 
-    window.verTicketDetalle = window.verTicketSolo; 
 }

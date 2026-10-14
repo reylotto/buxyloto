@@ -607,7 +607,6 @@ window.reimprimirTicketUnificado = async function(ticketId) {
 // INTERCEPTOR ABSOLUTO: SELLO DE COPIA PARA REIMPRESIÓN
 // ==========================================================
 if (typeof window !== 'undefined') {
-    // 1. Inyectar CSS global para forzar el sello de COPIA en la térmica
     if (!document.getElementById('css-copia-sello')) {
         const style = document.createElement('style');
         style.id = 'css-copia-sello';
@@ -615,13 +614,9 @@ if (typeof window !== 'undefined') {
             #ticket-print-area::before { 
                 content: "*** REIMPRESIÓN / COPIA ***"; 
                 display: block; text-align: center; font-weight: bold; font-size: 11px;
-                border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 8px; 
-                color: #000; letter-spacing: 1px;
+                border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 8px; color: #000; letter-spacing: 1px;
             }
         `;
         document.head.appendChild(style);
     }
-
-    // ❌ SE ELIMINÓ EL SECUESTRADOR GLOBAL. 
-    // Ahora respetamos si el usuario llamó a 'verTicketSolo' (Modal) o 'imprimirTicketDirecto' (Térmica)
 }

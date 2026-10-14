@@ -603,91 +603,30 @@ window.reimprimirTicketUnificado = async function(ticketId) {
     }
 };
 
-// =========================================================================
-// 🏛️ INTERCEPTOR: BOTONES SEPARADOS Y BÚSQUEDA BLINDADA (ERROR 400 FIX)
-// =========================================================================
+// ==========================================================
+// INTERCEPTOR ABSOLUTO: SELLO DE COPIA PARA REIMPRESIÓN
+// ==========================================================
 if (typeof window !== 'undefined') {
-    
-    // FUNCIÓN AUXILIAR: Busca inteligentemente evitando el error 400 de Postgres
-    async function buscarTicketYJugadas(ticketInput) {
-        const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-        if (!supabase) throw new Error("Sin conexión a la Base de Datos.");
-
-        let identificador = typeof ticketInput === 'object' ? (ticketInput.id || ticketInput.codigo_ticket) : String(ticketInput).trim();
-        if (!identificador) throw new Error("Identificador de ticket vacío.");
-
-        let query = supabase.from('tickets').select('*, bancas(nombre)');
-        
-        // 1. ¿Es un número puro (ej: 45) o un código de letras (ej: BX-123)?
-        if (/^\d+$/.test(identificador)) {
-            query = query.eq('id', parseInt(identificador));
-        } else {
-            query = query.eq('codigo_ticket', identificador);
-        }
-
-        let { data: ticket, error: errT } = await query.single();
-        
-        // 2. Fallback: Si no lo encontró por 'codigo_ticket', intenta buscar en la columna 'folio'
-        if (!ticket) {
-            let { data: fallback } = await supabase.from('tickets').select('*, bancas(nombre)').eq('folio', identificador).single();
-            ticket = fallback;
-        }
-
-        if (!ticket) throw new Error("Ticket no encontrado en el sistema.");
-
-        // 3. AHORA SÍ: Usar EXCLUSIVAMENTE el ID numérico para buscar las jugadas
-        const { data: jugadas } = await supabase.from('jugadas').select('*').eq('ticket_id', ticket.id);
-
-        return {
-            ...ticket,
-            codigo_ticket: ticket.codigo_ticket || ticket.folio || ticket.codigo || 'BX-000000',
-            monto_total: parseFloat(ticket.monto_total || ticket.total || ticket.monto || 0).toFixed(2),
-            banca_nombre: ticket.bancas?.nombre || ticket.banca_nombre || ticket.vendedor_nombre || 'Banca',
-            detalles: jugadas || [], 
-            jugadas: jugadas || []
-        };
+    // 1. Inyectar CSS global para forzar el sello de COPIA en la térmica
+    if (!document.getElementById('css-copia-sello')) {
+        const style = document.createElement('style');
+        style.id = 'css-copia-sello';
+        style.innerHTML = `
+            #ticket-print-area::before { 
+                content: "*** REIMPRESIÓN / COPIA ***"; 
+                display: block; text-align: center; font-weight: bold; font-size: 11px;
+                border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 8px; 
+                color: #000; letter-spacing: 1px;
+            }
+        `;
+        document.head.appendChild(style);
     }
 
-    // -----------------------------------------------------
-    // A. FUNCIÓN SOLO PARA VER (Abre el modal oscuro)
-    // -----------------------------------------------------
-    window.verTicketSolo = async function(ticketInput) {
-        try {
-            const ticketData = await buscarTicketYJugadas(ticketInput);
-            if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
-                window.mostrarOpcionesExportacionTicket(ticketData);
-            } else {
-                alert("⚠️ Gestor de exportación no cargado.");
-            }
-        } catch (err) { 
-            console.error(err);
-            alert("❌ No se pudo cargar el ticket: " + err.message); 
+    window.showTicketModal = async function(ticketInput) {
+        // Redirigir a la nueva función central
+        if (typeof window.verTicketSolo === 'function') {
+            let idExtraido = typeof ticketInput === 'object' ? (ticketInput.id || ticketInput.codigo_ticket) : ticketInput;
+            window.verTicketSolo(idExtraido);
         }
     };
-
-    // -----------------------------------------------------
-    // B. FUNCIÓN IMPRESIÓN DIRECTA (Bypass a la impresora térmica)
-    // -----------------------------------------------------
-    window.imprimirTicketDirecto = async function(ticketInput) {
-        try {
-            const ticketData = await buscarTicketYJugadas(ticketInput);
-            if (typeof window.imprimirTicketTermica === 'function') {
-                window.imprimirTicketTermica(ticketData);
-            } else {
-                alert("⚠️ Gestor de impresión térmica no cargado.");
-            }
-        } catch (err) { 
-            console.error(err);
-            alert("❌ No se pudo imprimir el ticket: " + err.message); 
-        }
-    };
-
-    // -----------------------------------------------------
-    // ENLACES DE COMPATIBILIDAD (Para no romper botones viejos en el HTML)
-    // -----------------------------------------------------
-    window.cancelarTicketDefinitivo = cancelarTicketDefinitivo;
-    window.anularTicket = window.cancelarTicketDefinitivo;
-    window.reimpresionUnificadaPOS = window.verTicketSolo; 
-    window.verTicketDetalleDirecto = window.verTicketSolo; 
-    window.verTicketDetalle = window.verTicketSolo; 
 }

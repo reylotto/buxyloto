@@ -604,75 +604,29 @@ window.reimprimirTicketUnificado = async function(ticketId) {
 };
 
 // ==========================================================
-// INTERCEPTOR ABSOLUTO: EXTRACCIÓN Y SELLO DE COPIA INFALIBLE
+// INTERCEPTOR ABSOLUTO: SELLO DE COPIA PARA REIMPRESIÓN
 // ==========================================================
 if (typeof window !== 'undefined') {
-    // 1. Inyectar CSS global para el sello de COPIA
+    // 1. Inyectar CSS global para forzar el sello de COPIA en la térmica
     if (!document.getElementById('css-copia-sello')) {
         const style = document.createElement('style');
         style.id = 'css-copia-sello';
         style.innerHTML = `
-            #printable-ticket::before { 
+            #ticket-print-area::before { 
                 content: "*** REIMPRESIÓN / COPIA ***"; 
                 display: block; text-align: center; font-weight: bold; font-size: 11px;
-                border-bottom: 1px dashed #64748b; padding-bottom: 6px; margin-bottom: 8px; 
-                color: #334155; letter-spacing: 1px;
+                border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 8px; 
+                color: #000; letter-spacing: 1px;
             }
         `;
         document.head.appendChild(style);
     }
 
     window.showTicketModal = async function(ticketInput) {
-        const originalAlert = window.alert;
-        window.alert = function(msg) {
-            if (typeof msg === 'string' && (msg.includes('JUGADAS:') || msg.includes('TOTAL:'))) return; 
-            originalAlert(msg);
-        };
-
-        try {
-            if (!ticketInput) return;
-            let ticketData = ticketInput;
-            let jugadasExtraidas = [];
-
-            if (typeof ticketInput === 'string' || typeof ticketInput === 'number') {
-                const supabase = window.supabaseClient || window.supabase;
-                if (supabase) {
-                    const { data: tData } = await supabase.from('tickets').select('*, bancas(nombre)').eq('id', ticketInput).single();
-                    const { data: jData } = await supabase.from('jugadas').select('*').eq('ticket_id', ticketInput);
-                    
-                    if (jData && jData.length > 0) {
-                        jugadasExtraidas = jData;
-                    } else if (tData) {
-                        let posiblesJugadas = tData.detalles || tData.jugadas || tData.items || [];
-                        if (typeof posiblesJugadas === 'string') { try { posiblesJugadas = JSON.parse(posiblesJugadas); } catch(e){posiblesJugadas=[];} }
-                        if (Array.isArray(posiblesJugadas)) jugadasExtraidas = posiblesJugadas;
-                    }
-
-                    if (tData) ticketData = { ...tData, banca_nombre: tData.bancas?.nombre || 'Banca', detalles: jugadasExtraidas };
-                }
-            } else {
-                let posiblesJugadas = ticketInput.detalles || ticketInput.jugadas || ticketInput.items || [];
-                if (typeof posiblesJugadas === 'string') { try { posiblesJugadas = JSON.parse(posiblesJugadas); } catch(e){posiblesJugadas=[];} }
-                ticketData = {
-                    ...ticketInput,
-                    codigo_ticket: ticketInput.codigo_ticket || ticketInput.folio || 'BX-000000',
-                    monto_total: parseFloat(ticketInput.monto_total || ticketInput.total || 0).toFixed(2),
-                    detalles: posiblesJugadas, jugadas: posiblesJugadas
-                };
-            }
-
-            const oldModal = document.getElementById('modal-ticket-view');
-            if (oldModal) oldModal.style.display = 'none';
-
-            if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
-                window.mostrarOpcionesExportacionTicket(ticketData);
-            }
-        } finally {
-            setTimeout(() => { window.alert = originalAlert; }, 500);
+        // Redirigir a la nueva función central
+        if (typeof window.verTicketSolo === 'function') {
+            let idExtraido = typeof ticketInput === 'object' ? (ticketInput.id || ticketInput.codigo_ticket) : ticketInput;
+            window.verTicketSolo(idExtraido);
         }
     };
-    
-    window.reimprimirTicketUnificado = window.showTicketModal;
-    window.reimpresionUnificadaPOS = window.showTicketModal;
-    window.verTicketDetalleDirecto = window.showTicketModal;
 }

@@ -85,16 +85,20 @@ export async function cargarHistorialTicketsCentral() {
                         ${estatusText}
                     </span>
                 </td>
-                <td class="p-3 flex justify-center items-center space-x-2">
-                    <button onclick="window.reimpresionUnificadaPOS('${t.id}')" title="Reimprimir (Formato Oficial)"
-                            class="bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold">
-                        <i class="fa-solid fa-print mr-1"></i> Ver / Imprimir
+                <td class="p-3 flex justify-center items-center space-x-1.5">
+                    <button onclick="window.verTicketSolo('${t.id}')" title="Ver Ticket (Menú)"
+                            class="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold flex items-center">
+                        <i class="fa-solid fa-eye mr-1"></i> Ver
+                    </button>
+                    <button onclick="window.imprimirTicketDirecto('${t.id}')" title="Impresión Rápida"
+                            class="bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold flex items-center">
+                        <i class="fa-solid fa-print mr-1"></i> Imprimir
                     </button>
                     ${esAnulable ? `
                     <button onclick="window.cancelarTicketDefinitivo('${codigoRef}')" title="Anular Ticket"
                             class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold">
                         <i class="fa-solid fa-ban"></i>
-                    </button>` : '<span class="text-slate-500 text-[10px] bg-slate-800 px-1.5 py-0.5 rounded"><i class="fa-solid fa-lock"></i></span>'}
+                    </button>` : '<span class="text-slate-500 text-[10px] bg-slate-800 px-1.5 py-0.5 rounded" title="Sorteo Cerrado"><i class="fa-solid fa-lock"></i></span>'}
                 </td>
             `;
             tbody.appendChild(tr);
@@ -137,51 +141,61 @@ export async function cancelarTicketDefinitivo(ticketRef) {
 }
 
 // =========================================================================
-// 🏛️ INTERCEPTOR: CONECTAR HISTORIAL AL MOTOR PRINCIPAL DE TICKET MANAGER
+// 🏛️ INTERCEPTOR: BOTONES SEPARADOS (VER Y REIMPRIMIR)
 // =========================================================================
 if (typeof window !== 'undefined') {
-    window.reimpresionUnificadaPOS = async function(ticketId) {
+    // 1. FUNCIÓN SOLO PARA VER (Abre el modal de opciones)
+    window.verTicketSolo = async function(ticketId) {
         try {
             const supabase = window.supabaseClient || window.supabase;
-            if (!supabase) return alert("❌ Error: Sin conexión a la base de datos.");
+            if (!supabase) return alert("❌ Error: Sin conexión a la BD.");
 
-            const { data: ticket, error: errTicket } = await supabase
-                .from('tickets')
-                .select('*, bancas(nombre)')
-                .eq('id', ticketId)
-                .single();
+            const { data: ticket } = await supabase.from('tickets').select('*, bancas(nombre)').eq('id', ticketId).single();
+            if (!ticket) throw new Error("Ticket no encontrado.");
 
-            if (errTicket || !ticket) throw new Error("Ticket no encontrado en el sistema.");
-
-            const { data: jugadas, error: errJugadas } = await supabase
-                .from('jugadas')
-                .select('*')
-                .eq('ticket_id', ticketId);
-
-            if (errJugadas) throw errJugadas;
+            const { data: jugadas } = await supabase.from('jugadas').select('*').eq('ticket_id', ticketId);
 
             const ticketData = {
                 ...ticket,
                 codigo_ticket: ticket.codigo_ticket || ticket.folio || ticket.codigo || 'BX-000000',
                 monto_total: parseFloat(ticket.monto_total || ticket.total || ticket.monto || 0).toFixed(2),
                 banca_nombre: ticket.bancas?.nombre || ticket.banca_nombre || ticket.vendedor_nombre || 'Banca',
-                detalles: jugadas,
-                jugadas: jugadas
+                detalles: jugadas || [], jugadas: jugadas || []
             };
 
             if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
                 window.mostrarOpcionesExportacionTicket(ticketData);
-            } else {
-                alert("⚠️ Error: El Gestor de Tickets (ticketManager) no está cargado.");
             }
+        } catch (err) { alert("❌ No se pudo cargar el ticket: " + err.message); }
+    };
 
-        } catch (err) {
-            console.error("Error cargando detalle del ticket:", err);
-            alert("❌ No se pudo cargar el ticket: " + err.message);
-        }
+    // 2. FUNCIÓN IMPRESIÓN DIRECTA (Bypass de modal a térmica)
+    window.imprimirTicketDirecto = async function(ticketId) {
+        try {
+            const supabase = window.supabaseClient || window.supabase;
+            if (!supabase) return alert("❌ Error: Sin conexión a la BD.");
+
+            const { data: ticket } = await supabase.from('tickets').select('*, bancas(nombre)').eq('id', ticketId).single();
+            if (!ticket) throw new Error("Ticket no encontrado.");
+
+            const { data: jugadas } = await supabase.from('jugadas').select('*').eq('ticket_id', ticketId);
+
+            const ticketData = {
+                ...ticket,
+                codigo_ticket: ticket.codigo_ticket || ticket.folio || ticket.codigo || 'BX-000000',
+                monto_total: parseFloat(ticket.monto_total || ticket.total || ticket.monto || 0).toFixed(2),
+                banca_nombre: ticket.bancas?.nombre || ticket.banca_nombre || ticket.vendedor_nombre || 'Banca',
+                detalles: jugadas || [], jugadas: jugadas || []
+            };
+
+            if (typeof window.imprimirTicketTermica === 'function') {
+                window.imprimirTicketTermica(ticketData);
+            }
+        } catch (err) { alert("❌ No se pudo imprimir el ticket: " + err.message); }
     };
 
     window.cancelarTicketDefinitivo = cancelarTicketDefinitivo;
     window.anularTicket = window.cancelarTicketDefinitivo;
-    window.verTicketDetalleDirecto = window.reimpresionUnificadaPOS;
+    window.reimpresionUnificadaPOS = window.verTicketSolo; // Compatibilidad
+    window.verTicketDetalleDirecto = window.verTicketSolo; // Compatibilidad
 }

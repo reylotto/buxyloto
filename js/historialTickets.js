@@ -141,45 +141,48 @@ export async function cancelarTicketDefinitivo(ticketRef) {
 }
 
 // =========================================================================
-// 🏛️ INTERCEPTOR: BOTONES SEPARADOS Y BÚSQUEDA BLINDADA (ERROR 400 FIX)
+// 🏛️ INTERCEPTOR: BOTONES SEPARADOS Y BÚSQUEDA BLINDADA (SIN ERROR 400)
 // =========================================================================
 if (typeof window !== 'undefined') {
     
-    // FUNCIÓN AUXILIAR: Busca inteligentemente evitando el error 400 de Postgres
     async function buscarTicketYJugadas(ticketInput) {
         const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
         if (!supabase) throw new Error("Sin conexión a la Base de Datos.");
 
         let identificador = typeof ticketInput === 'object' ? (ticketInput.id || ticketInput.codigo_ticket) : String(ticketInput).trim();
-        if (!identificador) throw new Error("Identificador de ticket vacío.");
+        if (!identificador) throw new Error("Identificador vacío.");
 
-        let query = supabase.from('tickets').select('*, bancas(nombre)');
+        // ❌ ELIMINAMOS la consulta relacional "bancas(nombre)" para evitar el Error 400
+        let query = supabase.from('tickets').select('*');
         
-        // 1. ¿Es un número puro (ej: 45) o un código de letras (ej: BX-123)?
         if (/^\d+$/.test(identificador)) {
             query = query.eq('id', parseInt(identificador));
         } else {
             query = query.eq('codigo_ticket', identificador);
         }
 
-        let { data: ticket, error: errT } = await query.single();
-        
-        // 2. Fallback: Si no lo encontró por 'codigo_ticket', intenta buscar en la columna 'folio'
-        if (!ticket) {
-            let { data: fallback } = await supabase.from('tickets').select('*, bancas(nombre)').eq('folio', identificador).single();
-            ticket = fallback;
-        }
+        const { data: ticket, error: errT } = await query.maybeSingle();
 
+        if (errT) throw new Error("Error consultando ticket: " + errT.message);
         if (!ticket) throw new Error("Ticket no encontrado en el sistema.");
 
-        // 3. AHORA SÍ: Usar EXCLUSIVAMENTE el ID numérico para buscar las jugadas
+        // Buscar jugadas
         const { data: jugadas } = await supabase.from('jugadas').select('*').eq('ticket_id', ticket.id);
+
+        // Rescate del nombre de la banca de manera segura
+        let nombreDeBanca = ticket.banca_nombre || ticket.vendedor_nombre || ticket.banca || 'Banca General';
+        if (!ticket.banca_nombre && ticket.banca_id) {
+            try {
+                const { data: bData } = await supabase.from('bancas').select('nombre').eq('id', ticket.banca_id).maybeSingle();
+                if (bData && bData.nombre) nombreDeBanca = bData.nombre;
+            } catch(e) {} // Silenciamos para que no rompa si falla
+        }
 
         return {
             ...ticket,
             codigo_ticket: ticket.codigo_ticket || ticket.folio || ticket.codigo || 'BX-000000',
             monto_total: parseFloat(ticket.monto_total || ticket.total || ticket.monto || 0).toFixed(2),
-            banca_nombre: ticket.bancas?.nombre || ticket.banca_nombre || ticket.vendedor_nombre || 'Banca',
+            banca_nombre: nombreDeBanca,
             detalles: jugadas || [], 
             jugadas: jugadas || []
         };
@@ -220,7 +223,7 @@ if (typeof window !== 'undefined') {
     };
 
     // -----------------------------------------------------
-    // ENLACES DE COMPATIBILIDAD (Para no romper botones viejos en el HTML)
+    // ENLACES DE COMPATIBILIDAD
     // -----------------------------------------------------
     window.cancelarTicketDefinitivo = cancelarTicketDefinitivo;
     window.anularTicket = window.cancelarTicketDefinitivo;

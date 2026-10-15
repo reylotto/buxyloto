@@ -328,30 +328,21 @@ export function agregarJugadaAlCarrito() {
     const numLen = numero.replace(/\D/g, '').length;
     let tipoDetectado = 'directo';
 
-    let esSorteoLNB = false;
+    let esSorteoLNBOGordito = false;
     checkboxesCheck.forEach(cb => {
         const nombreS = (cb.dataset.nombre || '').toUpperCase();
-        if (nombreS.includes('LNB') || nombreS.includes('NACIONAL') || nombreS.includes('DOMINICAL') || nombreS.includes('MIERCOLITO')) {
-            esSorteoLNB = true;
+        if (nombreS.includes('LNB') || nombreS.includes('NACIONAL') || nombreS.includes('DOMINICAL') || nombreS.includes('MIERCOLITO') || nombreS.includes('GORDITO')) {
+            esSorteoLNBOGordito = true;
         }
     });
 
-    if (esSorteoLNB) {
+    if (esSorteoLNBOGordito) {
         if (numLen === 2) {
-            tipoDetectado = 'chance'; // 2 dígitos en LNB = Chance
+            tipoDetectado = 'chance'; // 2 dígitos en LNB o Gordito = Chance
         } else if (numLen === 4) {
-            tipoDetectado = 'billete'; // 4 dígitos en LNB = Billete (EXACTO)
+            tipoDetectado = 'billete'; // 4 dígitos en LNB o Gordito = Billete (EXACTO)
         } else {
-            alert("⚠️ En los sorteos de la Lotería Nacional de Panamá solo se permiten Chances (2 dígitos) y Billetes (4 dígitos).");
-            inputNum.focus();
-            return;
-        }
-    } else {
-        if (numLen === 2) tipoDetectado = 'directo';
-        else if (numLen === 4) tipoDetectado = 'pale';
-        else if (numLen === 6) tipoDetectado = 'tripleta';
-        else {
-            alert("⚠️ La cantidad de dígitos no corresponde a una jugada válida.");
+            alert("⚠️ En los sorteos de la Lotería Nacional y Gordito de Panamá solo se permiten Chances (2 dígitos) y Billetes (4 dígitos).");
             inputNum.focus();
             return;
         }

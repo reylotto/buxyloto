@@ -50,6 +50,7 @@ window.cargarResumenBalances = async function() {
         let html = '';
 
         estadoBalances.vendedores.forEach(b => {
+            // Se calcula el histórico TOTAL de esta banca
             const ticketsVendedor = (tickets || []).filter(t => String(t.banca_id) === String(b.id) && String(t.estatus).toLowerCase() !== 'cancelado' && String(t.estatus).toLowerCase() !== 'anulado');
             
             let ventas = 0; let premios = 0; let comisiones = 0;
@@ -70,16 +71,28 @@ window.cargarResumenBalances = async function() {
                 }
             });
 
+            // Se suman todos los pagos que ha hecho o recibido esta banca
             const pagosVendedor = estadoBalances.pagosLocales.filter(p => String(p.banca_id) === String(b.id));
             const totIngresos = pagosVendedor.filter(p => p.tipo === 'ingreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
             const totEgresos = pagosVendedor.filter(p => p.tipo === 'egreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
 
+            // RESULTADO ACUMULADO DESDE EL DÍA CERO HASTA HOY
             const resultadoNeto = ventas - premios - comisiones;
-            const balanceFinal = resultadoNeto - totIngresos + totEgresos; 
+            let balanceFinal = resultadoNeto - totIngresos + totEgresos; 
+            
+            // REDONDEO PARA EVITAR DECIMALES FANTASMA (Ej: 0.00000001)
+            balanceFinal = Math.round(balanceFinal * 100) / 100;
             
             const colorClass = balanceFinal >= 0 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
             const nombre = b.nombre_banca || b.vendedor_nombre || b.name || `Banca #${b.id}`;
             const grupo = b.zona || 'General';
+            
+            // LÓGICA DE ESTATUS REAL: Solo está cuadrado si la banca no nos debe (0.00)
+            const estaCuadrado = (balanceFinal === 0);
+            const estatusLabel = estaCuadrado ? 'CUADRADO' : (balanceFinal > 0 ? 'PENDIENTE (DEBE)' : 'SALDO A FAVOR');
+            const estatusClass = estaCuadrado 
+                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold' 
+                : (balanceFinal > 0 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30 font-bold' : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-bold');
 
             html += `
                 <tr class="hover:bg-slate-700/30 border-b border-slate-700/50">
@@ -90,7 +103,11 @@ window.cargarResumenBalances = async function() {
                             $${balanceFinal.toFixed(2)}
                         </span>
                     </td>
-                    <td class="p-4 text-right text-slate-400">Calculado Hoy</td>
+                    <td class="p-4 text-center">
+                        <span class="text-[10px] px-2.5 py-1 rounded-full uppercase ${estatusClass}">
+                            ${estatusLabel}
+                        </span>
+                    </td>
                     <td class="p-4 text-center">
                         <button onclick="window.irACuadreDetalle('${b.id}')" class="bg-slate-700 hover:bg-emerald-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition shadow">Cuadrar</button>
                     </td>
@@ -250,7 +267,6 @@ window.generarDetalleCuadre = async function() {
 
 window.procesarPagoVendedor = async function(tipoMovimiento) {
     if (!estadoBalances.vendedorActual) return alert("Seleccione un vendedor primero.");
-    const balanceTexto = document.getElementById('cuadre-val-balance').textContent.replace('$', '');
 
     let mensaje = tipoMovimiento === 'ingreso' 
         ? `⬇️ RECIBIR DINERO DE BANCA\nLa banca le está entregando dinero a la Casa.\n\nIngrese el monto:`
@@ -268,23 +284,25 @@ window.procesarPagoVendedor = async function(tipoMovimiento) {
             responsable = window.currentUserProfile.email || window.currentUserProfile.user_metadata?.full_name || 'Administrador';
         }
 
-        // Obtener el nombre de la banca de forma segura
         const b = estadoBalances.vendedorActual;
         const nombreBancaReal = b.nombre_banca || b.vendedor_nombre || b.name || `Banca ${b.id}`;
+        
+        // OBTENER LA FECHA ACTUAL EXACTA (VITAL PARA LA APK Y EL ACUMULATIVO)
+        const fechaHoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
 
         const nuevoPago = {
             banca_id: String(b.id),
-            banca_nombre: String(nombreBancaReal), // 👈 Aseguramos que se envíe explícitamente como texto
+            banca_nombre: String(nombreBancaReal), 
             monto: monto,
             tipo: tipoMovimiento,
-            responsable: responsable
+            responsable: responsable,
+            fecha: fechaHoy // ESTA ES LA PIEZA CLAVE QUE FALTABA
         };
 
         const { error } = await window.supabase.from('pagos_bancas').insert([nuevoPago]);
-
         if (error) throw error;
 
-        alert(`✅ Registro guardado exitosamente en la nube.`);
+        alert(`✅ Cuadre registrado exitosamente.`);
         
         await window.cargarResumenBalances();
         await window.generarDetalleCuadre(); 

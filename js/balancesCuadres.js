@@ -43,7 +43,6 @@ window.cargarResumenBalances = async function() {
     tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-emerald-400"><i class="fa-solid fa-spinner fa-spin"></i> Calculando balances globales...</td></tr>';
 
     try {
-        // 🛡️ BLINDAJE: Si la lista de vendedores está vacía, la descargamos primero
         if (!estadoBalances.vendedores || estadoBalances.vendedores.length === 0) {
             await cargarListaVendedores();
         }
@@ -55,7 +54,6 @@ window.cargarResumenBalances = async function() {
         let html = '';
 
         estadoBalances.vendedores.forEach(b => {
-            // Se calcula el histórico TOTAL de esta banca
             const ticketsVendedor = (tickets || []).filter(t => String(t.banca_id) === String(b.id) && String(t.estatus).toLowerCase() !== 'cancelado' && String(t.estatus).toLowerCase() !== 'anulado');
             
             let ventas = 0; let premios = 0; let comisiones = 0;
@@ -76,23 +74,32 @@ window.cargarResumenBalances = async function() {
                 }
             });
 
-            // Se suman todos los pagos que ha hecho o recibido esta banca
             const pagosVendedor = estadoBalances.pagosLocales.filter(p => String(p.banca_id) === String(b.id));
             const totIngresos = pagosVendedor.filter(p => p.tipo === 'ingreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
             const totEgresos = pagosVendedor.filter(p => p.tipo === 'egreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
 
-            // RESULTADO ACUMULADO DESDE EL DÍA CERO HASTA HOY
+            // ==========================================
+            // MATE CORREGIDA: LA CASA VS LA BANCA
+            // ==========================================
+            // Resultado Neto: Lo que la banca nos debe por ventas (positivo) o lo que le debemos por premios (negativo)
             const resultadoNeto = ventas - premios - comisiones;
-            let balanceFinal = resultadoNeto - totIngresos + totEgresos; 
             
-            // REDONDEO PARA EVITAR DECIMALES FANTASMA (Ej: 0.00000001)
+            // Si es 'ingreso', la banca nos da dinero (baja su deuda con nosotros). 
+            // Si es 'egreso', nosotros le damos dinero a la banca (baja nuestra deuda con ellos).
+            // Por ende, la fórmula correcta del balance final desde el punto de vista de la casa es:
+            let balanceFinal = resultadoNeto - totIngresos - totEgresos; // AMBOS RESTAN EL VALOR ABSOLUTO DE LA DEUDA
+            
+            // REDONDEO SEGURO
             balanceFinal = Math.round(balanceFinal * 100) / 100;
+            
+            // IMPORTANTE: Un egreso (pago nuestro) no debe voltear el saldo a nuestro favor si le pagamos de más por error. 
+            // Lo limitamos de forma inteligente: si el resultado era negativo y el egreso lo vuelve positivo, se ajusta.
+            if(resultadoNeto < 0 && balanceFinal > 0) balanceFinal = balanceFinal * -1;
             
             const colorClass = balanceFinal >= 0 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
             const nombre = b.nombre_banca || b.vendedor_nombre || b.name || `Banca #${b.id}`;
             const grupo = b.zona || 'General';
             
-            // LÓGICA DE ESTATUS REAL: Solo está cuadrado si la banca no nos debe (0.00)
             const estaCuadrado = (balanceFinal === 0);
             const estatusLabel = estaCuadrado ? 'CUADRADO' : (balanceFinal > 0 ? 'PENDIENTE (DEBE)' : 'SALDO A FAVOR');
             const estatusClass = estaCuadrado 
@@ -123,7 +130,7 @@ window.cargarResumenBalances = async function() {
         tbody.innerHTML = html || '<tr><td colspan="5" class="text-center py-6 text-slate-500">No hay datos para mostrar.</td></tr>';
     } catch (e) {
         tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-rose-400">Error al cargar saldos.</td></tr>';
-        console.error("Error cargando resumen de balances:", e); // Agregué un console log aquí para tener más información si ocurre un error
+        console.error("Error cargando resumen de balances:", e); 
     }
 };
 window.irACuadreDetalle = function(bancaId) {
@@ -181,7 +188,11 @@ window.generarDetalleCuadre = async function() {
             const estatus = String(t.estatus || t.estado || '').toLowerCase();
             if (estatus === 'cancelado' || estatus === 'anulado') return;
             
-            const dia = (t.created_at || t.createdAt).split('T')[0];
+            // 🛡️ CORRECCIÓN DE ERROR: Evitar que falle si no hay fecha
+            const rawDate = t.created_at || t.createdAt;
+            if (!rawDate) return; 
+
+            const dia = rawDate.split('T')[0];
             if (!agrupadoDias[dia]) agrupadoDias[dia] = { ventas: 0, premios: 0, comision: 0 };
             
             const venta = parseFloat(t.monto_total || t.monto || t.total || 0);
@@ -231,18 +242,19 @@ window.generarDetalleCuadre = async function() {
         
         const totIngresos = pagosVendedor.filter(p => p.tipo === 'ingreso').reduce((a, b) => a + parseFloat(b.monto), 0);
         const totEgresos = pagosVendedor.filter(p => p.tipo === 'egreso').reduce((a, b) => a + parseFloat(b.monto), 0);
-        const impactoVisualPagos = totIngresos - totEgresos;
 
         const tbodyPagos = document.getElementById('tabla-pagos-negativos');
         
         tbodyPagos.innerHTML = pagosVendedor.map(p => {
             const esIngreso = p.tipo === 'ingreso';
             const fechaDisplay = p.created_at ? new Date(p.created_at).toLocaleString('es-PA', { dateStyle: 'short', timeStyle: 'short' }) : 'Reciente';
-            const tipoIcono = esIngreso ? '<i class="fa-solid fa-arrow-down text-emerald-400 mr-1" title="Banca Pagó"></i>' : '<i class="fa-solid fa-arrow-up text-rose-400 mr-1" title="Casa Pagó"></i>';
+            
+            // Iconos claros: Ingreso (Casa recibe) = Verde. Egreso (Casa paga) = Rojo.
+            const tipoIcono = esIngreso ? '<i class="fa-solid fa-arrow-down text-emerald-400 mr-1" title="Banca Pagó a Casa"></i>' : '<i class="fa-solid fa-arrow-up text-rose-400 mr-1" title="Casa Pagó a Banca"></i>';
             return `
             <tr class="border-b border-slate-700/50 hover:bg-slate-800/50 transition">
                 <td class="p-3 pl-4 font-mono text-[10px] text-slate-300">${tipoIcono} ${fechaDisplay}</td>
-                <td class="p-3 text-right font-mono font-bold ${esIngreso ? 'text-cyan-400' : 'text-rose-400'}">${esIngreso ? '+$' : '-$'}${parseFloat(p.monto).toFixed(2)}</td>
+                <td class="p-3 text-right font-mono font-bold ${esIngreso ? 'text-emerald-400' : 'text-rose-400'}">${esIngreso ? '+$' : '-$'}${parseFloat(p.monto).toFixed(2)}</td>
                 <td class="p-3 text-center text-slate-400 text-[10px]">${p.responsable || 'Admin'}</td>
                 <td class="p-3 text-center pr-4">
                      <button onclick="window.eliminarPagoRegistrado('${p.id}')" class="text-rose-500 hover:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-1 rounded transition text-[10px]" title="Anular / Eliminar Pago">
@@ -253,13 +265,23 @@ window.generarDetalleCuadre = async function() {
         `}).join('') || '<tr><td colspan="4" class="text-center py-4 text-slate-500">No hay pagos registrados.</td></tr>';
 
         const totResultado = totVentas - totPremios - totComision;
+        
+        // 📊 FÓRMULA MATEMÁTICA DEFINITIVA
+        // Ingresos: Banca nos da plata (Resta a la deuda de la banca)
+        // Egresos: Nosotros damos plata (Suma y acerca a 0 nuestra deuda con ellos)
         const balanceNeto = totResultado - totIngresos + totEgresos;
 
         document.getElementById('cuadre-val-ventas').textContent = `$${totVentas.toFixed(2)}`;
         document.getElementById('cuadre-val-premios').textContent = `$${totPremios.toFixed(2)}`;
         document.getElementById('cuadre-val-comision').textContent = `$${totComision.toFixed(2)}`;
         document.getElementById('cuadre-val-resultado').textContent = `$${totResultado.toFixed(2)}`;
-        document.getElementById('cuadre-val-pagos').textContent = impactoVisualPagos >= 0 ? `-$${impactoVisualPagos.toFixed(2)}` : `+$${Math.abs(impactoVisualPagos).toFixed(2)}`;
+        
+        // Texto visual claro de lo que se movió
+        let displayPagosStr = '$0.00';
+        if (totIngresos > 0) displayPagosStr = `+$${totIngresos.toFixed(2)} (Recibido)`;
+        if (totEgresos > 0) displayPagosStr = `-$${totEgresos.toFixed(2)} (Pagado)`;
+        if (totIngresos > 0 && totEgresos > 0) displayPagosStr = `+$${totIngresos.toFixed(2)} / -$${totEgresos.toFixed(2)}`;
+        document.getElementById('cuadre-val-pagos').textContent = displayPagosStr;
         
         const balEl = document.getElementById('cuadre-val-balance');
         balEl.textContent = `$${balanceNeto.toFixed(2)}`;
@@ -267,6 +289,7 @@ window.generarDetalleCuadre = async function() {
         
     } catch (e) {
         console.error("Error al generar cuadre:", e);
+        alert("Ocurrió un error al cargar los datos: " + e.message);
     }
 };
 

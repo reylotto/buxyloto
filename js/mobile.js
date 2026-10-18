@@ -50,14 +50,15 @@ function crearBarraSuperiorMobile() {
 }
 
 /**
- * Inyecta la capa oscura traslúcida al desplegar el menú
+ * Inyecta la capa oscura traslúcida al desplegar el menú (Z-INDEX CORREGIDO)
  */
 function crearOverlayMenu() {
     if (document.getElementById('mobile-menu-overlay')) return;
 
     const overlay = document.createElement('div');
     overlay.id = 'mobile-menu-overlay';
-    overlay.className = 'fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 hidden md:hidden transition-all duration-300';
+    // Se elevó el z-index a 9998 para evitar bloqueos visuales
+    overlay.className = 'fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9998] hidden md:hidden transition-all duration-300';
     document.body.appendChild(overlay);
 }
 
@@ -74,7 +75,7 @@ function vincularControlesSidebar() {
         return;
     }
 
-    // Configurar clases para posición flotante móvil
+    // Configurar clases para posición flotante móvil (Z-INDEX MÁXIMO 9999)
     const alternarMenu = (forzarCierre = false) => {
         const estaOculto = sidebar.classList.contains('hidden');
 
@@ -87,7 +88,7 @@ function vincularControlesSidebar() {
         } else {
             // ABRIR MENÚ EN MÓVIL
             sidebar.classList.remove('hidden');
-            sidebar.classList.add('fixed', 'inset-y-0', 'left-0', 'z-50', 'w-64', 'shadow-2xl');
+            sidebar.classList.add('fixed', 'inset-y-0', 'left-0', 'z-[9999]', 'w-64', 'shadow-2xl', 'bg-white');
             if (overlay) overlay.classList.remove('hidden');
         }
     };
@@ -118,7 +119,7 @@ function vincularControlesSidebar() {
     // Controlar cambio de pantalla horizontal / vertical
     const ajustarVista = () => {
         if (window.innerWidth >= 768) {
-            sidebar.classList.remove('fixed', 'inset-y-0', 'left-0', 'z-50', 'shadow-2xl');
+            sidebar.classList.remove('fixed', 'inset-y-0', 'left-0', 'z-[9999]', 'shadow-2xl', 'bg-white');
             sidebar.classList.add('hidden', 'md:flex');
             if (overlay) overlay.classList.add('hidden');
         } else {

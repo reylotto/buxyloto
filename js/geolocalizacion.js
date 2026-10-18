@@ -1,68 +1,52 @@
 // =================================================================
-// MÓDULO DE GEOLOCALIZACIÓN Y MONITOREO DE TERMINALES
+// MÓDULO DE GEOLOCALIZACIÓN Y MONITOREO DE TERMINALES EN TIEMPO REAL
 // =================================================================
 
 let mapaTerminales = null;
 let marcadoresGroup = [];
+let intervaloActualizacion = null; // Variable para controlar el auto-refresco
 
-/**
- * Inicializa el mapa y renderiza los puntos de las bancas
- */
 export async function initGeolocalizacionModule() {
-    console.log("🗺️ Inicializando Módulo de Geolocalización...");
+    console.log("🗺️ Inicializando Módulo de Geolocalización en Tiempo Real...");
 
-    // Usar la ID exacta presente en tu HTML: 'map-container'
     const mapContainer = document.getElementById('map-container') 
                        || document.getElementById('mapa-terminales') 
                        || document.getElementById('map');
 
-    if (!mapContainer) {
-        console.warn("⚠️ No se encontró el contenedor del mapa (#map-container) en el DOM.");
-        return;
-    }
+    if (!mapContainer) return;
 
-    // 1. Si el mapa ya existe en la variable, solo reajustamos el tamaño y cargamos los datos
     if (mapaTerminales && mapContainer._leaflet_id) {
-        setTimeout(() => {
-            if (mapaTerminales) mapaTerminales.invalidateSize();
-        }, 200);
-        await cargarBancasEnMapa();
+        setTimeout(() => { if (mapaTerminales) mapaTerminales.invalidateSize(); }, 200);
+        await cargarUbicacionesEnVivo();
+        iniciarAutoRefresco();
         return;
     }
 
-    // 2. BLINDAJE: Si Leaflet dejó el contenedor marcado pero la variable se perdió, destruimos la instancia previa
     if (mapContainer._leaflet_id) {
-        if (mapaTerminales) {
-            try { mapaTerminales.remove(); } catch (e) { console.warn(e); }
-        }
+        if (mapaTerminales) { try { mapaTerminales.remove(); } catch (e) {} }
         mapContainer._leaflet_id = null;
         mapaTerminales = null;
     }
 
     try {
-        // Coordenadas centrales: Ciudad de Panamá [Latitud, Longitud]
         const panamaCoords = [8.9824, -79.5199];
 
-        // Crear instancia del mapa Leaflet
         mapaTerminales = L.map(mapContainer, {
             center: panamaCoords,
             zoom: 12,
             zoomControl: true
         });
 
-        // Capa de mapa OpenStreetMap
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '&copy; OpenStreetMap'
         }).addTo(mapaTerminales);
 
-        // Reajustar dimensiones para renderizado correcto sin cortes
-        setTimeout(() => {
-            if (mapaTerminales) mapaTerminales.invalidateSize();
-        }, 300);
+        setTimeout(() => { if (mapaTerminales) mapaTerminales.invalidateSize(); }, 300);
 
-        // 3. Cargar bancas y dibujarlas en el mapa
-        await cargarBancasEnMapa();
+        // Carga inicial y encendido del motor de auto-refresco
+        await cargarUbicacionesEnVivo();
+        iniciarAutoRefresco();
 
     } catch (err) {
         console.error("❌ Error al inicializar el mapa:", err);
@@ -70,56 +54,75 @@ export async function initGeolocalizacionModule() {
 }
 
 /**
- * Consulta las bancas desde Supabase y coloca los marcadores en el mapa
+ * Consulta las ubicaciones en VIVO desde la tabla 'ubicaciones_terminales'
+ * y las cruza con la tabla de 'bancas' para obtener los datos de límite/comisión.
  */
-export async function cargarBancasEnMapa() {
+export async function cargarUbicacionesEnVivo() {
     if (!mapaTerminales) return;
 
-    const supabase = window.supabase;
+    // Función de rescate para obtener el cliente de Supabase
+    const getSupabase = () => {
+        if (window.supabase) return window.supabase;
+        if (window.supabaseClient) return window.supabaseClient;
+        if (typeof window.getSupabaseClient === 'function') return window.getSupabaseClient();
+        return null;
+    };
+
+    const supabase = getSupabase();
     if (!supabase) {
         console.error("❌ Supabase no está inicializado.");
         return;
     }
 
-    // Limpiar marcadores anteriores
-    marcadoresGroup.forEach(marker => mapaTerminales.removeLayer(marker));
-    marcadoresGroup = [];
-
     try {
-        const { data: bancas, error } = await supabase
-            .from('bancas')
-            .select('*')
-            .order('created_at', { ascending: false });
+        // 1. Obtener datos de bancas (estáticos: comisiones, limites)
+        const { data: bancasData, error: errBancas } = await supabase.from('bancas').select('id, estatus, comision, limite_credito');
+        if (errBancas) throw errBancas;
+        const bancasMap = new Map((bancasData || []).map(b => [String(b.id), b]));
 
-        if (error) throw error;
+        // 2. Obtener ubicaciones en VIVO (dinámicas)
+        const { data: ubicaciones, error: errGeo } = await supabase.from('ubicaciones_terminales').select('*');
+        if (errGeo) throw errGeo;
 
-        if (!bancas || bancas.length === 0) {
-            console.log("ℹ️ No hay bancas registradas para mostrar.");
+        // Limpiar mapa antes de dibujar los nuevos pines
+        marcadoresGroup.forEach(marker => mapaTerminales.removeLayer(marker));
+        marcadoresGroup = [];
+
+        if (!ubicaciones || ubicaciones.length === 0) {
+            console.log("ℹ️ No hay terminales reportando ubicación en vivo.");
             return;
         }
 
-        // Puntos demostrativos en zonas clave de Panamá por si no tienen coordenadas en BD
-        const ubicacionesPanamaDemo = [
-            { lat: 8.9824, lng: -79.5199 }, // Bella Vista
-            { lat: 9.0000, lng: -79.5000 }, // San Francisco
-            { lat: 9.0150, lng: -79.5320 }, // El Dorado
-            { lat: 8.9550, lng: -79.5480 }  // Albrook / Ancón
-        ];
+        const ahora = new Date();
 
-        bancas.forEach((banca, index) => {
-            const lat = banca.latitud ? parseFloat(banca.latitud) : ubicacionesPanamaDemo[index % ubicacionesPanamaDemo.length].lat;
-            const lng = banca.longitud ? parseFloat(banca.longitud) : ubicacionesPanamaDemo[index % ubicacionesPanamaDemo.length].lng;
+        ubicaciones.forEach(ub => {
+            const lat = parseFloat(ub.latitud);
+            const lng = parseFloat(ub.longitud);
+            if (isNaN(lat) || isNaN(lng)) return;
 
-            const nombre = banca.nombre_banca || banca.nombre || `Banca #${banca.id || index + 1}`;
-            const operador = banca.vendedor_nombre || banca.operador || banca.vendedor || 'Sin Operador';
-            const estatus = String(banca.estatus || 'activo').toLowerCase();
-            const comision = banca.comision !== undefined ? banca.comision : 15;
-            const limite = banca.limite_credito !== undefined ? banca.limite_credito : 300;
+            const nombreVendedor = ub.vendedor_nombre || 'Terminal Desconocida';
+            const ultimaActualizacion = new Date(ub.ultima_actualizacion);
+            const minutosInactivo = Math.floor((ahora - ultimaActualizacion) / 60000);
 
-            const esActivo = estatus === 'activo';
-            const colorStatus = esActivo ? '#10b981' : '#f43f5e';
+            // Obtener datos de la banca asociada para el popup
+            const bancaAsociada = bancasMap.get(String(ub.banca_id)) || {};
+            const estatusReal = String(bancaAsociada.estatus || 'activo').toLowerCase();
+            const comision = bancaAsociada.comision !== undefined ? bancaAsociada.comision : 15;
+            const limite = bancaAsociada.limite_credito !== undefined ? bancaAsociada.limite_credito : 300;
 
-            // Pin interactivo
+            // Determinar color del pin basado en el estado Y si ha reportado GPS recientemente
+            let colorStatus = '#10b981'; // Verde por defecto (Activo y reportando)
+            let estadoTexto = 'EN LINEA';
+
+            if (estatusReal !== 'activo') {
+                colorStatus = '#f43f5e'; // Rojo si la banca está bloqueada/inactiva
+                estadoTexto = 'BLOQUEADO';
+            } else if (minutosInactivo > 15) {
+                colorStatus = '#94a3b8'; // Gris si lleva más de 15 minutos sin reportar GPS
+                estadoTexto = `OFFLINE (${minutosInactivo}m)`;
+            }
+
+            // Crear el icono del pin
             const customIcon = L.divIcon({
                 className: 'custom-map-pin',
                 html: `
@@ -134,36 +137,42 @@ export async function cargarBancasEnMapa() {
                         align-items: center;
                         justify-content: center;
                         color: white;
-                        font-size: 12px;">
-                        <i class="fa-solid fa-store"></i>
+                        font-size: 12px;
+                        transition: all 0.3s ease;">
+                        <i class="fa-solid fa-location-dot"></i>
                     </div>
                 `,
                 iconSize: [28, 28],
                 iconAnchor: [14, 14]
             });
 
-            // Ventana emergente (Popup)
+            const horaFmt = ultimaActualizacion.toLocaleTimeString('es-PA', { hour: '2-digit', minute: '2-digit' });
+
             const popupContent = `
                 <div style="font-family: system-ui, sans-serif; padding: 4px; color: #0f172a; min-width: 180px;">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                        <strong style="font-size: 14px; color: #0f172a;">${nombre}</strong>
+                        <strong style="font-size: 14px; color: #0f172a;">${nombreVendedor}</strong>
                         <span style="
-                            background: ${esActivo ? '#d1fae5' : '#ffe4e6'};
-                            color: ${esActivo ? '#065f46' : '#9f1239'};
+                            background: ${colorStatus}20;
+                            color: ${colorStatus};
                             padding: 2px 8px;
                             border-radius: 12px;
-                            font-size: 10px;
+                            font-size: 9px;
                             font-weight: bold;
-                            text-transform: uppercase;">
-                            ${estatus}
+                            text-transform: uppercase;
+                            border: 1px solid ${colorStatus}40;">
+                            ${estadoTexto}
                         </span>
                     </div>
                     <div style="font-size: 12px; line-height: 1.5; color: #475569;">
-                        <p style="margin: 2px 0;">👤 <b>Operador:</b> ${operador}</p>
                         <p style="margin: 2px 0;">💵 <b>Comisión:</b> ${comision}%</p>
-                        <p style="margin: 2px 0;">💳 <b>Límite Crédito:</b> $${Number(limite).toFixed(2)}</p>
-                        <p style="margin: 2px 0; font-size: 10px; color: #94a3b8; margin-top: 4px;">
-                            📍 Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}
+                        <p style="margin: 2px 0;">💳 <b>Crédito:</b> $${Number(limite).toFixed(2)}</p>
+                        <hr style="margin: 6px 0; border-top: 1px solid #e2e8f0;">
+                        <p style="margin: 2px 0; font-size: 10px; color: #64748b;">
+                            <i class="fa-solid fa-clock"></i> Último reporte: ${horaFmt}
+                        </p>
+                        <p style="margin: 2px 0; font-size: 9px; color: #94a3b8;">
+                            Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}
                         </p>
                     </div>
                 </div>
@@ -177,13 +186,26 @@ export async function cargarBancasEnMapa() {
         });
 
     } catch (err) {
-        console.error("❌ Error al cargar las bancas en el mapa:", err);
+        console.error("❌ Error cargando ubicaciones en vivo:", err);
     }
 }
 
-// =================================================================
-// OBSERVADOR AUTOMÁTICO DE SECCIÓN (#section-geo)
-// =================================================================
+/**
+ * Inicia el temporizador para recargar el mapa automáticamente
+ */
+function iniciarAutoRefresco() {
+    if (intervaloActualizacion) clearInterval(intervaloActualizacion);
+    // Refrescar las ubicaciones cada 15 segundos
+    intervaloActualizacion = setInterval(() => {
+        const geoSection = document.getElementById('section-geo');
+        // Solo refresca si la pestaña del mapa está visible
+        if (geoSection && !geoSection.classList.contains('hidden')) {
+            cargarUbicacionesEnVivo();
+        }
+    }, 15000); 
+}
+
+// Observador para detener el rastreo si salimos de la pantalla (ahorra batería)
 document.addEventListener('DOMContentLoaded', () => {
     const geoSection = document.getElementById('section-geo');
     if (geoSection) {
@@ -193,6 +215,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const isHidden = geoSection.classList.contains('hidden');
                     if (!isHidden) {
                         initGeolocalizacionModule();
+                    } else if (intervaloActualizacion) {
+                        clearInterval(intervaloActualizacion); // Apagar motor si cambiamos de pantalla
                     }
                 }
             });
@@ -201,7 +225,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Exponer globalmente para que index.html y otros módulos puedan llamarla sin colisiones
 window.initGeolocalizacionModule = initGeolocalizacionModule;
 window.initMap = initGeolocalizacionModule;
-window.cargarBancasEnMapa = cargarBancasEnMapa;
+window.cargarBancasEnMapa = cargarUbicacionesEnVivo;

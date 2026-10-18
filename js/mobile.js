@@ -1,5 +1,5 @@
 // =================================================================
-// MÓDULO DE NAVEGACIÓN MÓVIL EXACTO PARA <ASIDE ID="SIDEBAR">
+// MÓDULO DE NAVEGACIÓN MÓVIL (CORREGIDO PARA VISIBILIDAD DEL MENÚ)
 // =================================================================
 
 export function initMobileModule() {
@@ -21,9 +21,6 @@ function asegurarMetaViewport() {
     meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
 }
 
-/**
- * Inyecta la barra superior para celulares con el botón hamburguesa
- */
 function crearBarraSuperiorMobile() {
     if (document.getElementById('mobile-top-header')) return;
 
@@ -49,22 +46,15 @@ function crearBarraSuperiorMobile() {
     document.body.prepend(header);
 }
 
-/**
- * Inyecta la capa oscura traslúcida al desplegar el menú (Z-INDEX CORREGIDO)
- */
 function crearOverlayMenu() {
     if (document.getElementById('mobile-menu-overlay')) return;
 
     const overlay = document.createElement('div');
     overlay.id = 'mobile-menu-overlay';
-    // Se elevó el z-index a 9998 para evitar bloqueos visuales
     overlay.className = 'fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9998] hidden md:hidden transition-all duration-300';
     document.body.appendChild(overlay);
 }
 
-/**
- * Vincula el comportamiento del botón hamburguesa con el <aside id="sidebar">
- */
 function vincularControlesSidebar() {
     const btnToggle = document.getElementById('btn-toggle-mobile');
     const overlay = document.getElementById('mobile-menu-overlay');
@@ -75,25 +65,27 @@ function vincularControlesSidebar() {
         return;
     }
 
-    // Configurar clases para posición flotante móvil (Z-INDEX MÁXIMO 9999)
     const alternarMenu = (forzarCierre = false) => {
-        const estaOculto = sidebar.classList.contains('hidden');
+        // Verificamos si actualmente está visible revisando si NO tiene la clase hidden o si su display es distinto de none
+        const estaOculto = sidebar.classList.contains('hidden') || window.getComputedStyle(sidebar).display === 'none';
 
         if (forzarCierre || !estaOculto) {
-            // CERRAR MENÚ EN MÓVIL
+            // CERRAR MENÚ
             if (window.innerWidth < 768) {
                 sidebar.classList.add('hidden');
+                sidebar.style.display = 'none';
             }
             if (overlay) overlay.classList.add('hidden');
         } else {
-            // ABRIR MENÚ EN MÓVIL
+            // ABRIR MENÚ CON CLASES BLINDADAS Y FONDO BLANCO SÓLIDO
             sidebar.classList.remove('hidden');
-            sidebar.classList.add('fixed', 'inset-y-0', 'left-0', 'z-[9999]', 'w-64', 'shadow-2xl', 'bg-white');
+            sidebar.style.display = 'flex';
+            sidebar.style.flexDirection = 'column';
+            sidebar.className = 'fixed inset-y-0 left-0 z-[9999] w-64 shadow-2xl bg-white text-gray-800 transition-all duration-300';
             if (overlay) overlay.classList.remove('hidden');
         }
     };
 
-    // Evento de clic en el botón hamburguesa
     if (btnToggle) {
         btnToggle.onclick = (e) => {
             e.preventDefault();
@@ -102,12 +94,10 @@ function vincularControlesSidebar() {
         };
     }
 
-    // Evento de clic fuera del menú
     if (overlay) {
         overlay.onclick = () => alternarMenu(true);
     }
 
-    // Al presionar cualquier opción (Dashboard, POS, Balances, etc.) se cierra el menú en celulares
     sidebar.querySelectorAll('button, a').forEach(elem => {
         elem.addEventListener('click', () => {
             if (window.innerWidth < 768) {
@@ -116,14 +106,15 @@ function vincularControlesSidebar() {
         });
     });
 
-    // Controlar cambio de pantalla horizontal / vertical
     const ajustarVista = () => {
         if (window.innerWidth >= 768) {
-            sidebar.classList.remove('fixed', 'inset-y-0', 'left-0', 'z-[9999]', 'shadow-2xl', 'bg-white');
+            sidebar.style.display = '';
+            sidebar.classList.remove('fixed', 'inset-y-0', 'left-0', 'z-[9999]', 'shadow-2xl', 'bg-white', 'text-gray-800');
             sidebar.classList.add('hidden', 'md:flex');
             if (overlay) overlay.classList.add('hidden');
         } else {
             sidebar.classList.add('hidden');
+            sidebar.style.display = 'none';
         }
     };
 
@@ -131,6 +122,5 @@ function vincularControlesSidebar() {
     window.addEventListener('resize', ajustarVista);
 }
 
-// Inicializar al cargar el documento
 document.addEventListener('DOMContentLoaded', initMobileModule);
 window.initMobileModule = initMobileModule;

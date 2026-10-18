@@ -337,17 +337,32 @@ window.eliminarPagoRegistrado = async function(pagoId) {
         alert("❌ Error al eliminar el pago: " + e.message);
     }
 // ==========================================================
-// VIGILANTE: CARGA AUTOMÁTICA DE LA PESTAÑA DE RESUMEN
+// VIGILANTE AGRESIVO: CARGA AUTOMÁTICA DE LA PESTAÑA DE RESUMEN
 // ==========================================================
 document.addEventListener('DOMContentLoaded', () => {
-    // Busca los botones que cambian de pestaña en el dashboard
-    const botonesPestanas = document.querySelectorAll('button');
     
+    // 1. Vincular clics en el menú principal para cargar saldos
+    const linksMenu = document.querySelectorAll('.nav-link, a');
+    linksMenu.forEach(link => {
+        if (link.textContent.includes('Balances & Cuadres') || link.dataset.target === 'balances-cuadres') {
+            link.addEventListener('click', () => {
+                setTimeout(() => {
+                    if (typeof window.cargarResumenBalances === 'function') {
+                        window.cargarResumenBalances();
+                    }
+                }, 300);
+            });
+        }
+    });
+
+    // 2. Vincular el botón "Resumen de Balances" de las pestañas superiores
+    const botonesPestanas = document.querySelectorAll('button');
     botonesPestanas.forEach(btn => {
-        // Si el botón contiene el texto "Resumen de Balances"
         if (btn.textContent.includes('Resumen de Balances')) {
             btn.addEventListener('click', () => {
-                // Fuerzo una pequeña pausa y luego cargo el resumen
+                const tbody = document.getElementById('tabla-resumen-balances');
+                if(tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-emerald-400"><i class="fa-solid fa-spinner fa-spin"></i> Cargando datos desde Supabase...</td></tr>';
+                
                 setTimeout(() => {
                     if (typeof window.cargarResumenBalances === 'function') {
                         window.cargarResumenBalances();
@@ -357,16 +372,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Cargar automáticamente también al presionar F5 en esa sección
+    // 3. Vincular el botón verde "Actualizar" que está en esa vista
+    const btnActualizarResumen = document.querySelector('button[onclick*="cargarResumenBalances"]') || Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Actualizar'));
+    if (btnActualizarResumen) {
+        btnActualizarResumen.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (typeof window.cargarResumenBalances === 'function') {
+                window.cargarResumenBalances();
+            }
+        });
+    }
+
+    // 4. Intentar cargar si la tabla está vacía al iniciar la app
     setTimeout(() => {
         const contenedorResumen = document.getElementById('tabla-resumen-balances');
-        // Si la tabla es visible en pantalla, la cargamos
-        if (contenedorResumen && contenedorResumen.offsetParent !== null) {
+        if (contenedorResumen && contenedorResumen.innerHTML.includes('No hay datos')) {
              if (typeof window.cargarResumenBalances === 'function') {
                 window.cargarResumenBalances();
             }
         }
-    }, 500);
+    }, 1000);
 });
-
 };

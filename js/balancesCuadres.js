@@ -43,6 +43,11 @@ window.cargarResumenBalances = async function() {
     tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-emerald-400"><i class="fa-solid fa-spinner fa-spin"></i> Calculando balances globales...</td></tr>';
 
     try {
+        // 🛡️ BLINDAJE: Si la lista de vendedores está vacía, la descargamos primero
+        if (!estadoBalances.vendedores || estadoBalances.vendedores.length === 0) {
+            await cargarListaVendedores();
+        }
+
         const { data: tickets } = await window.supabase.from('tickets').select('*');
         const { data: pagosBD } = await window.supabase.from('pagos_bancas').select('*');
         estadoBalances.pagosLocales = pagosBD || [];
@@ -118,9 +123,9 @@ window.cargarResumenBalances = async function() {
         tbody.innerHTML = html || '<tr><td colspan="5" class="text-center py-6 text-slate-500">No hay datos para mostrar.</td></tr>';
     } catch (e) {
         tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-rose-400">Error al cargar saldos.</td></tr>';
+        console.error("Error cargando resumen de balances:", e); // Agregué un console log aquí para tener más información si ocurre un error
     }
 };
-
 window.irACuadreDetalle = function(bancaId) {
     const select = document.getElementById('cuadre-vendedor');
     if (select) select.value = bancaId;

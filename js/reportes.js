@@ -199,16 +199,56 @@ async function renderizarTablaReporte(datos) {
         return;
     }
 
-    // 1. OBTENER LOS PAGOS REALES DE SUPABASE
-    let pagosSupabase = [];
+    // 1. OBTENER TODO EL HISTORIAL PARA CALCULAR EL BALANCE REAL DE CADA BANCA
+    let todosLosTickets = [];
+    let todosLosPagos = [];
     try {
         if(window.supabase) {
-            const { data: pagos } = await window.supabase.from('pagos_bancas').select('*');
-            if(pagos) pagosSupabase = pagos;
+            const [resTickets, resPagos] = await Promise.all([
+                window.supabase.from('tickets').select('banca_id, monto_total, monto_premio, estatus, estado'),
+                window.supabase.from('pagos_bancas').select('*')
+            ]);
+            if (resTickets.data) todosLosTickets = resTickets.data;
+            if (resPagos.data) todosLosPagos = resPagos.data;
         }
     } catch (e) {
-        console.warn("No se pudieron cargar los pagos de Supabase:", e);
+        console.warn("No se pudieron cargar los datos históricos de Supabase:", e);
     }
+
+    // PRE-CALCULAR EL BALANCE ACTUAL DE CADA BANCA
+    const balancesActuales = {};
+    const bancasIds = [...new Set(datosValidos.map(d => d.banca_id || d.vendedor))];
+
+    for (const bId of bancasIds) {
+        // Encontrar la comisión de esta banca
+        let comisionPct = 10;
+        const bObj = obtenerObjetoBanca(bId);
+        if (bObj && bObj.comision) comisionPct = parseFloat(bObj.comision);
+
+        // Calcular Ventas y Premios Históricos
+        const ticketsBanca = todosLosTickets.filter(t => String(t.banca_id) === String(bId) && String(t.estatus).toLowerCase() !== 'cancelado' && String(t.estatus).toLowerCase() !== 'anulado');
+        
+        let ventasHist = 0; let premiosHist = 0;
+        ticketsBanca.forEach(t => {
+            ventasHist += parseFloat(t.monto_total || 0);
+            const estatus = String(t.estatus || t.estado).toLowerCase();
+            if (estatus === 'premiado' || estatus === 'ganador') {
+                premiosHist += parseFloat(t.monto_premio || 0);
+            }
+        });
+
+        const comisionesHist = ventasHist * (comisionPct / 100);
+
+        // Calcular Pagos Históricos
+        const pagosBanca = todosLosPagos.filter(p => String(p.banca_id) === String(bId));
+        const ingresos = pagosBanca.filter(p => p.tipo === 'ingreso').reduce((sum, p) => sum + parseFloat(p.monto), 0);
+        const egresos = pagosBanca.filter(p => p.tipo === 'egreso').reduce((sum, p) => sum + parseFloat(p.monto), 0);
+
+        // Balance Final Real de la Banca
+        let balanceBanca = (ventasHist - premiosHist - comisionesHist) - ingresos + egresos;
+        balancesActuales[bId] = Math.round(balanceBanca * 100) / 100; // Redondeo para evitar decimales infinitos
+    }
+
 
     let html = '';
     datosValidos.forEach(d => {
@@ -216,14 +256,12 @@ async function renderizarTablaReporte(datos) {
         const resultadoDiaNeto = d.venta - d.comision - d.premios;
         const balanceClass = resultadoDiaNeto >= 0 ? 'text-emerald-400' : 'text-rose-400';
 
-        // 2. BUSCAR SI HAY UN PAGO REGISTRADO EN SUPABASE PARA ESA BANCA EN ESA FECHA
-        const pagoRealizado = pagosSupabase.some(p => 
-            String(p.banca_id) === String(d.banca_id || d.vendedor) && 
-            p.fecha === d.fecha
-        );
-
-        // Si el resultado del día fue $0.00, técnicamente está "Cuadrado" sin necesidad de pago
-        const estaCuadrado = pagoRealizado || (resultadoDiaNeto === 0);
+        // LÓGICA CORREGIDA: Si la banca tiene un balance actual de $0.00 (o negativo a su favor), 
+        // significa que ha pagado todo su historial, por ende este día está "CUADRADO".
+        const bId = d.banca_id || d.vendedor;
+        const balanceActualBanca = balancesActuales[bId] || 0;
+        
+        const estaCuadrado = balanceActualBanca <= 0;
 
         const estatusLabel = estaCuadrado ? 'CUADRADO' : 'PENDIENTE DE CUADRE';
         const estatusClass = estaCuadrado 

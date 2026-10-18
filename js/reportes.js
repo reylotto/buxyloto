@@ -182,14 +182,13 @@ async function cargarFiltrosDesplegables() {
 }
 
 // ==========================================================
-// RENDERIZADO DE TABLA CON ESTATUS REAL (Cuadrado / Pendiente)
+// RENDERIZADO DE TABLA CON ESTATUS REAL (Supabase)
 // ==========================================================
 
-function renderizarTablaReporte(datos) {
+async function renderizarTablaReporte(datos) {
     const tbody = document.getElementById('reports-banca-table-body') || document.getElementById('reportes-table-body') || document.querySelector('.tabla-balances-body');
     if (!tbody) return;
 
-    // Corrección quirúrgica: Filtrar filas con datos nulos o nombres fantasma ("undefined")
     const datosValidos = (datos || []).filter(d => d && d.vendedor && !d.vendedor.includes('undefined') && !d.vendedor.includes('Null'));
     
     const badgeRegistros = document.getElementById('cant-registros');
@@ -200,14 +199,32 @@ function renderizarTablaReporte(datos) {
         return;
     }
 
-    const pagosLocales = JSON.parse(localStorage.getItem('buxy_pagos_vendedores')) || [];
+    // 1. OBTENER LOS PAGOS REALES DE SUPABASE
+    let pagosSupabase = [];
+    try {
+        if(window.supabase) {
+            const { data: pagos } = await window.supabase.from('pagos_bancas').select('*');
+            if(pagos) pagosSupabase = pagos;
+        }
+    } catch (e) {
+        console.warn("No se pudieron cargar los pagos de Supabase:", e);
+    }
 
     let html = '';
     datosValidos.forEach(d => {
-        const balanceNeto = d.venta - d.comision - d.premios;
-        const balanceClass = balanceNeto >= 0 ? 'text-emerald-400' : 'text-rose-400';
+        // Cálculo del balance del día (Venta - Comisión - Premios)
+        const resultadoDiaNeto = d.venta - d.comision - d.premios;
+        const balanceClass = resultadoDiaNeto >= 0 ? 'text-emerald-400' : 'text-rose-400';
 
-        const estaCuadrado = pagosLocales.some(p => String(p.bancaId) === String(d.banca_id || d.vendedor));
+        // 2. BUSCAR SI HAY UN PAGO REGISTRADO EN SUPABASE PARA ESA BANCA EN ESA FECHA
+        const pagoRealizado = pagosSupabase.some(p => 
+            String(p.banca_id) === String(d.banca_id || d.vendedor) && 
+            p.fecha === d.fecha
+        );
+
+        // Si el resultado del día fue $0.00, técnicamente está "Cuadrado" sin necesidad de pago
+        const estaCuadrado = pagoRealizado || (resultadoDiaNeto === 0);
+
         const estatusLabel = estaCuadrado ? 'CUADRADO' : 'PENDIENTE DE CUADRE';
         const estatusClass = estaCuadrado 
             ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold' 
@@ -222,7 +239,7 @@ function renderizarTablaReporte(datos) {
                 <td class="p-3 font-mono font-semibold text-white">$${d.venta.toFixed(2)}</td>
                 <td class="p-3 font-mono text-amber-400">$${d.comision.toFixed(2)}</td>
                 <td class="p-3 font-mono text-rose-400">$${d.premios.toFixed(2)}</td>
-                <td class="p-3 font-mono font-bold ${balanceClass}">$${balanceNeto.toFixed(2)}</td>
+                <td class="p-3 font-mono font-bold ${balanceClass}">$${resultadoDiaNeto.toFixed(2)}</td>
                 <td class="p-3 text-center">
                     <span class="text-[10px] px-2.5 py-1 rounded-full uppercase ${estatusClass}">
                         ${estatusLabel}

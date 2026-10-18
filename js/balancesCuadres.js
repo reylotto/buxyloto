@@ -336,4 +336,37 @@ window.eliminarPagoRegistrado = async function(pagoId) {
         console.error("Error al eliminar pago:", e);
         alert("❌ Error al eliminar el pago: " + e.message);
     }
+// ==========================================================
+// VIGILANTE: CARGA AUTOMÁTICA DE LA PESTAÑA DE RESUMEN
+// ==========================================================
+document.addEventListener('DOMContentLoaded', () => {
+    // Busca los botones que cambian de pestaña en el dashboard
+    const botonesPestanas = document.querySelectorAll('button');
+    
+    botonesPestanas.forEach(btn => {
+        // Si el botón contiene el texto "Resumen de Balances"
+        if (btn.textContent.includes('Resumen de Balances')) {
+            btn.addEventListener('click', () => {
+                // Fuerzo una pequeña pausa y luego cargo el resumen
+                setTimeout(() => {
+                    if (typeof window.cargarResumenBalances === 'function') {
+                        window.cargarResumenBalances();
+                    }
+                }, 100);
+            });
+        }
+    });
+
+    // Cargar automáticamente también al presionar F5 en esa sección
+    setTimeout(() => {
+        const contenedorResumen = document.getElementById('tabla-resumen-balances');
+        // Si la tabla es visible en pantalla, la cargamos
+        if (contenedorResumen && contenedorResumen.offsetParent !== null) {
+             if (typeof window.cargarResumenBalances === 'function') {
+                window.cargarResumenBalances();
+            }
+        }
+    }, 500);
+});
+
 };

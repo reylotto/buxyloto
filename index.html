@@ -1217,7 +1217,7 @@
                     <label class="block text-xs font-medium text-slate-300 mb-1">2. Lotería</label>
                     <select id="select-loteria-riesgo" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-cyan-500 focus:outline-none">
                         <option value="TODAS">-- Todas las Loterías --</option>
-                        <!-- Las demás loterías se cargarán solas desde la base de datos -->
+                        <!-- Las opciones se cargarán desde BD -->
                     </select>
                 </div>
 
@@ -1241,31 +1241,6 @@
 
                 <div>
                     <label class="block text-xs font-medium text-slate-300 mb-1">5. Monto Máximo Permitido por Venta ($)</label>
-                    <input type="number" id="input-monto-maximo-riesgo" step="0.50" placeholder="Ej: 10.00" required class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white font-mono focus:border-cyan-500 focus:outline-none">
-                </div>
-
-                <button type="submit" class="w-full py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-lg transition flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-500/20">
-                    <i class="fa-solid fa-plus-circle"></i> Aplicar Restricción a esta Banca
-                </button>
-            </form>
-                <div>
-                    <label class="block text-xs font-medium text-slate-300 mb-1">2. Tipo de Jugada</label>
-                    <select id="select-tipo-jugada-riesgo" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:border-cyan-500 focus:outline-none">
-                        <option value="directo">Directo</option>
-                        <option value="pale">Palé</option>
-                        <option value="tripleta">Tripleta</option>
-                        <option value="todos">Todas las jugadas</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-medium text-slate-300 mb-1">3. Número Específico (* para todos)</label>
-                    <input type="text" id="input-numero-especifico-riesgo" value="*" required class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white text-center font-mono focus:border-cyan-500 focus:outline-none" placeholder="Ej: 38 o *">
-                    <p class="text-[10px] text-slate-400 mt-1">Escriba el número exacto (ej: 38) o deje '*' para aplicar a toda esa jugada.</p>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-medium text-slate-300 mb-1">4. Monto Máximo Permitido por Venta ($)</label>
                     <input type="number" id="input-monto-maximo-riesgo" step="0.50" placeholder="Ej: 10.00" required class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white font-mono focus:border-cyan-500 focus:outline-none">
                 </div>
 

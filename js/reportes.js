@@ -199,7 +199,6 @@ async function renderizarTablaReporte(datos) {
         return;
     }
 
-    // 1. OBTENER LOS PAGOS REALES DE SUPABASE
     let pagosSupabase = [];
     try {
         if(window.supabase) {
@@ -212,33 +211,59 @@ async function renderizarTablaReporte(datos) {
 
     let html = '';
     datosValidos.forEach(d => {
-        // Cálculo del balance neto del día (Venta - Comisión - Premios)
+        // 1. Cálculo del balance neto del día
         const resultadoDiaNeto = d.venta - d.comision - d.premios;
         const balanceClass = resultadoDiaNeto >= 0 ? 'text-emerald-400' : 'text-rose-400';
 
-        // 2. BUSCAR SI HAY UN PAGO REGISTRADO EN SUPABASE PARA ESA BANCA EN ESTA FECHA ESPECÍFICA
-        // Solución al problema de formato: d.fecha viene "DD/MM/YYYY", p.fecha viene "YYYY-MM-DD"
-        const pagosDelDia = pagosSupabase.filter(p => {
-            if (String(p.banca_id) !== String(d.banca_id || d.vendedor)) return false;
-            if (!p.fecha) return false;
-            
-            const partesPago = p.fecha.split('-'); // [YYYY, MM, DD]
-            const partesTabla = d.fecha.split('/'); // [DD, MM, YYYY]
-            
-            if (partesPago.length === 3 && partesTabla.length === 3) {
-                const coincideAnio = parseInt(partesPago[0], 10) === parseInt(partesTabla[2], 10);
-                const coincideMes = parseInt(partesPago[1], 10) === parseInt(partesTabla[1], 10);
-                const coincideDia = parseInt(partesPago[2], 10) === parseInt(partesTabla[0], 10);
+        // 2. Normalizar la fecha de la tabla (MM/DD/YYYY o DD/MM/YYYY) para compararla con YYYY-MM-DD de la BD
+        let isoFechaTabla = d.fecha;
+        if (d.fecha && d.fecha.includes('/')) {
+            const partes = d.fecha.split('/');
+            if (partes.length === 3) {
+                // Detectamos si es DD/MM/YYYY o MM/DD/YYYY basándonos en si el bloque supera el 12
+                let mes = partes[0].padStart(2, '0');
+                let dia = partes[1].padStart(2, '0');
+                let anio = partes[2];
                 
-                return coincideAnio && coincideMes && coincideDia;
+                if (parseInt(partes[0], 10) > 12) {
+                    dia = partes[0].padStart(2, '0');
+                    mes = partes[1].padStart(2, '0');
+                }
+                
+                isoFechaTabla = `${anio}-${mes}-${dia}`;
             }
-            return false;
+        }
+
+        // 3. Filtrar los pagos EXACTOS de ese día y esa banca
+        const pagosDelDia = pagosSupabase.filter(p => {
+            const esMismaBanca = String(p.banca_id) === String(d.banca_id || d.vendedor);
+            const esMismaFecha = p.fecha === isoFechaTabla;
+            return esMismaBanca && esMismaFecha;
         });
 
-        // LÓGICA DE ESTATUS: Es "CUADRADO" estrictamente si se encontró un pago para este día, 
-        // o si las ventas netas del día fueron cero (0).
-        const pagoRealizado = pagosDelDia.length > 0;
-        const estaCuadrado = pagoRealizado || (resultadoDiaNeto === 0 && d.ticketsCount > 0);
+        // 4. Sumar ingresos y egresos de esa fecha específica
+        const totIngresos = pagosDelDia.filter(p => p.tipo === 'ingreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
+        const totEgresos = pagosDelDia.filter(p => p.tipo === 'egreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
+        
+        // 5. Lógica de Cuadre Exacto por Monto
+        let estaCuadrado = false;
+        
+        if (resultadoDiaNeto === 0) {
+            // Si no se vendió nada neto o quedó en 0 cerrado, está cuadrado por defecto
+            estaCuadrado = true;
+        } else if (resultadoDiaNeto > 0) {
+            // La Banca debe a la Casa. Se cuadra si el Ingreso cubre el resultado (con margen de error de centavos)
+            const saldoPagado = totIngresos - totEgresos;
+            if (saldoPagado >= (resultadoDiaNeto - 0.05)) estaCuadrado = true; 
+        } else if (resultadoDiaNeto < 0) {
+            // La Casa debe a la Banca (Premios superan ventas). Se cuadra si la Casa le pagó (Egreso).
+            const deudaCasa = Math.abs(resultadoDiaNeto);
+            const saldoPagadoPorCasa = totEgresos - totIngresos;
+            if (saldoPagadoPorCasa >= (deudaCasa - 0.05)) estaCuadrado = true;
+        }
+
+        // Excepción de visualización para días limpios
+        if(d.ticketsCount === 0 && (resultadoDiaNeto <= 0)) estaCuadrado = true;
 
         const estatusLabel = estaCuadrado ? 'CUADRADO' : 'PENDIENTE DE CUADRE';
         const estatusClass = estaCuadrado 

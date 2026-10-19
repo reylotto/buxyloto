@@ -4,7 +4,10 @@ export function initRiesgoModule() {
     console.log("Módulo Control de Riesgo inicializado.");
     cargarConfiguracionGlobalRiesgo();
     cargarSelectorBancasRiesgo();
+    cargarSelectorLoteriasRiesgo(); // 🚀 NUEVO: Llama a las loterías reales
     
+    // ... (el resto del código sigue igual)
+
     // Listener para cambio de banca seleccionada en el selector
     const selectBanca = document.getElementById('select-banca-riesgo');
     if (selectBanca) {
@@ -85,35 +88,37 @@ async function guardarTopeGlobalRiesgo() {
 }
 
 // 2. Cargar la lista de bancas/vendedores en el selector
-export async function cargarSelectorBancasRiesgo() {
-    const selectBanca = document.getElementById('select-banca-riesgo');
-    if (!selectBanca) return;
+// Cargar la lista de loterías reales desde Supabase
+export async function cargarSelectorLoteriasRiesgo() {
+    const selectLoteria = document.getElementById('select-loteria-riesgo');
+    if (!selectLoteria) return;
 
     const supabase = window.supabase;
     if (!supabase) return;
 
     try {
-        const { data: bancas, error } = await supabase
-            .from('bancas')
-            .select('*')
-            .order('id', { ascending: false });
+        const { data: sorteos, error } = await supabase
+            .from('sorteos')
+            .select('nombre, nombre_sorteo')
+            .order('id', { ascending: true });
 
         if (error) throw error;
 
-        if (!bancas || bancas.length === 0) {
-            selectBanca.innerHTML = `<option value="">No hay bancas registradas</option>`;
-            return;
+        let opcionesHTML = `<option value="TODAS">-- Todas las Loterías --</option>`;
+
+        if (sorteos && sorteos.length > 0) {
+            // Extraer nombres en mayúsculas y quitar duplicados por si acaso
+            const nombresUnicos = [...new Set(sorteos.map(s => String(s.nombre_sorteo || s.nombre).toUpperCase().trim()))];
+            
+            nombresUnicos.forEach(nombre => {
+                opcionesHTML += `<option value="${nombre}">${nombre}</option>`;
+            });
         }
 
-        selectBanca.innerHTML = `<option value="">-- Seleccione una Banca / Vendedor --</option>` + 
-            bancas.map(b => {
-                const nombre = b.nombre_banca || b.nombre || `Banca #${b.id}`;
-                const op = b.operador || b.usuario || '';
-                return `<option value="${b.id}">${nombre} ${op ? `(${op})` : ''}</option>`;
-            }).join('');
+        selectLoteria.innerHTML = opcionesHTML;
 
     } catch (err) {
-        console.error("Error al cargar selector de bancas:", err);
+        console.error("Error al cargar loterías en riesgo:", err);
     }
 }
 

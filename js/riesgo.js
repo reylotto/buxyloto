@@ -210,45 +210,6 @@ async function guardarRestriccionIndividualRiesgo() {
     }
 }
 
-// 4. Guardar nueva restricción individual
-async function guardarRestriccionIndividualRiesgo() {
-    const bancaId = document.getElementById('select-banca-riesgo')?.value;
-    const tipoJugada = document.getElementById('select-tipo-jugada-riesgo')?.value;
-    const numeroEspecifico = document.getElementById('input-numero-especifico-riesgo')?.value.trim() || '*';
-    const montoMaximoInput = document.getElementById('input-monto-maximo-riesgo')?.value;
-
-    if (!bancaId) return alert("Por favor seleccione una banca o vendedor.");
-    if (montoMaximoInput === '' || parseFloat(montoMaximoInput) < 0) return alert("Ingrese un monto máximo válido.");
-
-    const montoMaximo = parseFloat(montoMaximoInput);
-    const supabase = window.supabase;
-    if (!supabase) return;
-
-    try {
-        const { error } = await supabase
-            .from('restricciones_vendedor')
-            .insert([{
-                banca_id: String(bancaId),
-                tipo_jugada: tipoJugada,
-                numero_especifico: numeroEspecifico,
-                monto_maximo: montoMaximo,
-                estado: 'activo'
-            }]);
-
-        if (error) throw error;
-        alert("✅ Restricción individual guardada con éxito.");
-        
-        // Limpiar inputs
-        document.getElementById('input-numero-especifico-riesgo').value = '*';
-        document.getElementById('input-monto-maximo-riesgo').value = '';
-        
-        await cargarRestriccionesBancaRiesgo(bancaId);
-
-    } catch (err) {
-        alert("❌ Error al guardar restricción: " + err.message);
-    }
-}
-
 // 5. Eliminar restricción individual
 window.eliminarRestriccionRiesgo = async function(idRestriccion, bancaId) {
     if (!confirm("¿Desea eliminar esta regla de restricción?")) return;

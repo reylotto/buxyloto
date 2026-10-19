@@ -14,7 +14,7 @@ async function cargarLoteriasParaFiltroHistorial() {
         }
 
         const { data, error } = await supabase
-            .from('loterias')
+            .from('sorteos')
             .select('id, nombre, estatus');
 
         if (error) throw error;

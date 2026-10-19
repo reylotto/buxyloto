@@ -45,7 +45,7 @@ async function cargarLoteriasParaFiltroHistorial() {
 // FUNCIÓN PRINCIPAL DE CONSULTA Y SEMÁFORO
 // ==========================================
 window.cargarHistorialNumeros = async function() {
-    const supabase = window.supabaseClient;
+    const supabase = window.supabaseClient || window.supabase;
     if (!supabase) {
         console.error("Supabase no está inicializado.");
         return alert("Error de conexión con la base de datos.");
@@ -60,7 +60,7 @@ window.cargarHistorialNumeros = async function() {
 
     if (!tbody) return;
 
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-cyan-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Consultando registros en tiempo real...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-cyan-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Consultando jugadas en la base de datos...</td></tr>`;
 
     try {
         // 1. Traer reglas de riesgo y topes
@@ -83,54 +83,53 @@ window.cargarHistorialNumeros = async function() {
             }
         });
 
-        // 2. Consultar tickets de la fecha
-        const { data: tickets, error: errTickets } = await supabase
-            .from('tickets')
-            .select('sorteo_nombre, detalles, fecha')
-            .eq('fecha', fechaFiltro)
-            .neq('estatus', 'cancelado')
-            .neq('estatus', 'anulado');
+        // 2. Definir rango de inicio y fin del día para filtrar por created_at
+        const startOfDay = new Date(`${fechaFiltro}T00:00:00-05:00`).toISOString();
+        const endOfDay = new Date(`${fechaFiltro}T23:59:59-05:00`).toISOString();
 
-        if (errTickets) throw errTickets;
+        // 3. Consultar directamente a la tabla JUGADAS
+        const { data: jugadas, error: errJugadas } = await supabase
+            .from('jugadas')
+            .select('sorteo_nombre, tipo, numero, monto, estatus, estado')
+            .gte('created_at', startOfDay)
+            .lte('created_at', endOfDay);
 
-        // 3. Agrupar y normalizar jugadas
+        if (errJugadas) throw errJugadas;
+
+        // 4. Agrupar y sumar las jugadas
         const acumuladoVentas = {};
 
-        (tickets || []).forEach(t => {
-            let detalles = t.detalles || [];
-            if (typeof detalles === 'string') {
-                try { detalles = JSON.parse(detalles); } catch(e) { detalles = []; }
+        (jugadas || []).forEach(j => {
+            // Filtramos las canceladas
+            if (j.estatus === 'cancelado' || j.estado === 'cancelado') return;
+
+            const sorteoNombre = String(j.sorteo_nombre || 'GENERAL').toUpperCase();
+            const tipoJ = String(j.tipo || 'chance').toLowerCase();
+            let numJ = String(j.numero || '').trim();
+            const montoJ = parseFloat(j.monto || 0);
+
+            // Normalizar Palés ordenando los números
+            if (tipoJ === 'pale' && numJ.length === 4) {
+                const p1 = numJ.substring(0, 2);
+                const p2 = numJ.substring(2, 4);
+                numJ = [p1, p2].sort().join('');
             }
 
-            const sorteoTicket = String(t.sorteo_nombre || 'GENERAL').toUpperCase();
+            // Aplicar filtros visuales de la interfaz
+            if (loteriaFiltro !== 'TODAS' && !sorteoNombre.includes(loteriaFiltro)) return;
+            if (tipoFiltro !== 'todos' && tipoJ !== tipoFiltro) return;
 
-            detalles.forEach(j => {
-                const tipoJ = String(j.tipo || 'chance').toLowerCase();
-                let numJ = String(j.numero || '').trim();
-                const montoJ = parseFloat(j.monto || 0);
-
-                // Normalizar Palés
-                if (tipoJ === 'pale' && numJ.length === 4) {
-                    const p1 = numJ.substring(0, 2);
-                    const p2 = numJ.substring(2, 4);
-                    numJ = [p1, p2].sort().join('');
-                }
-
-                // Filtrado aplicado aquí con el value dinámico del select
-                if (loteriaFiltro !== 'TODAS' && !sorteoTicket.includes(loteriaFiltro)) return;
-                if (tipoFiltro !== 'todos' && tipoJ !== tipoFiltro) return;
-
-                const clave = `${sorteoTicket}_${tipoJ}_${numJ}`;
-                if (!acumuladoVentas[clave]) {
-                    acumuladoVentas[clave] = {
-                        loteria: sorteoTicket,
-                        tipo: tipoJ,
-                        numero: numJ,
-                        totalVendido: 0
-                    };
-                }
-                acumuladoVentas[clave].totalVendido += montoJ;
-            });
+            // Agrupar
+            const clave = `${sorteoNombre}_${tipoJ}_${numJ}`;
+            if (!acumuladoVentas[clave]) {
+                acumuladoVentas[clave] = {
+                    loteria: sorteoNombre,
+                    tipo: tipoJ,
+                    numero: numJ,
+                    totalVendido: 0
+                };
+            }
+            acumuladoVentas[clave].totalVendido += montoJ;
         });
 
         const listaResultados = Object.values(acumuladoVentas);
@@ -140,8 +139,10 @@ window.cargarHistorialNumeros = async function() {
             return;
         }
 
+        // Ordenar por el número que más se ha vendido
         listaResultados.sort((a, b) => b.totalVendido - a.totalVendido);
 
+        // Renderizar en la tabla
         tbody.innerHTML = '';
         listaResultados.forEach(item => {
             const topeMax = mapaTopes[`${item.loteria}_${item.tipo}_${item.numero}`] || 

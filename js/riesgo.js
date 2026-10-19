@@ -100,13 +100,19 @@ export async function cargarSelectorLoteriasRiesgo() {
     if (!supabase) return;
 
     try {
-        const { data: sorteos, error } = await supabase.from('sorteos').select('nombre, nombre_sorteo').order('id', { ascending: true });
+        // Consultar la tabla de sorteos, asegurándonos de que traiga los datos correctamente
+        const { data: sorteos, error } = await supabase.from('sorteos').select('*').order('id', { ascending: true });
         if (error) throw error;
 
         let opcionesHTML = `<option value="TODAS">-- Todas las Loterías --</option>`;
         if (sorteos && sorteos.length > 0) {
-            const nombresUnicos = [...new Set(sorteos.map(s => String(s.nombre_sorteo || s.nombre).toUpperCase().trim()))];
-            nombresUnicos.forEach(nombre => { opcionesHTML += `<option value="${nombre}">${nombre}</option>`; });
+            // Utilizamos 'nombre' o 'nombre_sorteo' dependiendo de cuál exista en tu tabla
+            const nombresUnicos = [...new Set(sorteos.map(s => String(s.nombre || s.nombre_sorteo || 'Desconocido').toUpperCase().trim()))];
+            nombresUnicos.forEach(nombre => {
+                 if (nombre !== 'DESCONOCIDO') {
+                    opcionesHTML += `<option value="${nombre}">${nombre}</option>`;
+                 }
+            });
         }
         selectLoteria.innerHTML = opcionesHTML;
     } catch (err) {

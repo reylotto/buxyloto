@@ -290,15 +290,31 @@ window.generarDetalleCuadre = async function() {
 window.procesarPagoVendedor = async function(tipoMovimiento) {
     if (!estadoBalances.vendedorActual) return alert("Seleccione un vendedor primero.");
 
-    let mensaje = tipoMovimiento === 'ingreso' 
-        ? `⬇️ RECIBIR DINERO DE BANCA\nLa banca le está entregando dinero a la Casa.\n\nIngrese el monto:`
-        : `⬆️ PAGAR A LA BANCA\nUsted (La Casa) le está entregando dinero a la Banca por premios acumulados.\n\nIngrese el monto:`;
+    // La fecha sugerida será la que tienes en el filtro "Hasta"
+    const fechaSugerida = document.getElementById('cuadre-fecha-hasta')?.value || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
 
-    const montoStr = prompt(mensaje);
+    let mensajeMonto = tipoMovimiento === 'ingreso' 
+        ? `⬇️ RECIBIR DINERO DE BANCA\nLa banca le está entregando dinero a la Casa.\n\nIngrese el MONTO A RECIBIR:`
+        : `⬆️ PAGAR A LA BANCA\nUsted (La Casa) le está entregando dinero a la Banca.\n\nIngrese el MONTO A PAGAR:`;
+
+    // 1. Pedir el Monto
+    const montoStr = prompt(mensajeMonto);
     if (montoStr === null || montoStr.trim() === '') return;
     const monto = parseFloat(montoStr);
     
     if (isNaN(monto) || monto <= 0) return alert("Monto inválido. Ingrese un número mayor a 0.");
+
+    // 2. Pedir la Fecha Exacta
+    let mensajeFecha = `📅 SELECCIONAR FECHA DE CUADRE\n\n¿A qué día de venta pertenece este pago?\n(Use el formato YYYY-MM-DD)\n\nDeje la fecha mostrada para cuadrar el día seleccionado:`;
+    
+    const fechaInput = prompt(mensajeFecha, fechaSugerida);
+    if (fechaInput === null || fechaInput.trim() === '') return;
+    
+    // Validar formato básico de fecha YYYY-MM-DD
+    const regexFecha = /^\d{4}-\d{2}-\d{2}$/;
+    if (!regexFecha.test(fechaInput.trim())) {
+        return alert("❌ Formato de fecha inválido. Debe ser YYYY-MM-DD (Ejemplo: 2026-10-18).");
+    }
 
     try {
         let responsable = 'Administrador';
@@ -309,22 +325,20 @@ window.procesarPagoVendedor = async function(tipoMovimiento) {
         const b = estadoBalances.vendedorActual;
         const nombreBancaReal = b.nombre_banca || b.vendedor_nombre || b.name || `Banca ${b.id}`;
         
-        // OBTENER LA FECHA ACTUAL EXACTA (VITAL PARA LA APK Y EL ACUMULATIVO)
-        const fechaHoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
-
+        // El nuevo pago usa la fecha ingresada por el administrador, no necesariamente la de "hoy"
         const nuevoPago = {
             banca_id: String(b.id),
             banca_nombre: String(nombreBancaReal), 
             monto: monto,
             tipo: tipoMovimiento,
             responsable: responsable,
-            fecha: fechaHoy // ESTA ES LA PIEZA CLAVE QUE FALTABA
+            fecha: fechaInput.trim() // 🚀 FECHA ELEGIDA QUIRÚRGICAMENTE
         };
 
         const { error } = await window.supabase.from('pagos_bancas').insert([nuevoPago]);
         if (error) throw error;
 
-        alert(`✅ Cuadre registrado exitosamente.`);
+        alert(`✅ Cuadre de $${monto} registrado exitosamente para el día ${fechaInput}.`);
         
         await window.cargarResumenBalances();
         await window.generarDetalleCuadre(); 
@@ -332,31 +346,6 @@ window.procesarPagoVendedor = async function(tipoMovimiento) {
     } catch (e) {
         console.error("Error al registrar pago en Supabase:", e);
         alert("❌ Error al guardar el pago: " + e.message);
-    }
-};
-
-// 🚨 NUEVO: Función para eliminar / anular un pago
-window.eliminarPagoRegistrado = async function(pagoId) {
-    if (!pagoId) return;
-    
-    if(!confirm("¿Está seguro de que desea eliminar este pago? Esta acción revertirá el balance y no se puede deshacer.")) {
-        return;
-    }
-
-    try {
-        const { error } = await window.supabase.from('pagos_bancas').delete().eq('id', pagoId);
-        
-        if (error) throw error;
-
-        alert("✅ Pago eliminado correctamente. El balance se ha recalculado.");
-        
-        // Recargar datos para mostrar los cambios
-        await window.cargarResumenBalances();
-        await window.generarDetalleCuadre();
-        
-    } catch (e) {
-        console.error("Error al eliminar pago:", e);
-        alert("❌ Error al eliminar el pago: " + e.message);
     }
 // ==========================================================
 // VIGILANTE AGRESIVO: CARGA AUTOMÁTICA DE LA PESTAÑA DE RESUMEN

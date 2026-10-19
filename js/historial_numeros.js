@@ -2,6 +2,48 @@
 // 📊 MÓDULO DE HISTORIAL Y CONTROL DE NÚMEROS (DASHBOARD ADMINISTRATIVO)
 // ==========================================================================
 
+// ==========================================
+// CARGAR LOTERÍAS DINÁMICAS EN EL FILTRO
+// ==========================================
+async function cargarLoteriasParaFiltroHistorial() {
+    try {
+        const supabase = window.supabaseClient || window.supabase;
+        if (!supabase) {
+            console.warn("Supabase no está inicializado aún para cargar loterías en historial.");
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from('loterias')
+            .select('id, nombre, estatus');
+
+        if (error) throw error;
+
+        const selectFiltro = document.getElementById('filtro-loteria-numeros');
+        if (!selectFiltro) return;
+
+        // Limpiar opciones previas pero mantener "TODAS"
+        selectFiltro.innerHTML = '<option value="TODAS">Todas las Loterías</option>';
+
+        // Rellenar con los datos dinámicos
+        if (data && data.length > 0) {
+            data.forEach(loteria => {
+                const option = document.createElement('option');
+                // Usamos el nombre en mayúsculas como 'value' porque en cargarHistorialNumeros 
+                // se filtra comparando con sorteoTicket (que está en mayúsculas).
+                option.value = String(loteria.nombre).toUpperCase();
+                option.textContent = loteria.nombre;
+                selectFiltro.appendChild(option);
+            });
+        }
+    } catch (err) {
+        console.error("Error al sincronizar loterías en el filtro de historial:", err);
+    }
+}
+
+// ==========================================
+// FUNCIÓN PRINCIPAL DE CONSULTA Y SEMÁFORO
+// ==========================================
 window.cargarHistorialNumeros = async function() {
     const supabase = window.supabaseClient;
     if (!supabase) {
@@ -74,6 +116,7 @@ window.cargarHistorialNumeros = async function() {
                     numJ = [p1, p2].sort().join('');
                 }
 
+                // Filtrado aplicado aquí con el value dinámico del select
                 if (loteriaFiltro !== 'TODAS' && !sorteoTicket.includes(loteriaFiltro)) return;
                 if (tipoFiltro !== 'todos' && tipoJ !== tipoFiltro) return;
 
@@ -153,10 +196,16 @@ window.cargarHistorialNumeros = async function() {
     }
 };
 
-// Autoinicializar fecha al cargar
+// ==========================================
+// AUTO-INICIALIZACIÓN AL CARGAR LA PÁGINA
+// ==========================================
 document.addEventListener('DOMContentLoaded', () => {
     const inputFecha = document.getElementById('filtro-fecha-numeros');
     if (inputFecha) {
         inputFecha.value = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
     }
+    
+    // Dar un leve retraso de 1 segundo para asegurar que Supabase esté conectado 
+    // antes de inyectar las loterías en el selector
+    setTimeout(cargarLoteriasParaFiltroHistorial, 1000);
 });

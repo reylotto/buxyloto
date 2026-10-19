@@ -1025,6 +1025,64 @@
     </div>
 </div>
 
+<!-- MÓDULO: HISTORIAL DE NÚMEROS EN TIEMPO REAL -->
+<div id="vista-historial-numeros" class="p-4 bg-slate-900 text-white min-h-screen">
+    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <h1 class="text-2xl font-black tracking-wider uppercase text-cyan-400">
+            <i class="fa-solid fa-chart-pie mr-2"></i> Historial y Control de Números
+        </h1>
+        
+        <!-- Filtros Superiores -->
+        <div class="flex flex-wrap gap-2 items-center">
+            <input type="date" id="filtro-fecha-numeros" class="bg-slate-800 border border-slate-700 px-3 py-2 rounded text-sm text-white">
+            
+            <select id="filtro-loteria-numeros" class="bg-slate-800 border border-slate-700 px-3 py-2 rounded text-sm text-white">
+                <option value="TODAS">Todas las Loterías</option>
+                <option value="HONDURAS">Honduras</option>
+                <option value="LA PRIMERA">La Primera</option>
+                <option value="LNB PANAMA">LNB Panamá</option>
+            </select>
+
+            <select id="filtro-tipo-numeros" class="bg-slate-800 border border-slate-700 px-3 py-2 rounded text-sm text-white">
+                <option value="todos">Todos (Chance, Palé, Billete, etc.)</option>
+                <option value="chance">Chance</option>
+                <option value="pale">Palé</option>
+                <option value="billete">Billete</option>
+                <option value="tripletas">Tripletas</option>
+            </select>
+
+            <button onclick="cargarHistorialNumeros()" class="bg-cyan-600 hover:bg-cyan-500 px-4 py-2 rounded text-sm font-bold transition">
+                <i class="fa-solid fa-filter mr-1"></i> Filtrar
+            </button>
+        </div>
+    </div>
+
+    <!-- Tabla de Control con Semáforo -->
+    <div class="bg-slate-800 rounded-xl overflow-hidden shadow-xl border border-slate-700">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-900 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-700">
+                        <th class="p-3">Lotería / Sorteo</th>
+                        <th class="p-3">Tipo de Jugada</th>
+                        <th class="p-3">Número</th>
+                        <th class="p-3 text-right">Cantidad Vendida ($)</th>
+                        <th class="p-3 text-right">Lope Límite ($)</th>
+                        <th class="p-3 text-center">Estado / Semáforo</th>
+                        <th class="p-3 text-center">% Ocupación</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-historial-cuerpo" class="divide-y divide-slate-700 text-sm">
+                    <!-- Los datos se cargan dinámicamente vía JS -->
+                    <tr>
+                        <td colspan="7" class="text-center py-6 text-slate-400">Seleccione los filtros y cargue los datos...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <!-- ========================================== -->
 <!-- MODAL 2: CREAR / EDITAR USUARIO -->
 <!-- ========================================== -->
@@ -3701,6 +3759,7 @@ if (btnProcessEl) {
 <script src="js/auth.js?v=8" type="module"></script>
 <script src="js/pos.js?v=8" type="module"></script>
 <script src="js/dashboard.js?v=8" type="module"></script>
+<script src="js/historial_numeros.js"></script>
 <script src="js/admin.js?v=8" type="module"></script>
 <script src="js/escrutinio.js?v=8"></script>
 <script type="module" src="js/historialTickets.js?v=8"></script>

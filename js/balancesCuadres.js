@@ -79,22 +79,16 @@ window.cargarResumenBalances = async function() {
             const totEgresos = pagosVendedor.filter(p => p.tipo === 'egreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
 
             // ==========================================
-            // MATE CORREGIDA: LA CASA VS LA BANCA
+            // MATE CORREGIDA Y DEFINITIVA (Sincronizada con APK)
             // ==========================================
-            // Resultado Neto: Lo que la banca nos debe por ventas (positivo) o lo que le debemos por premios (negativo)
             const resultadoNeto = ventas - premios - comisiones;
             
-            // Si es 'ingreso', la banca nos da dinero (baja su deuda con nosotros). 
-            // Si es 'egreso', nosotros le damos dinero a la banca (baja nuestra deuda con ellos).
-            // Por ende, la fórmula correcta del balance final desde el punto de vista de la casa es:
-            let balanceFinal = resultadoNeto - totIngresos - totEgresos; // AMBOS RESTAN EL VALOR ABSOLUTO DE LA DEUDA
+            // Los INGRESOS le restan a la deuda que la banca tiene contigo.
+            // Los EGRESOS se SUMAN matemáticamente para contrarrestar saldos negativos (tu deuda con ellos).
+            let balanceFinal = resultadoNeto - totIngresos + totEgresos; 
             
-            // REDONDEO SEGURO
+            // REDONDEO SEGURO PARA EVITAR DECIMALES FANTASMA
             balanceFinal = Math.round(balanceFinal * 100) / 100;
-            
-            // IMPORTANTE: Un egreso (pago nuestro) no debe voltear el saldo a nuestro favor si le pagamos de más por error. 
-            // Lo limitamos de forma inteligente: si el resultado era negativo y el egreso lo vuelve positivo, se ajusta.
-            if(resultadoNeto < 0 && balanceFinal > 0) balanceFinal = balanceFinal * -1;
             
             const colorClass = balanceFinal >= 0 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
             const nombre = b.nombre_banca || b.vendedor_nombre || b.name || `Banca #${b.id}`;

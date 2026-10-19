@@ -123,11 +123,11 @@ export async function cargarRestriccionesBancaRiesgo(bancaId) {
     if (!contenedor) return;
 
     if (!bancaId) {
-        contenedor.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500 italic">Seleccione una banca para consultar sus reglas.</td></tr>`;
+        contenedor.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500 italic">Seleccione una banca para consultar sus reglas.</td></tr>`;
         return;
     }
 
-    contenedor.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Cargando restricciones...</td></tr>`;
+    contenedor.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Cargando restricciones...</td></tr>`;
 
     const supabase = window.supabase;
     if (!supabase) return;
@@ -142,12 +142,13 @@ export async function cargarRestriccionesBancaRiesgo(bancaId) {
         if (error) throw error;
 
         if (!data || data.length === 0) {
-            contenedor.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500 italic">No hay restricciones configuradas para esta banca.</td></tr>`;
+            contenedor.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500 italic">No hay restricciones configuradas para esta banca.</td></tr>`;
             return;
         }
 
         contenedor.innerHTML = data.map(r => `
             <tr class="hover:bg-slate-800/50 transition border-b border-slate-700/30 text-xs">
+                <td class="p-3 font-bold text-slate-300 uppercase">${r.loteria || 'TODAS'}</td>
                 <td class="p-3 font-bold text-cyan-400 uppercase">${r.tipo_jugada}</td>
                 <td class="p-3 font-mono font-bold text-amber-400">${r.numero_especifico}</td>
                 <td class="p-3 font-mono font-bold text-emerald-400">$${Number(r.monto_maximo).toFixed(2)}</td>
@@ -164,7 +165,48 @@ export async function cargarRestriccionesBancaRiesgo(bancaId) {
 
     } catch (err) {
         console.error("Error al cargar reglas:", err);
-        contenedor.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-rose-400">Error al cargar reglas de riesgo.</td></tr>`;
+        contenedor.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-rose-400">Error al cargar reglas de riesgo.</td></tr>`;
+    }
+}
+
+// 4. Guardar nueva restricción individual
+async function guardarRestriccionIndividualRiesgo() {
+    const bancaId = document.getElementById('select-banca-riesgo')?.value;
+    const loteria = document.getElementById('select-loteria-riesgo')?.value || 'TODAS'; // 🚀 NUEVO: Captura la lotería
+    const tipoJugada = document.getElementById('select-tipo-jugada-riesgo')?.value || 'todos';
+    const numeroEspecifico = document.getElementById('input-numero-especifico-riesgo')?.value.trim() || '*';
+    const montoMaximoInput = document.getElementById('input-monto-maximo-riesgo')?.value;
+
+    if (!bancaId) return alert("Por favor seleccione una banca o vendedor.");
+    if (montoMaximoInput === '' || parseFloat(montoMaximoInput) < 0) return alert("Ingrese un monto máximo válido.");
+
+    const montoMaximo = parseFloat(montoMaximoInput);
+    const supabase = window.supabase;
+    if (!supabase) return;
+
+    try {
+        const { error } = await supabase
+            .from('restricciones_vendedor')
+            .insert([{
+                banca_id: String(bancaId),
+                loteria: loteria, // 🚀 NUEVO: Guarda la lotería en la BD
+                tipo_jugada: tipoJugada,
+                numero_especifico: numeroEspecifico,
+                monto_maximo: montoMaximo,
+                estado: 'activo'
+            }]);
+
+        if (error) throw error;
+        alert("✅ Restricción individual guardada con éxito.");
+        
+        // Limpiar inputs
+        document.getElementById('input-numero-especifico-riesgo').value = '*';
+        document.getElementById('input-monto-maximo-riesgo').value = '';
+        
+        await cargarRestriccionesBancaRiesgo(bancaId);
+
+    } catch (err) {
+        alert("❌ Error al guardar restricción: " + err.message);
     }
 }
 

@@ -88,9 +88,27 @@ export async function renderizarPlantillaTicket(ticketData) {
     ticketElem.style.boxSizing = 'border-box';
     ticketElem.style.zIndex = '-9999';
 
-    // 🌟 APLICAR PERSONALIZACIÓN (Lectura directa de localStorage)
-    const configTitulo = localStorage.getItem('buxy_ticket_titulo') || ticketData.titulo_empresa || 'BUXYLOTO POS';
-    const configIconoGuardado = localStorage.getItem('buxy_ticket_icono') || '☘️';
+    // 🌟 APLICAR PERSONALIZACIÓN (Lectura en tiempo real desde Supabase)
+    let configTitulo = ticketData.titulo_empresa || 'BUXYLOTO POS';
+    let configIconoGuardado = 'fa-clover';
+    let configTelefono = '';
+    let configPieRaw = 'REVISE SU TICKET\nSIN TICKET NO SE PAGA\nLNP 1ER 2500-2DO 700-3ER 300\nPALE 1000-1000-200\nTRIPLETA 10000X1 2Num 100x1\nNO SE PAGA EL PALE DOBLE';
+
+    try {
+        const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+        if (supabase) {
+            // Consultar a Supabase antes de generar el ticket
+            const { data, error } = await supabase.from('configuracion_ticket').select('*').eq('id', 1).single();
+            if (data && !error) {
+                configTitulo = data.titulo_empresa || configTitulo;
+                configIconoGuardado = data.icono || configIconoGuardado;
+                configTelefono = data.telefono || configTelefono;
+                configPieRaw = data.pie_pagina || configPieRaw;
+            }
+        }
+    } catch (err) {
+        console.warn("Usando configuración de ticket por defecto (offline).", err);
+    }
     
     // Convertir classnames de FontAwesome a Emojis para el ticket impreso
     let configIcono = '☘️';
@@ -100,8 +118,6 @@ export async function renderizarPlantillaTicket(ticketData) {
     else if (configIconoGuardado.includes('money') || configIconoGuardado === '💰') configIcono = '💰';
     else if (configIconoGuardado.includes('check') || configIconoGuardado === '✔️') configIcono = '✔️';
 
-    const configTelefono = localStorage.getItem('buxy_ticket_telefono') || '';
-    const configPieRaw = localStorage.getItem('buxy_ticket_pie') || 'REVISE SU TICKET\nSIN TICKET NO SE PAGA\nLNP 1ER 2500-2DO 700-3ER 300\nPALE 1000-1000-200\nTRIPLETA 10000X1 2Num 100x1\nNO SE PAGA EL PALE DOBLE';
     const configPieHTML = configPieRaw.split('\n').map(line => `<div>${line}</div>`).join('');
 
     // Datos principales
@@ -542,66 +558,83 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 // ==========================================================
-// MOTOR DE REIMPRESIÓN DIAGNOSTICADO Y ASEGURADO
+// MÓDULO ACTIVO DE PERSONALIZACIÓN DE TICKET (NUBE SUPABASE)
 // ==========================================================
-window.reimprimirTicketUnificado = async function(ticketId) {
-    alert("🔍 Clic detectado en ticket ID: " + ticketId); // Alerta de prueba para verificar ejecución
 
+window.cargarPersonalizacionTicket = async function() {
     try {
-        const supabase = window.supabaseClient || window.supabase;
-        if (!supabase) {
-            alert("❌ Error: Cliente de Supabase no disponible en la ventana.");
-            return;
+        const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+        if (!supabase) return;
+
+        const { data, error } = await supabase.from('configuracion_ticket').select('*').eq('id', 1).single();
+        if (error) throw error;
+
+        if (data) {
+            const iTitulo = document.getElementById('cfg-ticket-title');
+            const iIcono = document.getElementById('cfg-ticket-icon');
+            const iTelefono = document.getElementById('cfg-ticket-phone');
+            const tPie = document.getElementById('cfg-ticket-footer');
+
+            if (iTitulo) iTitulo.value = data.titulo_empresa || '';
+            if (iIcono) iIcono.value = data.icono || 'fa-clover';
+            if (iTelefono) iTelefono.value = data.telefono || '';
+            if (tPie) tPie.value = data.pie_pagina || '';
         }
-
-        // 1. Obtener ticket principal
-        const { data: ticket, error: errTicket } = await supabase
-            .from('tickets')
-            .select('*, bancas(nombre)')
-            .eq('id', ticketId)
-            .single();
-
-        if (errTicket) {
-            alert("❌ Error de BD al buscar ticket: " + errTicket.message);
-            throw errTicket;
-        }
-        if (!ticket) {
-            alert("⚠️ Ticket no encontrado en la base de datos.");
-            return;
-        }
-
-        // 2. Obtener las jugadas
-        const { data: jugadas, error: errJugadas } = await supabase
-            .from('jugadas')
-            .select('*')
-            .eq('ticket_id', ticketId);
-
-        if (errJugadas) {
-            alert("❌ Error al buscar jugadas: " + errJugadas.message);
-        }
-
-        // 3. Formatear datos para el motor de 2 columnas
-        const ticketData = {
-            ...ticket,
-            codigo_ticket: ticket.codigo_ticket || ticket.folio || ticket.codigo || 'BX-000000',
-            monto_total: parseFloat(ticket.monto_total || ticket.total || ticket.monto || 0).toFixed(2),
-            banca_nombre: ticket.bancas?.nombre || ticket.banca_nombre || ticket.vendedor_nombre || 'Banca',
-            detalles: jugadas || [],
-            jugadas: jugadas || []
-        };
-
-        // 4. Lanzar el menú de exportación
-        if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
-            window.mostrarOpcionesExportacionTicket(ticketData);
-        } else {
-            alert("⚠️ Error: 'mostrarOpcionesExportacionTicket' no está cargada en window.");
-        }
-
     } catch (err) {
-        console.error("Error crítico al reimprimir:", err);
-        alert("❌ Excepción capturada: " + (err.message || JSON.stringify(err)));
+        console.error("Error al cargar la personalización del ticket:", err);
     }
 };
+
+// Escuchar automáticamente la carga y el botón Guardar del formulario
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(window.cargarPersonalizacionTicket, 1000);
+
+    const formPersonalizacion = document.getElementById('form-ticket-custom');
+    if (formPersonalizacion) {
+        formPersonalizacion.addEventListener('submit', async function(e) {
+            e.preventDefault(); 
+            
+            const btnSubmit = formPersonalizacion.querySelector('button[type="submit"]');
+            const btnTextOriginal = btnSubmit ? btnSubmit.innerHTML : 'Guardar Personalización del Ticket';
+            
+            if (btnSubmit) {
+                btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando en Servidor...';
+                btnSubmit.disabled = true;
+            }
+
+            const titulo = document.getElementById('cfg-ticket-title')?.value || '';
+            const icono = document.getElementById('cfg-ticket-icon')?.value || '';
+            const telefono = document.getElementById('cfg-ticket-phone')?.value || '';
+            const piePagina = document.getElementById('cfg-ticket-footer')?.value || '';
+
+            try {
+                const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+                
+                const { error } = await supabase
+                    .from('configuracion_ticket')
+                    .update({ 
+                        titulo_empresa: titulo, 
+                        icono: icono, 
+                        telefono: telefono, 
+                        pie_pagina: piePagina 
+                    })
+                    .eq('id', 1);
+
+                if (error) throw error;
+                
+                alert("✅ ¡Personalización Guardada Exitosamente!\nTodos los tickets impresos en todas las bancas a partir de ahora tendrán este diseño.");
+            } catch (err) {
+                console.error('Error al guardar personalización:', err);
+                alert("❌ Error al guardar en Supabase: " + err.message);
+            } finally {
+                if (btnSubmit) {
+                    btnSubmit.innerHTML = btnTextOriginal;
+                    btnSubmit.disabled = false;
+                }
+            }
+        });
+    }
+});
 
 // ==========================================================
 // INTERCEPTOR ABSOLUTO: SELLO DE COPIA PARA REIMPRESIÓN

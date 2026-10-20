@@ -651,5 +651,33 @@ if (typeof window !== 'undefined') {
             }
         `;
         document.head.appendChild(style);
+// ==========================================================
+// ACTUALIZAR TICKET VISUAL EN PANTALLA (MODAL HTML)
+// ==========================================================
+window.actualizarModalTicketPantalla = async function() {
+    try {
+        const supabase = window.supabaseClient || window.supabase;
+        if (!supabase) return;
+
+        const { data, error } = await supabase.from('configuracion_ticket').select('*').eq('id', 1).single();
+        if (data && !error) {
+            // Actualiza el texto en la pantalla emergente de la PC/Celular
+            const tituloPantalla = document.getElementById('ticket-view-company-name');
+            const iconoPantalla = document.getElementById('ticket-view-logo-icon');
+            const telefonoPantalla = document.getElementById('ticket-view-phone');
+            const piePantalla = document.getElementById('ticket-view-footer-msg');
+
+            if (tituloPantalla) tituloPantalla.textContent = data.titulo_empresa || 'BUXYLOTO POS';
+            if (iconoPantalla) iconoPantalla.className = `fa-solid ${data.icono || 'fa-clover'} text-emerald-600 text-base`;
+            if (telefonoPantalla) telefonoPantalla.textContent = `Tel: ${data.telefono || ''}`;
+            if (piePantalla) piePantalla.textContent = data.pie_pagina || 'Revise su ticket';
+        }
+    } catch (err) {
+        console.warn("No se pudo actualizar el modal de pantalla en vivo.", err);
+    }
+};
+
+// Ejecutar cuando se cargue el archivo
+setTimeout(window.actualizarModalTicketPantalla, 1500);
     }
 }

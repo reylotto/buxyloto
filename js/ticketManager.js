@@ -74,7 +74,7 @@ export async function renderizarPlantillaTicket(ticketData) {
         document.body.appendChild(ticketElem);
     }
 
-    // Configuración de papel térmico (58mm / 80mm)
+    // Configuración térmica
     ticketElem.style.position = 'fixed';
     ticketElem.style.top = '-9999px';
     ticketElem.style.left = '-9999px';
@@ -92,12 +92,11 @@ export async function renderizarPlantillaTicket(ticketData) {
     let configTitulo = ticketData.titulo_empresa || 'BUXYLOTO POS';
     let configIconoGuardado = 'fa-clover';
     let configTelefono = '';
-    let configPieRaw = 'REVISE SU TICKET\nSIN TICKET NO SE PAGA\nLNP 1ER 2500-2DO 700-3ER 300\nPALE 1000-1000-200\nTRIPLETA 10000X1 2Num 100x1\nNO SE PAGA EL PALE DOBLE';
+    let configPieRaw = 'REVISE SU TICKET\nSIN TICKET NO SE PAGA';
 
     try {
         const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
         if (supabase) {
-            // Consultar a Supabase antes de generar el ticket
             const { data, error } = await supabase.from('configuracion_ticket').select('*').eq('id', 1).single();
             if (data && !error) {
                 configTitulo = data.titulo_empresa || configTitulo;
@@ -107,18 +106,27 @@ export async function renderizarPlantillaTicket(ticketData) {
             }
         }
     } catch (err) {
-        console.warn("Usando configuración de ticket por defecto (offline).", err);
+        console.warn("Usando configuración offline.");
     }
     
-    // Convertir classnames de FontAwesome a Emojis para el ticket impreso
-    let configIcono = '☘️';
-    if (configIconoGuardado.includes('gem') || configIconoGuardado === '💎') configIcono = '💎';
-    else if (configIconoGuardado.includes('crown') || configIconoGuardado === '👑') configIcono = '👑';
-    else if (configIconoGuardado.includes('star') || configIconoGuardado === '⭐') configIcono = '⭐';
-    else if (configIconoGuardado.includes('money') || configIconoGuardado === '💰') configIcono = '💰';
-    else if (configIconoGuardado.includes('check') || configIconoGuardado === '✔️') configIcono = '✔️';
+    // 🌟 DETECTAR SI ES UNA URL DE IMAGEN O UN ICONO
+let logoEncabezadoHTML = '';
 
-    const configPieHTML = configPieRaw.split('\n').map(line => `<div>${line}</div>`).join('');
+if (configIconoGuardado.startsWith('http://') || configIconoGuardado.startsWith('https://') || configIconoGuardado.startsWith('data:image')) {
+    // Si es un enlace de imagen, genera una etiqueta <img>
+    logoEncabezadoHTML = `<img src="${configIconoGuardado}" style="max-height: 55px; max-width: 130px; margin: 0 auto 6px auto; display: block; object-fit: contain;" />`;
+} else {
+    // Si es un texto/icono tradicional de FontAwesome, usa el emoji
+    let configIcono = '☘️';
+    if (configIconoGuardado.includes('gem')) configIcono = '💎';
+    else if (configIconoGuardado.includes('crown')) configIcono = '👑';
+    else if (configIconoGuardado.includes('star')) configIcono = '⭐';
+    else if (configIconoGuardado.includes('money')) configIcono = '💰';
+    
+    logoEncabezadoHTML = `<div style="font-size: 22px; line-height: 1; margin-bottom: 4px;">${configIcono}</div>`;
+}
+
+    // ... [AQUÍ SIGUE EL RESTO DE TU FUNCIÓN ORIGINAL INTACTA: const codigo = ... ] ...
 
     // Datos principales
     const codigo = ticketData.codigo_ticket || ticketData.codigo || ticketData.ticket_id || '9312-0917-4579-1660';
@@ -190,7 +198,7 @@ export async function renderizarPlantillaTicket(ticketData) {
     ticketElem.innerHTML = `
         <!-- ENCABEZADO CENTRAL -->
         <div style="text-align: center;">
-            <div style="font-size: 22px; line-height: 1;">${configIcono}</div>
+            ${logoEncabezadoHTML}
             <div style="font-size: 16px; font-weight: bold;">${configTitulo}</div>
             <div style="font-size: 11px; font-weight: bold; margin-top: 2px;">$$ DINERO SEGURO $$</div>
         </div>
@@ -519,51 +527,12 @@ export async function anularTicketCancelado(identificadorTicket) {
 window.anularTicketCancelado = anularTicketCancelado;
 
 // ==========================================================
-// MÓDULO ACTIVO DE PERSONALIZACIÓN DE TICKET
-// ==========================================================
-
-window.cargarPersonalizacionTicket = function() {
-    const iTitulo = document.getElementById('cfg-ticket-title');
-    const iIcono = document.getElementById('cfg-ticket-icon');
-    const iTelefono = document.getElementById('cfg-ticket-phone');
-    const tPie = document.getElementById('cfg-ticket-footer');
-
-    if (iTitulo) iTitulo.value = localStorage.getItem('buxy_ticket_titulo') || 'BUXYLOTO POS';
-    if (iIcono) iIcono.value = localStorage.getItem('buxy_ticket_icono') || 'fa-clover';
-    if (iTelefono) iTelefono.value = localStorage.getItem('buxy_ticket_telefono') || '';
-    if (tPie) tPie.value = localStorage.getItem('buxy_ticket_pie') || 'REVISE SU TICKET\nSIN TICKET NO SE PAGA\nLNP 1ER 2500-2DO 700-3ER 300\nPALE 1000-1000-200\nTRIPLETA 10000X1 2Num 100x1\nNO SE PAGA EL PALE DOBLE';
-};
-
-// Escuchar automáticamente la carga y el botón Guardar del formulario
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(window.cargarPersonalizacionTicket, 1000);
-
-    const formPersonalizacion = document.getElementById('form-ticket-custom');
-    if (formPersonalizacion) {
-        formPersonalizacion.addEventListener('submit', function(e) {
-            e.preventDefault(); // Evita que la página se recargue al dar clic en Guardar
-
-            const iTitulo = document.getElementById('cfg-ticket-title');
-            const iIcono = document.getElementById('cfg-ticket-icon');
-            const iTelefono = document.getElementById('cfg-ticket-phone');
-            const tPie = document.getElementById('cfg-ticket-footer');
-
-            if (iTitulo) localStorage.setItem('buxy_ticket_titulo', iTitulo.value);
-            if (iIcono) localStorage.setItem('buxy_ticket_icono', iIcono.value);
-            if (iTelefono) localStorage.setItem('buxy_ticket_telefono', iTelefono.value);
-            if (tPie) localStorage.setItem('buxy_ticket_pie', tPie.value);
-
-            alert("✅ ¡Personalización Guardada Exitosamente!\nTodos los tickets impresos a partir de ahora tendrán este diseño.");
-        });
-    }
-});
-// ==========================================================
 // MÓDULO ACTIVO DE PERSONALIZACIÓN DE TICKET (NUBE SUPABASE)
 // ==========================================================
 
 window.cargarPersonalizacionTicket = async function() {
     try {
-        const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+        const supabase = window.supabaseClient || window.supabase;
         if (!supabase) return;
 
         const { data, error } = await supabase.from('configuracion_ticket').select('*').eq('id', 1).single();
@@ -581,11 +550,10 @@ window.cargarPersonalizacionTicket = async function() {
             if (tPie) tPie.value = data.pie_pagina || '';
         }
     } catch (err) {
-        console.error("Error al cargar la personalización del ticket:", err);
+        console.error("Error al cargar la personalización:", err);
     }
 };
 
-// Escuchar automáticamente la carga y el botón Guardar del formulario
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(window.cargarPersonalizacionTicket, 1000);
 
@@ -595,10 +563,9 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault(); 
             
             const btnSubmit = formPersonalizacion.querySelector('button[type="submit"]');
-            const btnTextOriginal = btnSubmit ? btnSubmit.innerHTML : 'Guardar Personalización del Ticket';
             
             if (btnSubmit) {
-                btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando en Servidor...';
+                btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
                 btnSubmit.disabled = true;
             }
 
@@ -608,29 +575,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const piePagina = document.getElementById('cfg-ticket-footer')?.value || '';
 
             try {
-                const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-                
-                const { error } = await supabase
-                    .from('configuracion_ticket')
-                    .update({ 
-                        titulo_empresa: titulo, 
-                        icono: icono, 
-                        telefono: telefono, 
-                        pie_pagina: piePagina 
-                    })
-                    .eq('id', 1);
+                const supabase = window.supabaseClient || window.supabase;
+                const { error } = await supabase.from('configuracion_ticket').update({ 
+                    titulo_empresa: titulo, icono: icono, telefono: telefono, pie_pagina: piePagina 
+                }).eq('id', 1);
 
                 if (error) throw error;
                 
-                alert("✅ ¡Personalización Guardada Exitosamente!\nTodos los tickets impresos en todas las bancas a partir de ahora tendrán este diseño.");
-            } catch (err) {
-                console.error('Error al guardar personalización:', err);
-                alert("❌ Error al guardar en Supabase: " + err.message);
-            } finally {
+                // 1. Restaurar el botón PRIMERO
                 if (btnSubmit) {
-                    btnSubmit.innerHTML = btnTextOriginal;
+                    btnSubmit.innerHTML = 'Guardar Personalización del Ticket';
                     btnSubmit.disabled = false;
                 }
+                
+                // 2. Limpiar la memoria local para obligar a refrescar
+                localStorage.removeItem('buxy_ticket_titulo');
+                
+                // 3. Mostrar la alerta de éxito
+                alert("✅ ¡Personalización Guardada Exitosamente!");
+
+            } catch (err) {
+                if (btnSubmit) {
+                    btnSubmit.innerHTML = 'Guardar Personalización del Ticket';
+                    btnSubmit.disabled = false;
+                }
+                alert("❌ Error al guardar: " + err.message);
             }
         });
     }

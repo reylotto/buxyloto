@@ -74,7 +74,7 @@ export async function renderizarPlantillaTicket(ticketData) {
         document.body.appendChild(ticketElem);
     }
 
-    // Configuración térmica
+    // Configuración de papel térmico (58mm / 80mm)
     ticketElem.style.position = 'fixed';
     ticketElem.style.top = '-9999px';
     ticketElem.style.left = '-9999px';
@@ -88,45 +88,21 @@ export async function renderizarPlantillaTicket(ticketData) {
     ticketElem.style.boxSizing = 'border-box';
     ticketElem.style.zIndex = '-9999';
 
-    // 🌟 APLICAR PERSONALIZACIÓN (Lectura en tiempo real desde Supabase)
-    let configTitulo = ticketData.titulo_empresa || 'BUXYLOTO POS';
-    let configIconoGuardado = 'fa-clover';
-    let configTelefono = '';
-    let configPieRaw = 'REVISE SU TICKET\nSIN TICKET NO SE PAGA';
-
-    try {
-        const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
-        if (supabase) {
-            const { data, error } = await supabase.from('configuracion_ticket').select('*').eq('id', 1).single();
-            if (data && !error) {
-                configTitulo = data.titulo_empresa || configTitulo;
-                configIconoGuardado = data.icono || configIconoGuardado;
-                configTelefono = data.telefono || configTelefono;
-                configPieRaw = data.pie_pagina || configPieRaw;
-            }
-        }
-    } catch (err) {
-        console.warn("Usando configuración offline.");
-    }
+    // 🌟 APLICAR PERSONALIZACIÓN (Lectura directa de localStorage)
+    const configTitulo = localStorage.getItem('buxy_ticket_titulo') || ticketData.titulo_empresa || 'BUXYLOTO POS';
+    const configIconoGuardado = localStorage.getItem('buxy_ticket_icono') || '☘️';
     
-    // 🌟 DETECTAR SI ES UNA URL DE IMAGEN O UN ICONO
-let logoEncabezadoHTML = '';
-
-if (configIconoGuardado.startsWith('http://') || configIconoGuardado.startsWith('https://') || configIconoGuardado.startsWith('data:image')) {
-    // Si es un enlace de imagen, genera una etiqueta <img>
-    logoEncabezadoHTML = `<img src="${configIconoGuardado}" style="max-height: 55px; max-width: 130px; margin: 0 auto 6px auto; display: block; object-fit: contain;" />`;
-} else {
-    // Si es un texto/icono tradicional de FontAwesome, usa el emoji
+    // Convertir classnames de FontAwesome a Emojis para el ticket impreso
     let configIcono = '☘️';
-    if (configIconoGuardado.includes('gem')) configIcono = '💎';
-    else if (configIconoGuardado.includes('crown')) configIcono = '👑';
-    else if (configIconoGuardado.includes('star')) configIcono = '⭐';
-    else if (configIconoGuardado.includes('money')) configIcono = '💰';
-    
-    logoEncabezadoHTML = `<div style="font-size: 22px; line-height: 1; margin-bottom: 4px;">${configIcono}</div>`;
-}
+    if (configIconoGuardado.includes('gem') || configIconoGuardado === '💎') configIcono = '💎';
+    else if (configIconoGuardado.includes('crown') || configIconoGuardado === '👑') configIcono = '👑';
+    else if (configIconoGuardado.includes('star') || configIconoGuardado === '⭐') configIcono = '⭐';
+    else if (configIconoGuardado.includes('money') || configIconoGuardado === '💰') configIcono = '💰';
+    else if (configIconoGuardado.includes('check') || configIconoGuardado === '✔️') configIcono = '✔️';
 
-    // ... [AQUÍ SIGUE EL RESTO DE TU FUNCIÓN ORIGINAL INTACTA: const codigo = ... ] ...
+    const configTelefono = localStorage.getItem('buxy_ticket_telefono') || '';
+    const configPieRaw = localStorage.getItem('buxy_ticket_pie') || 'REVISE SU TICKET\nSIN TICKET NO SE PAGA\nLNP 1ER 2500-2DO 700-3ER 300\nPALE 1000-1000-200\nTRIPLETA 10000X1 2Num 100x1\nNO SE PAGA EL PALE DOBLE';
+    const configPieHTML = configPieRaw.split('\n').map(line => `<div>${line}</div>`).join('');
 
     // Datos principales
     const codigo = ticketData.codigo_ticket || ticketData.codigo || ticketData.ticket_id || '9312-0917-4579-1660';
@@ -198,7 +174,7 @@ if (configIconoGuardado.startsWith('http://') || configIconoGuardado.startsWith(
     ticketElem.innerHTML = `
         <!-- ENCABEZADO CENTRAL -->
         <div style="text-align: center;">
-            ${logoEncabezadoHTML}
+            <div style="font-size: 22px; line-height: 1;">${configIcono}</div>
             <div style="font-size: 16px; font-weight: bold;">${configTitulo}</div>
             <div style="font-size: 11px; font-weight: bold; margin-top: 2px;">$$ DINERO SEGURO $$</div>
         </div>
@@ -527,83 +503,105 @@ export async function anularTicketCancelado(identificadorTicket) {
 window.anularTicketCancelado = anularTicketCancelado;
 
 // ==========================================================
-// MÓDULO ACTIVO DE PERSONALIZACIÓN DE TICKET (NUBE SUPABASE)
+// MÓDULO ACTIVO DE PERSONALIZACIÓN DE TICKET
 // ==========================================================
 
-window.cargarPersonalizacionTicket = async function() {
-    try {
-        const supabase = window.supabaseClient || window.supabase;
-        if (!supabase) return;
+window.cargarPersonalizacionTicket = function() {
+    const iTitulo = document.getElementById('cfg-ticket-title');
+    const iIcono = document.getElementById('cfg-ticket-icon');
+    const iTelefono = document.getElementById('cfg-ticket-phone');
+    const tPie = document.getElementById('cfg-ticket-footer');
 
-        const { data, error } = await supabase.from('configuracion_ticket').select('*').eq('id', 1).single();
-        if (error) throw error;
-
-        if (data) {
-            const iTitulo = document.getElementById('cfg-ticket-title');
-            const iIcono = document.getElementById('cfg-ticket-icon');
-            const iTelefono = document.getElementById('cfg-ticket-phone');
-            const tPie = document.getElementById('cfg-ticket-footer');
-
-            if (iTitulo) iTitulo.value = data.titulo_empresa || '';
-            if (iIcono) iIcono.value = data.icono || 'fa-clover';
-            if (iTelefono) iTelefono.value = data.telefono || '';
-            if (tPie) tPie.value = data.pie_pagina || '';
-        }
-    } catch (err) {
-        console.error("Error al cargar la personalización:", err);
-    }
+    if (iTitulo) iTitulo.value = localStorage.getItem('buxy_ticket_titulo') || 'BUXYLOTO POS';
+    if (iIcono) iIcono.value = localStorage.getItem('buxy_ticket_icono') || 'fa-clover';
+    if (iTelefono) iTelefono.value = localStorage.getItem('buxy_ticket_telefono') || '';
+    if (tPie) tPie.value = localStorage.getItem('buxy_ticket_pie') || 'REVISE SU TICKET\nSIN TICKET NO SE PAGA\nLNP 1ER 2500-2DO 700-3ER 300\nPALE 1000-1000-200\nTRIPLETA 10000X1 2Num 100x1\nNO SE PAGA EL PALE DOBLE';
 };
 
+// Escuchar automáticamente la carga y el botón Guardar del formulario
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(window.cargarPersonalizacionTicket, 1000);
 
     const formPersonalizacion = document.getElementById('form-ticket-custom');
     if (formPersonalizacion) {
-        formPersonalizacion.addEventListener('submit', async function(e) {
-            e.preventDefault(); 
-            
-            const btnSubmit = formPersonalizacion.querySelector('button[type="submit"]');
-            
-            if (btnSubmit) {
-                btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
-                btnSubmit.disabled = true;
-            }
+        formPersonalizacion.addEventListener('submit', function(e) {
+            e.preventDefault(); // Evita que la página se recargue al dar clic en Guardar
 
-            const titulo = document.getElementById('cfg-ticket-title')?.value || '';
-            const icono = document.getElementById('cfg-ticket-icon')?.value || '';
-            const telefono = document.getElementById('cfg-ticket-phone')?.value || '';
-            const piePagina = document.getElementById('cfg-ticket-footer')?.value || '';
+            const iTitulo = document.getElementById('cfg-ticket-title');
+            const iIcono = document.getElementById('cfg-ticket-icon');
+            const iTelefono = document.getElementById('cfg-ticket-phone');
+            const tPie = document.getElementById('cfg-ticket-footer');
 
-            try {
-                const supabase = window.supabaseClient || window.supabase;
-                const { error } = await supabase.from('configuracion_ticket').update({ 
-                    titulo_empresa: titulo, icono: icono, telefono: telefono, pie_pagina: piePagina 
-                }).eq('id', 1);
+            if (iTitulo) localStorage.setItem('buxy_ticket_titulo', iTitulo.value);
+            if (iIcono) localStorage.setItem('buxy_ticket_icono', iIcono.value);
+            if (iTelefono) localStorage.setItem('buxy_ticket_telefono', iTelefono.value);
+            if (tPie) localStorage.setItem('buxy_ticket_pie', tPie.value);
 
-                if (error) throw error;
-                
-                // 1. Restaurar el botón PRIMERO
-                if (btnSubmit) {
-                    btnSubmit.innerHTML = 'Guardar Personalización del Ticket';
-                    btnSubmit.disabled = false;
-                }
-                
-                // 2. Limpiar la memoria local para obligar a refrescar
-                localStorage.removeItem('buxy_ticket_titulo');
-                
-                // 3. Mostrar la alerta de éxito
-                alert("✅ ¡Personalización Guardada Exitosamente!");
-
-            } catch (err) {
-                if (btnSubmit) {
-                    btnSubmit.innerHTML = 'Guardar Personalización del Ticket';
-                    btnSubmit.disabled = false;
-                }
-                alert("❌ Error al guardar: " + err.message);
-            }
+            alert("✅ ¡Personalización Guardada Exitosamente!\nTodos los tickets impresos a partir de ahora tendrán este diseño.");
         });
     }
 });
+// ==========================================================
+// MOTOR DE REIMPRESIÓN DIAGNOSTICADO Y ASEGURADO
+// ==========================================================
+window.reimprimirTicketUnificado = async function(ticketId) {
+    alert("🔍 Clic detectado en ticket ID: " + ticketId); // Alerta de prueba para verificar ejecución
+
+    try {
+        const supabase = window.supabaseClient || window.supabase;
+        if (!supabase) {
+            alert("❌ Error: Cliente de Supabase no disponible en la ventana.");
+            return;
+        }
+
+        // 1. Obtener ticket principal
+        const { data: ticket, error: errTicket } = await supabase
+            .from('tickets')
+            .select('*, bancas(nombre)')
+            .eq('id', ticketId)
+            .single();
+
+        if (errTicket) {
+            alert("❌ Error de BD al buscar ticket: " + errTicket.message);
+            throw errTicket;
+        }
+        if (!ticket) {
+            alert("⚠️ Ticket no encontrado en la base de datos.");
+            return;
+        }
+
+        // 2. Obtener las jugadas
+        const { data: jugadas, error: errJugadas } = await supabase
+            .from('jugadas')
+            .select('*')
+            .eq('ticket_id', ticketId);
+
+        if (errJugadas) {
+            alert("❌ Error al buscar jugadas: " + errJugadas.message);
+        }
+
+        // 3. Formatear datos para el motor de 2 columnas
+        const ticketData = {
+            ...ticket,
+            codigo_ticket: ticket.codigo_ticket || ticket.folio || ticket.codigo || 'BX-000000',
+            monto_total: parseFloat(ticket.monto_total || ticket.total || ticket.monto || 0).toFixed(2),
+            banca_nombre: ticket.bancas?.nombre || ticket.banca_nombre || ticket.vendedor_nombre || 'Banca',
+            detalles: jugadas || [],
+            jugadas: jugadas || []
+        };
+
+        // 4. Lanzar el menú de exportación
+        if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
+            window.mostrarOpcionesExportacionTicket(ticketData);
+        } else {
+            alert("⚠️ Error: 'mostrarOpcionesExportacionTicket' no está cargada en window.");
+        }
+
+    } catch (err) {
+        console.error("Error crítico al reimprimir:", err);
+        alert("❌ Excepción capturada: " + (err.message || JSON.stringify(err)));
+    }
+};
 
 // ==========================================================
 // INTERCEPTOR ABSOLUTO: SELLO DE COPIA PARA REIMPRESIÓN
@@ -620,33 +618,5 @@ if (typeof window !== 'undefined') {
             }
         `;
         document.head.appendChild(style);
-// ==========================================================
-// ACTUALIZAR TICKET VISUAL EN PANTALLA (MODAL HTML)
-// ==========================================================
-window.actualizarModalTicketPantalla = async function() {
-    try {
-        const supabase = window.supabaseClient || window.supabase;
-        if (!supabase) return;
-
-        const { data, error } = await supabase.from('configuracion_ticket').select('*').eq('id', 1).single();
-        if (data && !error) {
-            // Actualiza el texto en la pantalla emergente de la PC/Celular
-            const tituloPantalla = document.getElementById('ticket-view-company-name');
-            const iconoPantalla = document.getElementById('ticket-view-logo-icon');
-            const telefonoPantalla = document.getElementById('ticket-view-phone');
-            const piePantalla = document.getElementById('ticket-view-footer-msg');
-
-            if (tituloPantalla) tituloPantalla.textContent = data.titulo_empresa || 'BUXYLOTO POS';
-            if (iconoPantalla) iconoPantalla.className = `fa-solid ${data.icono || 'fa-clover'} text-emerald-600 text-base`;
-            if (telefonoPantalla) telefonoPantalla.textContent = `Tel: ${data.telefono || ''}`;
-            if (piePantalla) piePantalla.textContent = data.pie_pagina || 'Revise su ticket';
-        }
-    } catch (err) {
-        console.warn("No se pudo actualizar el modal de pantalla en vivo.", err);
-    }
-};
-
-// Ejecutar cuando se cargue el archivo
-setTimeout(window.actualizarModalTicketPantalla, 1500);
     }
 }

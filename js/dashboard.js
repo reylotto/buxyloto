@@ -388,9 +388,9 @@ async function cargarHistorialTickets() {
 
             const botonAnulacionHTML = puedeAnular 
                 ? `<button onclick="eliminarTicketHistorial('${t.id}')" title="Anular Ticket"
-                           class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2 py-1 rounded transition-colors text-xs flex items-center gap-1">
+                           class="admin-only bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2 py-1 rounded transition-colors text-xs flex items-center gap-1">
                        <i class="fa-solid fa-ban"></i> Anular
-                   </button>` 
+                   </button>`
                 : `<span class="text-slate-500 text-[10px] bg-slate-800 px-2 py-0.5 rounded border border-slate-700" title="No se puede cancelar">${motivoBloqueo}</span>`;
 
             tr.innerHTML = `

@@ -123,8 +123,28 @@ if (loginForm) {
             if (loginWrapper) loginWrapper.classList.add('hidden');
             if (mainContainer) mainContainer.classList.remove('hidden');
 
-            // Forzar redirección al dashboard al iniciar sesión exitosamente
-            window.location.hash = '#dashboard';
+            // 🟢 REDIRECCIÓN INTELIGENTE SEGÚN ROL
+            const rolActual = String(cuentaUsuario.rol || 'caja').toLowerCase();
+            
+            // Refrescar el escudo inmediatamente
+            if (typeof window.aplicarRolesSeguridad === 'function') {
+                window.aplicarRolesSeguridad();
+            }
+
+            if (rolActual.includes('caja') || rolActual.includes('vendedor') || rolActual.includes('banca')) {
+                window.location.hash = '#pos';
+                if (typeof cambiarSeccion === 'function') cambiarSeccion('section-pos');
+            } else {
+                window.location.hash = '#dashboard';
+                if (typeof cambiarSeccion === 'function') cambiarSeccion('section-dashboard');
+            }
+
+            if (typeof iniciarAplicacionPrincipal === 'function') {
+                iniciarAplicacionPrincipal();
+            } else {
+                // Pequeño timeout para evitar parpadeos visuales al cambiar de sección
+                setTimeout(() => window.location.reload(), 100);
+            }
 
             if (typeof iniciarAplicacionPrincipal === 'function') {
                 iniciarAplicacionPrincipal();

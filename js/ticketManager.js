@@ -92,13 +92,18 @@ export async function renderizarPlantillaTicket(ticketData) {
     const configTitulo = localStorage.getItem('buxy_ticket_titulo') || ticketData.titulo_empresa || 'BUXYLOTO POS';
     const configIconoGuardado = localStorage.getItem('buxy_ticket_icono') || '☘️';
     
-    // Convertir classnames de FontAwesome a Emojis para el ticket impreso
-    let configIcono = '☘️';
-    if (configIconoGuardado.includes('gem') || configIconoGuardado === '💎') configIcono = '💎';
-    else if (configIconoGuardado.includes('crown') || configIconoGuardado === '👑') configIcono = '👑';
-    else if (configIconoGuardado.includes('star') || configIconoGuardado === '⭐') configIcono = '⭐';
-    else if (configIconoGuardado.includes('money') || configIconoGuardado === '💰') configIcono = '💰';
-    else if (configIconoGuardado.includes('check') || configIconoGuardado === '✔️') configIcono = '✔️';
+    // 🌟 LOGO CON FALLBACK A TU PNG ORIGINAL (img/logo.png)
+    let logoSrc = 'img/logo.png'; // Tu logo original por defecto
+
+    if (configIconoGuardado && (
+        configIconoGuardado.includes('/storage/v1/object/public/') || 
+        configIconoGuardado.startsWith('data:image') || 
+        /\.(png|jpg|jpeg|webp|svg)(\?.*)?$/i.test(configIconoGuardado)
+    )) {
+        logoSrc = configIconoGuardado;
+    }
+
+    const logoEncabezadoHTML = `<img src="${logoSrc}" alt="Logo" style="max-height: 55px; max-width: 130px; margin: 0 auto 6px auto; display: block; object-fit: contain;" onError="this.onerror=null; this.src='img/logo.png';" />`;
 
     const configTelefono = localStorage.getItem('buxy_ticket_telefono') || '';
     const configPieRaw = localStorage.getItem('buxy_ticket_pie') || 'REVISE SU TICKET\nSIN TICKET NO SE PAGA\nLNP 1ER 2500-2DO 700-3ER 300\nPALE 1000-1000-200\nTRIPLETA 10000X1 2Num 100x1\nNO SE PAGA EL PALE DOBLE';

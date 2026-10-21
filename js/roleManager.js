@@ -11,86 +11,95 @@
         }
     }
 
-    window.aplicarBlindajeSupervisor = function() {
-        // 1. Evitar bloqueos en la pantalla de login
+    window.aplicarRolesSeguridad = function() {
         const loginWrapper = document.getElementById('auth-login-wrapper');
         if (loginWrapper && !loginWrapper.classList.contains('hidden')) {
-            return;
+            return; // No aplicar escudo si estamos en el login
         }
 
         const sesion = obtenerSesionSegura();
-        const rol = String(sesion.rol || 'admin').toLowerCase().trim();
+        if (!sesion || Object.keys(sesion).length === 0) return;
+
+        const rol = String(sesion.rol || 'caja').toLowerCase().trim();
         const zona = sesion.zona || 'Zona General';
-        const nombre = sesion.nombre || sesion.username || 'Usuario';
+        const nombre = sesion.nombre || sesion.nombre_banca || sesion.username || 'Usuario';
 
-        // 2. ACTUALIZAR CABECERA (Respetando tu botón de Cerrar Sesión)
-        const nameEl = document.querySelector('.user-name-display, #admin-user-name, header .font-bold');
-        if (nameEl && !nameEl.textContent.includes('Plataforma')) nameEl.textContent = nombre;
+        // 1. ACTUALIZAR CABECERA DE USUARIO
+        const nameEl = document.querySelector('#header-user-name');
+        const roleEl = document.querySelector('#header-user-role');
+        const iconEl = document.querySelector('#user-role-icon');
 
-        const roleEl = document.querySelector('.user-role-display, #admin-user-role, header span.text-xs');
+        if (nameEl) nameEl.textContent = nombre;
         if (roleEl) {
-            if (rol.includes('supervisor')) {
-                roleEl.textContent = `Supervisor (${zona})`;
-                roleEl.className = 'text-amber-400 font-semibold text-xs';
-            } else if (rol.includes('caja') || rol.includes('vendedor')) {
-                roleEl.textContent = 'Banca / Vendedor POS';
-                roleEl.className = 'text-cyan-400 font-semibold text-xs';
-            } else {
+            if (rol.includes('admin')) {
                 roleEl.textContent = 'Administrador Central';
-                roleEl.className = 'text-emerald-400 font-semibold text-xs';
+                roleEl.className = 'text-[10px] text-emerald-400 leading-tight';
+                if (iconEl) iconEl.className = 'fa-solid fa-crown';
+            } else if (rol.includes('supervisor')) {
+                roleEl.textContent = `Supervisor (${zona})`;
+                roleEl.className = 'text-[10px] text-amber-400 leading-tight';
+                if (iconEl) iconEl.className = 'fa-solid fa-user-tie';
+            } else {
+                roleEl.textContent = 'Operador POS';
+                roleEl.className = 'text-[10px] text-cyan-400 leading-tight';
+                if (iconEl) iconEl.className = 'fa-solid fa-store';
             }
         }
 
-        // 3. ELIMINAR EL SIMULADOR DE ROLES SOLO EN LA CABECERA (NO EN LOS FORMULARIOS)
-        // Buscamos específicamente dentro del "header" o la parte superior
-        const selectsHeader = document.querySelectorAll('header select, .top-0 select');
-        selectsHeader.forEach(select => {
-            select.style.display = 'none'; // Oculta solo la cajita de selección arriba
-            const label = select.previousElementSibling;
-            if (label && label.tagName === 'LABEL') {
-                label.style.display = 'none'; // Oculta el texto "CAMBIAR ROL"
+        // Ocultar selector de simulación de roles de la maqueta
+        const simuladorRol = document.getElementById('user-role-switch');
+        if (simuladorRol) simuladorRol.parentElement.style.display = 'none';
+
+        // 2. OCULTAR MENÚS SEGÚN EL ROL
+        const botonesMenu = document.querySelectorAll('.nav-link');
+        
+        botonesMenu.forEach(btn => {
+            const target = btn.getAttribute('data-target');
+            if (!target) return;
+
+            // Restablecemos visibilidad por defecto
+            btn.style.display = 'flex';
+
+            if (rol.includes('supervisor')) {
+                // SUPERVISOR: No ve POS, Gestión de Usuarios, Bancas, Riesgos, Loterías, Configuración ni Mapa
+                const prohibidosSupervisor = [
+                    'section-pos', 'section-users', 'section-bancas', 'section-loterias', 
+                    'section-riesgos', 'section-ticket-config', 'section-geo', 'section-historial-numeros'
+                ];
+                if (prohibidosSupervisor.includes(target)) {
+                    btn.style.display = 'none';
+                }
+            } 
+            else if (rol.includes('caja') || rol.includes('vendedor') || rol.includes('banca')) {
+                // CAJERO/VENDEDOR: Solo ve Punto de Venta (POS) y su Historial de Tickets (y Resultados)
+                const permitidosCaja = ['section-pos', 'section-tickets', 'section-results'];
+                if (!permitidosCaja.includes(target)) {
+                    btn.style.display = 'none';
+                }
             }
+            // El Admin ve todo, no se oculta nada.
         });
 
-        // 4. OCULTAR MENÚS Y POS PARA SUPERVISORES
-        if (rol.includes('supervisor')) {
-            const ocultarElementosProhibidos = () => {
-                const linksMenu = document.querySelectorAll('aside nav a, nav a, .sidebar a');
-                linksMenu.forEach(link => {
-                    const texto = (link.textContent || '').toLowerCase().trim();
-                    const href = link.getAttribute('href') || '';
-                    if (
-                        texto.includes('punto de venta') || href.includes('pos') ||
-                        texto.includes('gestión de usuarios') || texto.includes('gestion de usuarios') ||
-                        texto.includes('bancas') || texto.includes('vendedores') ||
-                        texto.includes('loterías') || texto.includes('loterias') ||
-                        texto.includes('control de riesgo') || texto.includes('riesgo') ||
-                        texto.includes('personalizar ticket') ||
-                        texto.includes('geolocalización') || texto.includes('geolocalizacion')
-                    ) {
-                        const contenedor = link.closest('li') || link;
-                        if (contenedor) contenedor.style.display = 'none';
-                    }
-                });
+        // 3. OCULTAR ACCIONES Y BOTONES DE ADMINISTRACIÓN
+        if (!rol.includes('admin')) {
+            // Ocultar cualquier elemento marcado con clase 'admin-only'
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+            
+            // Ocultar formularios de registrar premios y botones de sincronización masiva
+            const formResultados = document.getElementById('form-register-results');
+            if (formResultados) formResultados.style.display = 'none';
+            
+            const btnAutoSync = document.getElementById('btn-auto-sync');
+            if (btnAutoSync) btnAutoSync.style.display = 'none';
 
-                // Ocultar formulario de escrutinio
-                const formEscrutinio = document.getElementById('form-registrar-resultados');
-                if (formEscrutinio) formEscrutinio.style.display = 'none';
-
-                document.querySelectorAll('.btn-guardar-escrutinio, button[type="submit"]').forEach(btn => {
-                    const txt = (btn.textContent || '').toLowerCase();
-                    if (txt.includes('escrutinio') || txt.includes('registrar')) {
-                        btn.style.display = 'none';
-                    }
-                });
-            };
-
-            ocultarElementosProhibidos();
-            setTimeout(ocultarElementosProhibidos, 500); 
+            // Ocultar opciones del perfil de administrador
+            const btnProfile = document.getElementById('btn-user-profile');
+            if (btnProfile) btnProfile.style.display = 'none';
         }
     };
 
-    document.addEventListener('DOMContentLoaded', window.aplicarBlindajeSupervisor);
-    window.addEventListener('hashchange', window.aplicarBlindajeSupervisor);
-    setTimeout(window.aplicarBlindajeSupervisor, 800);
+    // Inicializar el blindaje en eventos clave
+    document.addEventListener('DOMContentLoaded', window.aplicarRolesSeguridad);
+    window.addEventListener('hashchange', window.aplicarRolesSeguridad);
+    setTimeout(window.aplicarRolesSeguridad, 800);
 })();

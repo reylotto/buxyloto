@@ -438,7 +438,7 @@ async function cargarHistorialTickets() {
                     </button>
                     ${estatus === 'pendiente' ? `
                     <button onclick="anularTicket('${t.id}')" title="Anular Ticket"
-                            class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold">
+                            class="admin-only bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold">
                         <i class="fa-solid fa-ban"></i> Anular
                     </button>` : ''}
                 </td>

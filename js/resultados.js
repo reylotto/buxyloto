@@ -77,11 +77,11 @@ async function cargarHistorialResultados() {
                     <td class="p-3 text-amber-400 font-bold font-mono text-sm">${num3}</td>
                     <td class="p-3 text-center flex items-center justify-center gap-2">
                         <button type="button" onclick="cargarResultadoEnFormulario(${jsonStr})" 
-                            class="text-xs bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-slate-950 px-2.5 py-1 rounded-lg font-bold transition">
+                            class="admin-only text-xs bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-slate-950 px-2.5 py-1 rounded-lg font-bold transition">
                             ✏️ Editar
                         </button>
                         <button type="button" onclick="eliminarResultado('${res.id}')" 
-                            class="text-xs bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white px-2.5 py-1 rounded-lg font-bold transition">
+                            class="admin-only text-xs bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white px-2.5 py-1 rounded-lg font-bold transition">
                             🗑️ Eliminar
                         </button>
                     </td>

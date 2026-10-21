@@ -23,7 +23,24 @@ window.initBalancesCuadresModule = initBalancesCuadresModule;
 async function cargarListaVendedores() {
     try {
         const { data: bancas } = await window.supabase.from('bancas').select('*');
-        estadoBalances.vendedores = bancas || [];
+        let bancasData = bancas || [];
+
+        // --- 🚨 INICIO DE FILTRO DE SEGURIDAD POR ROL 🚨 ---
+        const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+        const rol = String(sesion.rol || '').toLowerCase();
+        const zonaUsuario = sesion.zona;
+        const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
+
+        if (rol.includes('supervisor')) {
+            // El supervisor solo puede auditar y ver a las bancas de su zona
+            bancasData = bancasData.filter(b => b.zona === zonaUsuario);
+        } else if (!rol.includes('admin')) {
+            // Cajero/Banca solo puede cuadrarse a sí mismo (por si acaso accede por error)
+            bancasData = bancasData.filter(b => b.nombre_banca === nombreUsuario || b.vendedor_nombre === nombreUsuario);
+        }
+        // --- FIN DE FILTRO DE SEGURIDAD ---
+
+        estadoBalances.vendedores = bancasData;
         
         const select = document.getElementById('cuadre-vendedor');
         if (select) {
@@ -47,13 +64,34 @@ window.cargarResumenBalances = async function() {
             await cargarListaVendedores();
         }
 
-        const { data: tickets } = await window.supabase.from('tickets').select('*');
+        const { data: ticketsData } = await window.supabase.from('tickets').select('*');
         const { data: pagosBD } = await window.supabase.from('pagos_bancas').select('*');
         estadoBalances.pagosLocales = pagosBD || [];
+
+        // --- 🚨 INICIO DE FILTRO DE SEGURIDAD POR ROL PARA TICKETS 🚨 ---
+        const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+        const rol = String(sesion.rol || '').toLowerCase();
+        const zonaUsuario = sesion.zona;
+        const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
+
+        let tickets = ticketsData || [];
+
+        if (rol.includes('supervisor')) {
+            tickets = tickets.filter(t => t.zona === zonaUsuario);
+        } else if (!rol.includes('admin')) {
+            tickets = tickets.filter(t => 
+                t.creador === nombreUsuario || 
+                t.banca === nombreUsuario || 
+                t.vendedor_nombre === nombreUsuario || 
+                t.banca_nombre === nombreUsuario
+            );
+        }
+        // --- FIN DE FILTRO DE SEGURIDAD ---
 
         let html = '';
 
         estadoBalances.vendedores.forEach(b => {
+            // El resto de la matemática queda EXACTAMENTE IGUAL
             const ticketsVendedor = (tickets || []).filter(t => String(t.banca_id) === String(b.id) && String(t.estatus).toLowerCase() !== 'cancelado' && String(t.estatus).toLowerCase() !== 'anulado');
             
             let ventas = 0; let premios = 0; let comisiones = 0;
@@ -82,12 +120,7 @@ window.cargarResumenBalances = async function() {
             // MATE CORREGIDA Y DEFINITIVA (Sincronizada con APK)
             // ==========================================
             const resultadoNeto = ventas - premios - comisiones;
-            
-            // Los INGRESOS le restan a la deuda que la banca tiene contigo.
-            // Los EGRESOS se SUMAN matemáticamente para contrarrestar saldos negativos (tu deuda con ellos).
             let balanceFinal = resultadoNeto - totIngresos + totEgresos; 
-            
-            // REDONDEO SEGURO PARA EVITAR DECIMALES FANTASMA
             balanceFinal = Math.round(balanceFinal * 100) / 100;
             
             const colorClass = balanceFinal >= 0 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30';

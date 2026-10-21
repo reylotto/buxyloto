@@ -31,13 +31,14 @@
         const hashActual = window.location.hash.replace('#', '') || 'dashboard';
         const seccionLimpia = hashActual.replace('section-', '');
 
-        // BLOQUEO CAJERO/VENDEDOR: Solo puede ver POS, Tickets y Resultados
+        // 🛑 BLOQUEO ABSOLUTO PARA CAJEROS/VENDEDORES
         if (rol.includes('caja') || rol.includes('vendedor') || rol.includes('banca')) {
-            const permitidasCajero = ['pos', 'tickets', 'results'];
-            if (!permitidasCajero.includes(seccionLimpia) && hashActual !== '') {
-                window.location.hash = '#pos'; // Lo devuelve al POS a la fuerza
-                return; // Detenemos aquí para que no alcance a cargar la vista prohibida
-            }
+            // Reemplaza esto con el enlace real de tu terminal móvil
+            const urlTerminalMovil = 'https://tu-enlace-del-terminal-movil.com'; 
+            
+            alert("Acceso denegado al Dashboard. Redirigiendo al Terminal Móvil POS...");
+            window.location.href = urlTerminalMovil;
+            return; // Detiene toda la ejecución de la página
         }
 
         // BLOQUEO SUPERVISOR: No ve POS, Usuarios, Configuración, etc.
@@ -50,25 +51,44 @@
         }
         // ==========================================
 
-        // 1. ACTUALIZAR CABECERA DE USUARIO
+       // 1. ACTUALIZAR CABECERA DE USUARIO Y MENÚ DESPLEGABLE
         const nameEl = document.querySelector('#header-user-name');
         const roleEl = document.querySelector('#header-user-role');
         const iconEl = document.querySelector('#user-role-icon');
+        
+        // Elementos del menú desplegable (las líneas 276 y 277 de tu index)
+        const dropNameEl = document.querySelector('#dropdown-user-name');
+        const dropRoleEl = document.querySelector('#dropdown-user-role');
 
         if (nameEl) nameEl.textContent = nombre;
+        if (dropNameEl) dropNameEl.textContent = nombre;
+
         if (roleEl) {
             if (rol.includes('admin')) {
                 roleEl.textContent = 'Administrador Central';
                 roleEl.className = 'text-[10px] text-emerald-400 leading-tight';
                 if (iconEl) iconEl.className = 'fa-solid fa-crown';
+                if (dropRoleEl) {
+                    dropRoleEl.textContent = 'Administrador Principal';
+                    dropRoleEl.className = 'text-[11px] text-emerald-400 font-medium';
+                }
             } else if (rol.includes('supervisor')) {
-                roleEl.textContent = `Supervisor (${zona})`;
+                const textoSup = `Supervisor (${zona})`;
+                roleEl.textContent = textoSup;
                 roleEl.className = 'text-[10px] text-amber-400 leading-tight';
                 if (iconEl) iconEl.className = 'fa-solid fa-user-tie';
+                if (dropRoleEl) {
+                    dropRoleEl.textContent = textoSup;
+                    dropRoleEl.className = 'text-[11px] text-amber-400 font-medium';
+                }
             } else {
                 roleEl.textContent = 'Operador POS';
                 roleEl.className = 'text-[10px] text-cyan-400 leading-tight';
                 if (iconEl) iconEl.className = 'fa-solid fa-store';
+                if (dropRoleEl) {
+                    dropRoleEl.textContent = 'Operador POS';
+                    dropRoleEl.className = 'text-[11px] text-cyan-400 font-medium';
+                }
             }
         }
 

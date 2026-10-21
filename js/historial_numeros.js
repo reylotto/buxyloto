@@ -87,34 +87,48 @@ window.cargarHistorialNumeros = async function() {
         const startOfDay = new Date(`${fechaFiltro}T00:00:00-05:00`).toISOString();
         const endOfDay = new Date(`${fechaFiltro}T23:59:59-05:00`).toISOString();
 
-        // 3. Consultar a la tabla JUGADAS incluyendo los datos del ticket para filtrar por zona
-        const { data: jugadasRaw, error: errJugadas } = await supabase
-            .from('jugadas')
-            .select('sorteo_nombre, tipo, numero, monto, estatus, estado, ticket_id, tickets(banca_id, usuario_id, zona)')
-            .gte('created_at', startOfDay)
-            .lte('created_at', endOfDay);
-
-        if (errJugadas) throw errJugadas;
-
-        let jugadas = jugadasRaw || [];
-
-        // 🚨 FILTRO MAESTRO DE SUPERVISOR (Historial de Números)
+        // 🚨 3. CONSULTA SEGURA POR PASOS PARA FILTRAR POR ZONA 🚨
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
+        
+        let jugadas = [];
 
         if (rol.includes('supervisor')) {
+            // A) Obtenemos TODAS las bancas y filtramos por la zona del supervisor
             if (!window._bancasCache || window._bancasCache.length === 0) {
                 const { data: bData } = await supabase.from('bancas').select('*');
                 window._bancasCache = bData || [];
             }
-            const bancasCache = window._bancasCache || [];
-            const bancasDeZona = bancasCache.filter(b => String(b.zona || '').trim().toLowerCase() === String(sesion.zona || '').trim().toLowerCase());
-            const idsValidos = bancasDeZona.map(b => String(b.id));
+            const bancasDeZona = (window._bancasCache || []).filter(b => String(b.zona || '').trim().toLowerCase() === String(sesion.zona || '').trim().toLowerCase());
+            const idsBancas = bancasDeZona.map(b => String(b.id));
 
-            jugadas = jugadas.filter(j => {
-                const bancaIdJugada = String(j.tickets?.banca_id || j.tickets?.usuario_id || '').trim();
-                return idsValidos.includes(bancaIdJugada);
-            });
+            // B) Buscamos los tickets de ESAS bancas
+            const { data: ticketsZona } = await supabase.from('tickets')
+                .select('id')
+                .in('banca_id', idsBancas.length > 0 ? idsBancas : ['-1'])
+                .gte('created_at', startOfDay)
+                .lte('created_at', endOfDay);
+            
+            const idsTicketsZona = (ticketsZona || []).map(t => t.id);
+
+            // C) Traemos las jugadas SOLO de esos tickets
+            const { data: jugadasData, error: errJugadas } = await supabase
+                .from('jugadas')
+                .select('sorteo_nombre, tipo, numero, monto, estatus, estado')
+                .in('ticket_id', idsTicketsZona.length > 0 ? idsTicketsZona : [-1]);
+
+            if (errJugadas) throw errJugadas;
+            jugadas = jugadasData || [];
+        } else {
+            // El Administrador Central ve todo sin restricciones
+            const { data: jugadasData, error: errJugadas } = await supabase
+                .from('jugadas')
+                .select('sorteo_nombre, tipo, numero, monto, estatus, estado')
+                .gte('created_at', startOfDay)
+                .lte('created_at', endOfDay);
+
+            if (errJugadas) throw errJugadas;
+            jugadas = jugadasData || [];
         }
 
         // 4. Agrupar y sumar las jugadas

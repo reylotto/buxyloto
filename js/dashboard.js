@@ -276,11 +276,14 @@ async function cargarHistorialTickets() {
             .order('id', { ascending: false });
 
         if (error) throw error;
-        let tickets = ticketsData || []; // AQUÍ SE DEFINE TICKETS PARA QUE NO HAYA ERROR
+        
+        // 👉 ESTA ES LA LÍNEA QUE FALTA O ESTÁ MAL ESCRITA 👈
+        let tickets = ticketsData || []; 
 
-        // 🚨 FILTRO MAESTRO DE SUPERVISOR (Hitorial de Tickets)
+        // 2. FILTRO MAESTRO DE SUPERVISOR
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
+        
         
         if (rol.includes('supervisor')) {
             if (!window._bancasCache || window._bancasCache.length === 0) {
@@ -288,19 +291,15 @@ async function cargarHistorialTickets() {
                 window._bancasCache = bData || [];
             }
             const bancasCache = window._bancasCache || [];
-            // Obtenemos los nombres y los IDs de las bancas que pertenecen estrictamente a la zona del supervisor
             const bancasDeZona = bancasCache.filter(b => String(b.zona || '').trim().toLowerCase() === String(sesion.zona || '').trim().toLowerCase());
             const idsValidos = bancasDeZona.map(b => String(b.id));
-            const nombresValidos = bancasDeZona.map(b => String(b.nombre_banca || b.vendedor_nombre || '').trim().toLowerCase());
 
-            tickets = tickets.filter(t => {
-                const bId = String(t.banca_id || t.usuario_id || '').trim();
-                const bNombre = String(t.banca_nombre || t.vendedor_nombre || t.banca || '').trim().toLowerCase();
-                return idsValidos.includes(bId) || nombresValidos.includes(bNombre);
-            });
+            // Recortamos la lista para que solo queden los tickets de su zona
+            tickets = tickets.filter(t => idsValidos.includes(String(t.banca_id || t.usuario_id || '').trim()));
         }
 
         tbody.innerHTML = '';
+        // ... (A partir de aquí continúa el código normal para dibujar la tabla `tickets.forEach(t => ...`)
 
         if (tickets.length === 0) {
             tbody.innerHTML = '<tr><td colspan="8" class="text-center p-4 text-slate-400">No hay tickets registrados.</td></tr>';

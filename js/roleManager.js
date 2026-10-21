@@ -103,8 +103,8 @@
             const target = btn.getAttribute('data-target');
             if (!target) return;
 
-            // Restablecemos visibilidad por defecto
-            btn.style.display = 'flex';
+            // 🚨 CORRECCIÓN: Restablecemos visibilidad respetando tu CSS original
+            btn.style.display = '';
 
             if (rol.includes('supervisor')) {
                 // SUPERVISOR: No ve POS, Gestión de Usuarios, Bancas, Riesgos, Loterías, Configuración ni Mapa

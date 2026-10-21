@@ -189,60 +189,49 @@ async function cerrarSesionAdmin() {
 window.cerrarSesionAdmin = cerrarSesionAdmin;
 
 // ==========================================================
-// 3. MÉTRICAS DEL DASHBOARD (EXCLUYENDO CANCELADOS Y FILTRADO POR ROL)
+// 3. MÉTRICAS DEL DASHBOARD (EXCLUYENDO CANCELADOS Y FILTRADO SEGURO)
 // ==========================================================
 async function cargarMetricasSeguras() {
     try {
         const supabase = window.getSupabaseClient();
         if (!supabase) return;
 
-        // Se agregaron los campos zona, creador, banca, vendedor_nombre para poder filtrar
+        // 1. SELECT CORREGIDO: Sin columnas inexistentes para evitar Error 400
         const { data: ticketsData, error } = await supabase
             .from('tickets')
-            .select('monto, monto_total, total, premio, monto_premio, estatus, estado, zona, creador, banca, vendedor_nombre, banca_nombre');
+            .select('monto, monto_total, total, premio, monto_premio, estatus, estado, banca_id, usuario_id');
 
-        if (error) {
-            console.warn("Aviso en métricas al consultar tickets:", error.message);
-            return;
+        if (error) return;
+
+        // 2. OBTENER BANCAS PARA FILTRAR POR ZONA LOCALMENTE
+        if (!window._bancasCache || window._bancasCache.length === 0) {
+            const { data: bData } = await supabase.from('bancas').select('*');
+            window._bancasCache = bData || [];
         }
+        const bancasCache = window._bancasCache || [];
 
-        // --- 🚨 INICIO DE FILTRO DE SEGURIDAD POR ROL 🚨 ---
+        // 3. FILTRO DE SUPERVISOR (Cajeros ya están bloqueados por URL)
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
-        const zonaUsuario = sesion.zona;
-        const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
-
+        
         let listaTickets = ticketsData || [];
 
+        // Filtro corregido para Historial y Resumen:
         if (rol.includes('supervisor')) {
-            // Supervisor solo ve lo de su zona
-            listaTickets = listaTickets.filter(t => t.zona === zonaUsuario);
-        } else if (!rol.includes('admin')) {
-            // Cajero/Vendedor solo ve los suyos
-            listaTickets = listaTickets.filter(t => 
-                t.creador === nombreUsuario || 
-                t.banca === nombreUsuario || 
-                t.vendedor_nombre === nombreUsuario || 
-                t.banca_nombre === nombreUsuario
-            );
+            const bancasCache = window._bancasCache || [];
+            const idsBancasZona = bancasCache.filter(b => b.zona === sesion.zona).map(b => String(b.id));
+            tickets = tickets.filter(t => idsBancasZona.includes(String(t.banca_id || t.usuario_id)));
         }
-        // --- FIN DE FILTRO DE SEGURIDAD ---
 
         const listaTicketsValidos = listaTickets.filter(t => {
             const est = String(t.estatus || t.estado || '').toLowerCase();
             return est !== 'cancelado' && est !== 'anulado';
         });
 
-        const totalVendido = listaTicketsValidos.reduce((acc, t) => {
-            const montoVal = Number(t.monto_total || t.monto || t.total || 0);
-            return acc + montoVal;
-        }, 0);
-
+        const totalVendido = listaTicketsValidos.reduce((acc, t) => acc + Number(t.monto_total || t.monto || t.total || 0), 0);
         const totalPremios = listaTicketsValidos.reduce((acc, t) => {
             const est = String(t.estatus || t.estado || '').toLowerCase();
-            if (est === 'premiado' || est === 'ganador') {
-                return acc + Number(t.premio || t.monto_premio || 0);
-            }
+            if (est === 'premiado' || est === 'ganador') return acc + Number(t.premio || t.monto_premio || 0);
             return acc;
         }, 0);
 

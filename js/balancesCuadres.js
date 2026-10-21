@@ -70,17 +70,18 @@ window.cargarResumenBalances = async function() {
 
         let tickets = ticketsData || [];
 
-        // 🚨 FILTRO UNIVERSAL DE SUPERVISOR 🚨
+        // 🚨 FILTRO MAESTRO DE SUPERVISOR (Balances y Cuadres)
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
         
         if (rol.includes('supervisor')) {
-            // Usamos las bancas que ya se descargaron en la línea 63
-            const bancasCache = estadoBalances.vendedores || [];
-            const idsZonas = bancasCache.filter(b => b.zona === sesion.zona).map(b => String(b.id));
-            
-            // Filtramos los tickets para dejar solo los de esas bancas
-            tickets = tickets.filter(t => idsZonas.includes(String(t.banca_id || t.usuario_id)));
+            // Filtramos la lista de vendedores global para que la vista solo contenga su zona
+            estadoBalances.vendedores = estadoBalances.vendedores.filter(b => 
+                String(b.zona || '').trim().toLowerCase() === String(sesion.zona || '').trim().toLowerCase()
+            );
+
+            const idsValidos = estadoBalances.vendedores.map(b => String(b.id));
+            tickets = tickets.filter(t => idsValidos.includes(String(t.banca_id || t.usuario_id || '')));
         }
         // --- FIN DE FILTRO DE SEGURIDAD ---
 

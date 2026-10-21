@@ -278,7 +278,7 @@ async function cargarHistorialTickets() {
         if (error) throw error;
         let tickets = ticketsData || []; // AQUÍ SE DEFINE TICKETS PARA QUE NO HAYA ERROR
 
-        // 2. FILTRO DE SUPERVISOR
+        // 🚨 FILTRO MAESTRO DE SUPERVISOR (Hitorial de Tickets)
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
         
@@ -288,10 +288,16 @@ async function cargarHistorialTickets() {
                 window._bancasCache = bData || [];
             }
             const bancasCache = window._bancasCache || [];
-            const idsBancasZona = bancasCache.filter(b => b.zona === sesion.zona).map(b => String(b.id));
-            
-            // Filtramos la variable tickets para que solo queden los de su zona
-            tickets = tickets.filter(t => idsBancasZona.includes(String(t.banca_id || t.usuario_id)));
+            // Obtenemos los nombres y los IDs de las bancas que pertenecen estrictamente a la zona del supervisor
+            const bancasDeZona = bancasCache.filter(b => String(b.zona || '').trim().toLowerCase() === String(sesion.zona || '').trim().toLowerCase());
+            const idsValidos = bancasDeZona.map(b => String(b.id));
+            const nombresValidos = bancasDeZona.map(b => String(b.nombre_banca || b.vendedor_nombre || '').trim().toLowerCase());
+
+            tickets = tickets.filter(t => {
+                const bId = String(t.banca_id || t.usuario_id || '').trim();
+                const bNombre = String(t.banca_nombre || t.vendedor_nombre || t.banca || '').trim().toLowerCase();
+                return idsValidos.includes(bId) || nombresValidos.includes(bNombre);
+            });
         }
 
         tbody.innerHTML = '';

@@ -98,7 +98,7 @@ window.cargarHistorialNumeros = async function() {
 
         let jugadas = jugadasRaw || [];
 
-        // 🚨 FILTRO UNIVERSAL DE ZONA PARA EL SUPERVISOR 🚨
+        // 🚨 FILTRO MAESTRO DE SUPERVISOR (Historial de Números)
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
 
@@ -108,12 +108,12 @@ window.cargarHistorialNumeros = async function() {
                 window._bancasCache = bData || [];
             }
             const bancasCache = window._bancasCache || [];
-            const idsBancasZona = bancasCache.filter(b => b.zona === sesion.zona).map(b => String(b.id));
+            const bancasDeZona = bancasCache.filter(b => String(b.zona || '').trim().toLowerCase() === String(sesion.zona || '').trim().toLowerCase());
+            const idsValidos = bancasDeZona.map(b => String(b.id));
 
             jugadas = jugadas.filter(j => {
-                const bancaIdJugada = String(j.tickets?.banca_id || j.tickets?.usuario_id || '');
-                const zonaJugada = String(j.tickets?.zona || '');
-                return idsBancasZona.includes(bancaIdJugada) || zonaJugada === sesion.zona;
+                const bancaIdJugada = String(j.tickets?.banca_id || j.tickets?.usuario_id || '').trim();
+                return idsValidos.includes(bancaIdJugada);
             });
         }
 

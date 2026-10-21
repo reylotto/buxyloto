@@ -29,8 +29,6 @@ async function cargarLoteriasParaFiltroHistorial() {
         if (data && data.length > 0) {
             data.forEach(loteria => {
                 const option = document.createElement('option');
-                // Usamos el nombre en mayúsculas como 'value' porque en cargarHistorialNumeros 
-                // se filtra comparando con sorteoTicket (que está en mayúsculas).
                 option.value = String(loteria.nombre).toUpperCase();
                 option.textContent = loteria.nombre;
                 selectFiltro.appendChild(option);
@@ -87,35 +85,35 @@ window.cargarHistorialNumeros = async function() {
         const startOfDay = new Date(`${fechaFiltro}T00:00:00-05:00`).toISOString();
         const endOfDay = new Date(`${fechaFiltro}T23:59:59-05:00`).toISOString();
 
-        // 🚨 3. CONSULTA SEGURA POR PASOS PARA FILTRAR POR ZONA 🚨
+        // 🚨 3. CONSULTA SEGURA EN CASCADA PARA FILTRAR POR ZONA 🚨
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
         
         let jugadas = [];
 
         if (rol.includes('supervisor')) {
-            // A) Obtenemos TODAS las bancas y filtramos por la zona del supervisor
-            if (!window._bancasCache || window._bancasCache.length === 0) {
-                const { data: bData } = await supabase.from('bancas').select('*');
-                window._bancasCache = bData || [];
-            }
-            const bancasDeZona = (window._bancasCache || []).filter(b => String(b.zona || '').trim().toLowerCase() === String(sesion.zona || '').trim().toLowerCase());
-            const idsBancas = bancasDeZona.map(b => String(b.id));
+            const zonaSup = String(sesion.zona || '').trim().toLowerCase();
+            
+            // A) Traer los IDs de las bancas de su zona
+            const { data: bancasData } = await supabase.from('bancas').select('id, zona');
+            const idsBancas = (bancasData || [])
+                .filter(b => String(b.zona || '').trim().toLowerCase() === zonaSup)
+                .map(b => String(b.id));
 
-            // B) Buscamos los tickets de ESAS bancas
-            const { data: ticketsZona } = await supabase.from('tickets')
+            // B) Traer los tickets de esas bancas en el día
+            const { data: ticketsData } = await supabase.from('tickets')
                 .select('id')
                 .in('banca_id', idsBancas.length > 0 ? idsBancas : ['-1'])
                 .gte('created_at', startOfDay)
                 .lte('created_at', endOfDay);
             
-            const idsTicketsZona = (ticketsZona || []).map(t => t.id);
+            const idsTickets = (ticketsData || []).map(t => String(t.id));
 
-            // C) Traemos las jugadas SOLO de esos tickets
+            // C) Traer las jugadas que pertenecen exclusivamente a esos tickets
             const { data: jugadasData, error: errJugadas } = await supabase
                 .from('jugadas')
-                .select('sorteo_nombre, tipo, numero, monto, estatus, estado')
-                .in('ticket_id', idsTicketsZona.length > 0 ? idsTicketsZona : [-1]);
+                .select('sorteo_nombre, tipo, numero, monto, estatus, estado, ticket_id')
+                .in('ticket_id', idsTickets.length > 0 ? idsTickets : [-1]);
 
             if (errJugadas) throw errJugadas;
             jugadas = jugadasData || [];
@@ -135,7 +133,6 @@ window.cargarHistorialNumeros = async function() {
         const acumuladoVentas = {};
 
         (jugadas || []).forEach(j => {
-            // Filtramos las canceladas
             if (j.estatus === 'cancelado' || j.estado === 'cancelado') return;
 
             const sorteoNombre = String(j.sorteo_nombre || 'GENERAL').toUpperCase();
@@ -143,18 +140,15 @@ window.cargarHistorialNumeros = async function() {
             let numJ = String(j.numero || '').trim();
             const montoJ = parseFloat(j.monto || 0);
 
-            // Normalizar Palés ordenando los números
             if (tipoJ === 'pale' && numJ.length === 4) {
                 const p1 = numJ.substring(0, 2);
                 const p2 = numJ.substring(2, 4);
                 numJ = [p1, p2].sort().join('');
             }
 
-            // Aplicar filtros visuales de la interfaz
             if (loteriaFiltro !== 'TODAS' && !sorteoNombre.includes(loteriaFiltro)) return;
             if (tipoFiltro !== 'todos' && tipoJ !== tipoFiltro) return;
 
-            // Agrupar
             const clave = `${sorteoNombre}_${tipoJ}_${numJ}`;
             if (!acumuladoVentas[clave]) {
                 acumuladoVentas[clave] = {
@@ -174,10 +168,8 @@ window.cargarHistorialNumeros = async function() {
             return;
         }
 
-        // Ordenar por el número que más se ha vendido
         listaResultados.sort((a, b) => b.totalVendido - a.totalVendido);
 
-        // Renderizar en la tabla
         tbody.innerHTML = '';
         listaResultados.forEach(item => {
             const topeMax = mapaTopes[`${item.loteria}_${item.tipo}_${item.numero}`] || 
@@ -232,16 +224,10 @@ window.cargarHistorialNumeros = async function() {
     }
 };
 
-// ==========================================
-// AUTO-INICIALIZACIÓN AL CARGAR LA PÁGINA
-// ==========================================
 document.addEventListener('DOMContentLoaded', () => {
     const inputFecha = document.getElementById('filtro-fecha-numeros');
     if (inputFecha) {
         inputFecha.value = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
     }
-    
-    // Dar un leve retraso de 1 segundo para asegurar que Supabase esté conectado 
-    // antes de inyectar las loterías en el selector
     setTimeout(cargarLoteriasParaFiltroHistorial, 1000);
 });

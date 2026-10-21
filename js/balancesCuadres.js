@@ -70,18 +70,19 @@ window.cargarResumenBalances = async function() {
 
         let tickets = ticketsData || [];
 
-        // 🚨 FILTRO MAESTRO DE SUPERVISOR (Balances y Cuadres)
+        // 🚨 FILTRO MATEMÁTICO ABSOLUTO DE SUPERVISOR (Auditoría)
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
-        
-        if (rol.includes('supervisor')) {
-            // Filtramos la lista de vendedores global para que la vista solo contenga su zona
-            estadoBalances.vendedores = estadoBalances.vendedores.filter(b => 
-                String(b.zona || '').trim().toLowerCase() === String(sesion.zona || '').trim().toLowerCase()
-            );
 
-            const idsValidos = estadoBalances.vendedores.map(b => String(b.id));
-            tickets = tickets.filter(t => idsValidos.includes(String(t.banca_id || t.usuario_id || '')));
+        if (rol.includes('supervisor')) {
+            const zonaSup = String(sesion.zona || '').trim().toLowerCase();
+            const { data: bData } = await supabase.from('bancas').select('id, zona');
+            
+            const idsPermitidos = (bData || [])
+                .filter(b => String(b.zona || '').trim().toLowerCase() === zonaSup)
+                .map(b => String(b.id));
+
+            tickets = tickets.filter(t => idsPermitidos.includes(String(t.banca_id || t.usuario_id)));
         }
         // --- FIN DE FILTRO DE SEGURIDAD ---
 

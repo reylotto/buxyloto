@@ -276,26 +276,22 @@ async function cargarHistorialTickets() {
             .order('id', { ascending: false });
 
         if (error) throw error;
-        
-        // 👉 ESTA ES LA LÍNEA QUE FALTA O ESTÁ MAL ESCRITA 👈
-        let tickets = ticketsData || []; 
+        let tickets = ticketsData || [];
 
-        // 2. FILTRO MAESTRO DE SUPERVISOR
+        // 🚨 FILTRO MATEMÁTICO ABSOLUTO DE SUPERVISOR
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
-        
-        
-        if (rol.includes('supervisor')) {
-            if (!window._bancasCache || window._bancasCache.length === 0) {
-                const { data: bData } = await supabase.from('bancas').select('*');
-                window._bancasCache = bData || [];
-            }
-            const bancasCache = window._bancasCache || [];
-            const bancasDeZona = bancasCache.filter(b => String(b.zona || '').trim().toLowerCase() === String(sesion.zona || '').trim().toLowerCase());
-            const idsValidos = bancasDeZona.map(b => String(b.id));
 
-            // Recortamos la lista para que solo queden los tickets de su zona
-            tickets = tickets.filter(t => idsValidos.includes(String(t.banca_id || t.usuario_id || '').trim()));
+        if (rol.includes('supervisor')) {
+            const zonaSup = String(sesion.zona || '').trim().toLowerCase();
+            
+            // Forzamos la consulta a la base de datos (sin usar caché)
+            const { data: bData } = await supabase.from('bancas').select('id, zona');
+            const idsPermitidos = (bData || [])
+                .filter(b => String(b.zona || '').trim().toLowerCase() === zonaSup)
+                .map(b => String(b.id));
+
+            tickets = tickets.filter(t => idsPermitidos.includes(String(t.banca_id || t.usuario_id)));
         }
 
         tbody.innerHTML = '';

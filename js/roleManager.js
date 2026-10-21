@@ -22,10 +22,11 @@
 
         // 🛑 BLOQUEO ABSOLUTO PARA CAJEROS/VENDEDORES
         if (rol.includes('caja') || rol.includes('vendedor') || rol.includes('banca')) {
-            const urlTerminalMovil = 'https://tu-enlace-del-terminal-movil.com'; 
-            alert("Acceso denegado al Dashboard. Redirigiendo al Terminal Móvil POS...");
-            window.location.href = urlTerminalMovil;
-            return; 
+            // const urlTerminalMovil = 'https://tu-enlace-del-terminal-movil.com'; 
+            // alert("Acceso denegado al Dashboard. Redirigiendo al Terminal Móvil POS...");
+            // window.location.href = urlTerminalMovil;
+            // return; 
+            console.log("Bloqueo desactivado temporalmente para recuperar el acceso.");
         }
 
         // 🛑 BLOQUEO SUPERVISOR: Ya se permite ver "historial-numeros"

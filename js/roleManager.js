@@ -24,6 +24,32 @@
         const zona = sesion.zona || 'Zona General';
         const nombre = sesion.nombre || sesion.nombre_banca || sesion.username || 'Usuario';
 
+        // ==========================================
+        // 🚨 EL GUARDIA DE SEGURIDAD DE URLs 🚨
+        // ==========================================
+        // Obtenemos la sección actual de la URL y la limpiamos
+        const hashActual = window.location.hash.replace('#', '') || 'dashboard';
+        const seccionLimpia = hashActual.replace('section-', '');
+
+        // BLOQUEO CAJERO/VENDEDOR: Solo puede ver POS, Tickets y Resultados
+        if (rol.includes('caja') || rol.includes('vendedor') || rol.includes('banca')) {
+            const permitidasCajero = ['pos', 'tickets', 'results'];
+            if (!permitidasCajero.includes(seccionLimpia) && hashActual !== '') {
+                window.location.hash = '#pos'; // Lo devuelve al POS a la fuerza
+                return; // Detenemos aquí para que no alcance a cargar la vista prohibida
+            }
+        }
+
+        // BLOQUEO SUPERVISOR: No ve POS, Usuarios, Configuración, etc.
+        if (rol.includes('supervisor')) {
+            const prohibidasSupervisor = ['pos', 'users', 'bancas', 'loterias', 'riesgos', 'ticket-config', 'geo', 'historial-numeros'];
+            if (prohibidasSupervisor.includes(seccionLimpia)) {
+                window.location.hash = '#dashboard'; // Lo devuelve al dashboard a la fuerza
+                return; 
+            }
+        }
+        // ==========================================
+
         // 1. ACTUALIZAR CABECERA DE USUARIO
         const nameEl = document.querySelector('#header-user-name');
         const roleEl = document.querySelector('#header-user-role');

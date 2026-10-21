@@ -189,23 +189,44 @@ async function cerrarSesionAdmin() {
 window.cerrarSesionAdmin = cerrarSesionAdmin;
 
 // ==========================================================
-// 3. MÉTRICAS DEL DASHBOARD (EXCLUYENDO CANCELADOS)
+// 3. MÉTRICAS DEL DASHBOARD (EXCLUYENDO CANCELADOS Y FILTRADO POR ROL)
 // ==========================================================
 async function cargarMetricasSeguras() {
     try {
         const supabase = window.getSupabaseClient();
         if (!supabase) return;
 
-        const { data: tickets, error } = await supabase
+        // Se agregaron los campos zona, creador, banca, vendedor_nombre para poder filtrar
+        const { data: ticketsData, error } = await supabase
             .from('tickets')
-            .select('monto, monto_total, total, premio, monto_premio, estatus, estado');
+            .select('monto, monto_total, total, premio, monto_premio, estatus, estado, zona, creador, banca, vendedor_nombre, banca_nombre');
 
         if (error) {
             console.warn("Aviso en métricas al consultar tickets:", error.message);
             return;
         }
 
-        const listaTickets = tickets || [];
+        // --- 🚨 INICIO DE FILTRO DE SEGURIDAD POR ROL 🚨 ---
+        const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+        const rol = String(sesion.rol || '').toLowerCase();
+        const zonaUsuario = sesion.zona;
+        const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
+
+        let listaTickets = ticketsData || [];
+
+        if (rol.includes('supervisor')) {
+            // Supervisor solo ve lo de su zona
+            listaTickets = listaTickets.filter(t => t.zona === zonaUsuario);
+        } else if (!rol.includes('admin')) {
+            // Cajero/Vendedor solo ve los suyos
+            listaTickets = listaTickets.filter(t => 
+                t.creador === nombreUsuario || 
+                t.banca === nombreUsuario || 
+                t.vendedor_nombre === nombreUsuario || 
+                t.banca_nombre === nombreUsuario
+            );
+        }
+        // --- FIN DE FILTRO DE SEGURIDAD ---
 
         const listaTicketsValidos = listaTickets.filter(t => {
             const est = String(t.estatus || t.estado || '').toLowerCase();
@@ -241,7 +262,7 @@ async function cargarMetricasSeguras() {
 window.cargarMetricasSeguras = cargarMetricasSeguras;
 
 // ==========================================================
-// CARGAR HISTORIAL DE TICKETS (CON BLOQUEO ESTRICTO DE SORTEOS MÚLTIPLES)
+// CARGAR HISTORIAL DE TICKETS (CON BLOQUEO Y FILTRO POR ROL)
 // ==========================================================
 async function cargarHistorialTickets() {
     const tbody = document.getElementById('tickets-table-body') || 
@@ -261,7 +282,7 @@ async function cargarHistorialTickets() {
         const { data: sorteosData } = await supabase.from('sorteos').select('*');
         const sorteosCache = sorteosData || [];
 
-        const { data: tickets, error } = await supabase
+        const { data: ticketsData, error } = await supabase
             .from('tickets')
             .select('*')
             .gte('created_at', `${fechaHoyStr}T00:00:00.000Z`)
@@ -269,6 +290,26 @@ async function cargarHistorialTickets() {
             .order('id', { ascending: false });
 
         if (error) throw error;
+
+        // --- 🚨 INICIO DE FILTRO DE SEGURIDAD POR ROL 🚨 ---
+        const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+        const rol = String(sesion.rol || '').toLowerCase();
+        const zonaUsuario = sesion.zona;
+        const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
+
+        let tickets = ticketsData || [];
+
+        if (rol.includes('supervisor')) {
+            tickets = tickets.filter(t => t.zona === zonaUsuario);
+        } else if (!rol.includes('admin')) {
+            tickets = tickets.filter(t => 
+                t.creador === nombreUsuario || 
+                t.banca === nombreUsuario || 
+                t.vendedor_nombre === nombreUsuario || 
+                t.banca_nombre === nombreUsuario
+            );
+        }
+        // --- FIN DE FILTRO DE SEGURIDAD ---
 
         tbody.innerHTML = '';
 
@@ -501,7 +542,26 @@ async function cargarResumenOperacionesHoy() {
 
         if (errTickets) return;
 
-        const ticketsRaw = ticketsHoy || [];
+        // --- 🚨 INICIO DE FILTRO DE SEGURIDAD POR ROL 🚨 ---
+        const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+        const rol = String(sesion.rol || '').toLowerCase();
+        const zonaUsuario = sesion.zona;
+        const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
+
+        let ticketsRaw = ticketsHoy || [];
+
+        if (rol.includes('supervisor')) {
+            ticketsRaw = ticketsRaw.filter(t => t.zona === zonaUsuario);
+        } else if (!rol.includes('admin')) {
+            ticketsRaw = ticketsRaw.filter(t => 
+                t.creador === nombreUsuario || 
+                t.banca === nombreUsuario || 
+                t.vendedor_nombre === nombreUsuario || 
+                t.banca_nombre === nombreUsuario
+            );
+        }
+        // --- FIN DE FILTRO DE SEGURIDAD ---
+
         const tickets = ticketsRaw.filter(t => {
             const est = String(t.estatus || t.status || t.estado || '').toLowerCase();
             return est !== 'cancelado' && est !== 'anulado';
@@ -516,10 +576,9 @@ async function cargarResumenOperacionesHoy() {
         
         let bancasCache = window._bancasCache || [];
         if (bancasCache.length === 0) {
-            // Consulta de rescate por si admin.js no ha cargado aún
             const { data: bancasDirectas } = await supabase.from('bancas').select('*');
             bancasCache = bancasDirectas || [];
-            window._bancasCache = bancasCache; // Guardar en caché global
+            window._bancasCache = bancasCache; 
         }
         // ----------------------------------------------------------------------
 

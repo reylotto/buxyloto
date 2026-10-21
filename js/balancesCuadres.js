@@ -68,23 +68,19 @@ window.cargarResumenBalances = async function() {
         const { data: pagosBD } = await window.supabase.from('pagos_bancas').select('*');
         estadoBalances.pagosLocales = pagosBD || [];
 
-        // --- 🚨 INICIO DE FILTRO DE SEGURIDAD POR ROL PARA TICKETS 🚨 ---
-        const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
-        const rol = String(sesion.rol || '').toLowerCase();
-        const zonaUsuario = sesion.zona;
-        const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
-
         let tickets = ticketsData || [];
 
+        // 🚨 FILTRO UNIVERSAL DE SUPERVISOR 🚨
+        const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+        const rol = String(sesion.rol || '').toLowerCase();
+        
         if (rol.includes('supervisor')) {
-            tickets = tickets.filter(t => t.zona === zonaUsuario);
-        } else if (!rol.includes('admin')) {
-            tickets = tickets.filter(t => 
-                t.creador === nombreUsuario || 
-                t.banca === nombreUsuario || 
-                t.vendedor_nombre === nombreUsuario || 
-                t.banca_nombre === nombreUsuario
-            );
+            // Usamos las bancas que ya se descargaron en la línea 63
+            const bancasCache = estadoBalances.vendedores || [];
+            const idsZonas = bancasCache.filter(b => b.zona === sesion.zona).map(b => String(b.id));
+            
+            // Filtramos los tickets para dejar solo los de esas bancas
+            tickets = tickets.filter(t => idsZonas.includes(String(t.banca_id || t.usuario_id)));
         }
         // --- FIN DE FILTRO DE SEGURIDAD ---
 

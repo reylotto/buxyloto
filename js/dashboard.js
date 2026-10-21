@@ -251,26 +251,23 @@ async function cargarMetricasSeguras() {
 window.cargarMetricasSeguras = cargarMetricasSeguras;
 
 // ==========================================================
-// CARGAR HISTORIAL DE TICKETS (CON BLOQUEO Y FILTRO POR ROL)
+// CARGAR HISTORIAL DE TICKETS (FILTRADO SEGURO POR ZONA)
 // ==========================================================
 async function cargarHistorialTickets() {
-    const tbody = document.getElementById('tickets-table-body') || 
-                  document.getElementById('tabla-historial-tickets') ||
-                  document.getElementById('historial-tickets-body');
-
+    const tbody = document.getElementById('tickets-table-body') || document.getElementById('tabla-historial-tickets') || document.getElementById('historial-tickets-body');
     if (!tbody) return;
 
     try {
         const supabase = window.getSupabaseClient();
         if (!supabase) return;
 
-        // Filtros obligatorios para el día de hoy
         const hoy = new Date();
         const fechaHoyStr = hoy.toISOString().split('T')[0];
 
         const { data: sorteosData } = await supabase.from('sorteos').select('*');
         const sorteosCache = sorteosData || [];
 
+        // 1. DESCARGAMOS LOS TICKETS DE HOY
         const { data: ticketsData, error } = await supabase
             .from('tickets')
             .select('*')
@@ -279,37 +276,34 @@ async function cargarHistorialTickets() {
             .order('id', { ascending: false });
 
         if (error) throw error;
+        let tickets = ticketsData || []; // AQUÍ SE DEFINE TICKETS PARA QUE NO HAYA ERROR
 
-        // --- 🚨 INICIO DE FILTRO DE SEGURIDAD POR ROL 🚨 ---
+        // 2. FILTRO DE SUPERVISOR
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
-        const zonaUsuario = sesion.zona;
-        const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
-
-        let tickets = ticketsData || [];
-
+        
         if (rol.includes('supervisor')) {
-            tickets = tickets.filter(t => t.zona === zonaUsuario);
-        } else if (!rol.includes('admin')) {
-            tickets = tickets.filter(t => 
-                t.creador === nombreUsuario || 
-                t.banca === nombreUsuario || 
-                t.vendedor_nombre === nombreUsuario || 
-                t.banca_nombre === nombreUsuario
-            );
+            if (!window._bancasCache || window._bancasCache.length === 0) {
+                const { data: bData } = await supabase.from('bancas').select('*');
+                window._bancasCache = bData || [];
+            }
+            const bancasCache = window._bancasCache || [];
+            const idsBancasZona = bancasCache.filter(b => b.zona === sesion.zona).map(b => String(b.id));
+            
+            // Filtramos la variable tickets para que solo queden los de su zona
+            tickets = tickets.filter(t => idsBancasZona.includes(String(t.banca_id || t.usuario_id)));
         }
-        // --- FIN DE FILTRO DE SEGURIDAD ---
 
         tbody.innerHTML = '';
 
-        if (!tickets || tickets.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center p-4 text-slate-400">No hay tickets registrados hoy.</td></tr>';
+        if (tickets.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center p-4 text-slate-400">No hay tickets registrados.</td></tr>';
             return;
         }
 
         const bancasCache = window._bancasCache || [];
-        const ahora = new Date();
-
+        
+        // 3. DIBUJAMOS LA TABLA
         tickets.forEach(t => {
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-slate-800/50 border-b border-slate-700/50 text-xs';
@@ -321,9 +315,7 @@ async function cargarHistorialTickets() {
             if (!nombreBanca && (t.banca_id || t.usuario_id)) {
                 const bId = String(t.banca_id || t.usuario_id);
                 const encontrada = bancasCache.find(b => String(b.id) === bId);
-                if (encontrada) {
-                    nombreBanca = encontrada.nombre_banca || encontrada.vendedor_nombre || encontrada.username;
-                }
+                if (encontrada) nombreBanca = encontrada.nombre_banca || encontrada.vendedor_nombre || encontrada.username;
             }
             if (!nombreBanca) nombreBanca = 'Banca General';
 
@@ -331,114 +323,26 @@ async function cargarHistorialTickets() {
             const montoPremio = Number(t.premio || t.monto_premio || 0).toFixed(2);
             const estado = String(t.estatus || t.estado || 'pendiente').toLowerCase();
 
-            let jugadasTexto = '-';
-            const lista = t.detalles || t.jugadas;
-            if (Array.isArray(lista)) {
-                jugadasTexto = lista.map(j => `#${j.numero || j.number || ''} ($${j.monto || j.amount || 0})`).join(', ');
-            } else if (typeof lista === 'string') {
-                try {
-                    const parsed = JSON.parse(lista);
-                    if (Array.isArray(parsed)) {
-                        jugadasTexto = parsed.map(j => `#${j.numero || j.number || ''} ($${j.monto || j.amount || 0})`).join(', ');
-                    }
-                } catch(e) {}
+            let jugadasTexto = '1 ap.';
+            if (Array.isArray(t.jugadas || t.detalles)) {
+                jugadasTexto = `${(t.jugadas || t.detalles).length} ap.`;
             }
 
             let estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400">PENDIENTE</span>`;
-            let textoPremio = `<span class="text-slate-500 font-mono">$0.00</span>`;
-            let puedeAnular = false;
-            let motivoBloqueo = 'Cerrado';
-
-            if (estado === 'premiado' || estado === 'ganador') {
-                estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">PREMIADO</span>`;
-                textoPremio = `<span class="text-emerald-400 font-mono font-bold text-sm">$${montoPremio}</span>`;
-                motivoBloqueo = 'Escrutado';
-            } else if (estado === 'no_premiado' || estado === 'perdedor') {
-                estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/20 text-slate-400">NO PREMIADO</span>`;
-                textoPremio = `<span class="text-slate-500 font-mono">$0.00</span>`;
-                motivoBloqueo = 'Escrutado';
-            } else if (estado === 'cancelado' || estado === 'anulado') {
-                estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400">CANCELADO</span>`;
-                motivoBloqueo = 'Anulado';
-            } else if (estado === 'pendiente' || estado === 'activo' || estado === 'en_juego') {
-                puedeAnular = true;
-
-                // RECOPILAR TODOS LOS IDs DE SORTEOS INVOLUCRADOS EN EL TICKET (SOPORTE MÚLTIPLE)
-                let sorteosIdsDelTicket = [];
-                if (t.sorteo_id) sorteosIdsDelTicket.push(String(t.sorteo_id));
-
-                if (Array.isArray(lista)) {
-                    lista.forEach(j => {
-                        if (j.sorteo_id && !sorteosIdsDelTicket.includes(String(j.sorteo_id))) {
-                            sorteosIdsDelTicket.push(String(j.sorteo_id));
-                        }
-                    });
-                } else if (typeof lista === 'string') {
-                    try {
-                        const parsed = JSON.parse(lista);
-                        if (Array.isArray(parsed)) {
-                            parsed.forEach(j => {
-                                if (j.sorteo_id && !sorteosIdsDelTicket.includes(String(j.sorteo_id))) {
-                                    sorteosIdsDelTicket.push(String(j.sorteo_id));
-                                }
-                            });
-                        }
-                    } catch(e) {}
-                }
-
-                // VALIDAR SI CUALQUIERA DE LOS SORTEOS DEL TICKET YA CERRÓ
-                for (const sId of sorteosIdsDelTicket) {
-                    const sorteoAsociado = sorteosCache.find(s => String(s.id) === sId);
-                    if (sorteoAsociado) {
-                        const estatusSorteo = String(sorteoAsociado.estatus || sorteoAsociado.estado || 'activo').toLowerCase();
-                        if (['cerrado', 'finalizado', 'escrutado', 'realizado'].includes(estatusSorteo)) {
-                            puedeAnular = false;
-                            motivoBloqueo = 'Sorteo Cerrado';
-                            break;
-                        }
-
-                        const horaCierreStr = sorteoAsociado.hora_cierre || sorteoAsociado.horario_cierre;
-                        if (horaCierreStr) {
-                            const [h, m] = horaCierreStr.split(':');
-                            const fechaCierre = new Date();
-                            fechaCierre.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
-                            if (ahora >= fechaCierre) {
-                                puedeAnular = false;
-                                motivoBloqueo = 'Sorteo Cerrado';
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (!puedeAnular) {
-                    estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">EN JUEGO (CERRADO)</span>`;
-                }
-            }
-
-            const botonAnulacionHTML = puedeAnular 
-                ? `<button onclick="eliminarTicketHistorial('${t.id}')" title="Anular Ticket"
-                           class="admin-only bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2 py-1 rounded transition-colors text-xs flex items-center gap-1">
-                       <i class="fa-solid fa-ban"></i> Anular
-                   </button>`
-                : `<span class="text-slate-500 text-[10px] bg-slate-800 px-2 py-0.5 rounded border border-slate-700" title="No se puede cancelar">${motivoBloqueo}</span>`;
+            if (estado === 'premiado' || estado === 'ganador') estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">PREMIADO</span>`;
+            if (estado === 'cancelado' || estado === 'anulado') estadoBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400">CANCELADO</span>`;
 
             tr.innerHTML = `
                 <td class="p-3 font-mono font-bold text-cyan-400">${codigo}</td>
                 <td class="p-3 text-slate-300 text-[11px]">${fecha}</td>
                 <td class="p-3 text-slate-200 font-semibold">${nombreBanca}</td>
-                <td class="p-3 text-slate-300 font-mono">${jugadasTexto}</td>
-                <td class="p-3 font-mono font-bold text-white">$${montoVenta}</td>
-                <td class="p-3 font-mono">${textoPremio}</td>
-                <td class="p-3">${estadoBadge}</td>
+                <td class="p-3 text-slate-300 font-mono text-center">${jugadasTexto}</td>
+                <td class="p-3 font-mono font-bold text-white text-right">$${montoVenta}</td>
+                <td class="p-3 font-mono text-emerald-400 font-bold text-right">$${montoPremio}</td>
+                <td class="p-3 text-center">${estadoBadge}</td>
                 <td class="p-3 text-center">
-                    <div class="flex items-center justify-center gap-1.5">
-                        <button onclick="verTicketDetalle('${t.id}')" title="Ver Ticket"
-                                class="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white px-2 py-1 rounded transition-colors text-xs flex items-center gap-1">
-                            <i class="fa-solid fa-eye"></i> Ver
-                        </button>
-                        ${botonAnulacionHTML}
-                    </div>
+                    <button class="bg-cyan-600/20 text-cyan-400 px-2 py-1 rounded text-xs"><i class="fa-solid fa-eye"></i></button>
+                    <button class="admin-only bg-rose-600/20 text-rose-400 px-2 py-1 rounded text-xs ml-1"><i class="fa-solid fa-ban"></i></button>
                 </td>
             `;
             tbody.appendChild(tr);

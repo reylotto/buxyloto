@@ -1078,22 +1078,17 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==========================================================
 // ACCIÓN: ESCANEAR / VALIDAR TICKET DESDE EL DASHBOARD
 // ==========================================================
-document.addEventListener('DOMContentLoaded', () => {
-    const btnValidar = document.getElementById('btn-scan-qr-global');
-    if (btnValidar) {
-        btnValidar.addEventListener('click', () => {
-            const folio = prompt("🔍 VALIDACIÓN DE TICKET\n\nIngrese el código o folio del ticket:");
-            if (!folio || folio.trim() === '') return;
-            
-            if (typeof window.buxyAccionTicket === 'function') {
-                window.buxyAccionTicket(folio.trim(), 'ver');
-            } else if (typeof window.verTicketHistorial === 'function') {
-                window.verTicketHistorial(folio.trim());
-            } else {
-                alert("El visualizador de tickets se está cargando. Por favor, intente desde el menú Historial de Tickets.");
-            }
-        });
+window.validarTicketGlobal = async function() {
+    const folio = prompt("🔍 VALIDACIÓN DE TICKET\n\nIngrese el código o folio del ticket:");
+    if (!folio || folio.trim() === '') return;
+    
+    if (typeof window.buxyAccionTicket === 'function') {
+        window.buxyAccionTicket(folio.trim(), 'ver');
+    } else if (typeof window.verTicketHistorial === 'function') {
+        window.verTicketHistorial(folio.trim());
+    } else {
+        alert("El visualizador de tickets se está cargando. Por favor, intente desde el menú Historial.");
     }
-});
+};
 window.initPerfilAdmin = initPerfilAdmin;
 window.guardarPerfilAdmin = guardarPerfilAdmin;

@@ -1,5 +1,6 @@
 // --- CONTROLADOR PRINCIPAL (MAIN) ---
 import { initPOSModule } from './pos.js';
+import { initHistorialNumerosModule } from './historial_numeros.js';
 import { initDashboardModule } from './dashboard.js';
 import { initAdminModule } from './admin.js';
 import { initBalancesCuadresModule } from './balancesCuadres.js?v=10';
@@ -70,6 +71,7 @@ export function iniciarAplicacionPrincipal() {
     // 🚨 ENCENDEMOS LOS FILTROS DE AUDITORÍA Y EL HISTORIAL
     initReportesModule();
     initTicketsHistoryModule();
+    initHistorialNumerosModule(); // 👈 ¡ESTA ES LA LÍNEA NUEVA!
 
     // 🏛️ ENCENDEMOS EL MÓDULO DE LA LNB PICK 4
     initLNBModule();

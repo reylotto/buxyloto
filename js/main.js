@@ -1,6 +1,5 @@
 // --- CONTROLADOR PRINCIPAL (MAIN) ---
 import { initPOSModule } from './pos.js';
-import { initHistorialNumerosModule } from './historial_numeros.js';
 import { initDashboardModule } from './dashboard.js';
 import { initAdminModule } from './admin.js';
 import { initBalancesCuadresModule } from './balancesCuadres.js?v=10';

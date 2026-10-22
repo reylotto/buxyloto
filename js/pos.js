@@ -299,7 +299,7 @@ function actualizarResumenSorteos() {
 window.actualizarResumenSorteos = actualizarResumenSorteos;
 
 // ----------------------------------------------------------
-// 6. AGREGAR JUGADA Y RENDERIZAR EN TIEMPO REAL
+// 6. AGREGAR JUGADA Y RENDERIZAR EN TIEMPO REAL (AUTO-DETECCIÓN)
 // ----------------------------------------------------------
 export function agregarJugadaAlCarrito() {
     const inputNum = document.getElementById('pos-input-numbers') || document.querySelector('input[placeholder*="Número"]');
@@ -320,50 +320,67 @@ export function agregarJugadaAlCarrito() {
     }
 
     if (isNaN(monto) || monto <= 0) {
-        alert("⚠️ Ingrese un monto válido (Denominación permitida: $0.25, $0.50, $0.75 o $1.00).");
+        alert("⚠️ Ingrese un monto válido (Ej. 0.50, 1.00).");
         inputMnt.focus();
         return;
     }
 
     const numLen = numero.replace(/\D/g, '').length;
-    let tipoDetectado = 'directo';
 
-    let esSorteoLNBOGordito = false;
-    checkboxesCheck.forEach(cb => {
-        const nombreS = (cb.dataset.nombre || '').toUpperCase();
-        if (nombreS.includes('LNB') || nombreS.includes('NACIONAL') || nombreS.includes('DOMINICAL') || nombreS.includes('MIERCOLITO') || nombreS.includes('GORDITO')) {
-            esSorteoLNBOGordito = true;
-        }
-    });
-
-    if (esSorteoLNBOGordito) {
-        if (numLen === 2) {
-            tipoDetectado = 'chance'; // 2 dígitos en LNB o Gordito = Chance
-        } else if (numLen === 4) {
-            tipoDetectado = 'billete'; // 4 dígitos en LNB o Gordito = Billete (EXACTO)
-        } else {
-            alert("⚠️ En los sorteos de la Lotería Nacional y Gordito de Panamá solo se permiten Chances (2 dígitos) y Billetes (4 dígitos).");
-            inputNum.focus();
-            return;
-        }
+    // 💡 AUTO-DETECCIÓN GLOBAL POR CANTIDAD DE DÍGITOS
+    if (numLen !== 2 && numLen !== 4 && numLen !== 6) {
+        alert("⚠️ LONGITUD INVÁLIDA: Ingrese 2 dígitos (Directo/Chance), 4 dígitos (Palé/Billete) o 6 dígitos (Tripleta).");
+        inputNum.focus();
+        return;
     }
 
     window.ultimoMontoIngresado = monto;
+    let jugadasValidas = [];
+    let errores = [];
 
     checkboxesCheck.forEach(cb => {
         const labelText = cb.closest('label')?.textContent?.trim() || cb.nextElementSibling?.textContent?.trim() || 'SORTEO';
         const nombreSorteo = (cb.dataset.nombre || labelText).replace(/[\n\r]+/g, ' ').trim().toUpperCase();
 
-        window.jugadasActuales.push({
+        let tipoFinal = '';
+        const esLNB = nombreSorteo.includes('LNB') || nombreSorteo.includes('NACIONAL') || nombreSorteo.includes('DOMINICAL') || nombreSorteo.includes('MIERCOLITO') || nombreSorteo.includes('GORDITO');
+
+        // 🧠 REGLA INTELIGENTE SEGÚN EL SORTEO Y LA CANTIDAD DE DÍGITOS
+        if (esLNB) {
+            if (numLen === 2) tipoFinal = 'chance';
+            else if (numLen === 4) tipoFinal = 'billete';
+            else {
+                errores.push(`⚠️ ${nombreSorteo} solo acepta 2 dígitos (Chance) o 4 dígitos (Billete).`);
+                return; // Ignora esta jugada para LNB pero continúa con los otros sorteos
+            }
+        } else {
+            if (numLen === 2) tipoFinal = 'directo';
+            else if (numLen === 4) tipoFinal = 'pale';
+            else if (numLen === 6) tipoFinal = 'tripleta';
+        }
+
+        jugadasValidas.push({
             id: Date.now() + Math.random(),
             numero: numero,
             monto: monto,
-            tipo: tipoDetectado, // 👈 Aquí se guarda 'billete' o 'chance' correctamente
+            tipo: tipoFinal,
             sorteo_id: cb.value ? parseInt(cb.value, 10) : null,
             sorteo_nombre: nombreSorteo,
             denominacion: monto
         });
     });
+
+    // Mostrar errores si algún sorteo no soportaba la longitud
+    if (errores.length > 0) {
+        alert(errores.join('\n'));
+        if (jugadasValidas.length === 0) {
+            inputNum.focus();
+            return;
+        }
+    }
+
+    // Agregar solo las que pasaron las reglas
+    window.jugadasActuales.push(...jugadasValidas);
 
     inputNum.value = '';
     inputMnt.value = window.ultimoMontoIngresado.toFixed(2);

@@ -575,17 +575,19 @@ async function cargarResumenOperacionesHoy() {
 window.cargarResumenOperacionesHoy = cargarResumenOperacionesHoy;
 
 // ==========================================================
-// RENDERING DE GRÁFICOS (VENTAS POR BANCA Y BALANCE POR SORTEO)
+// RENDERING DE GRÁFICOS Y MINICUADROS (ACTUALIZADO)
 // ==========================================================
 function renderizarGraficosCompletos(tickets = []) {
     if (typeof Chart === 'undefined') return;
     renderizarGraficoVendedores(tickets);
-    renderizarGraficoSorteos(tickets);
+    renderizarGraficoSorteosBarras(tickets);
+    renderizarMinicuadrosNumeros(tickets);
 }
 window.renderizarGraficosCompletos = renderizarGraficosCompletos;
 
 function renderizarGraficoVendedores(tickets = []) {
-    const canvas = document.getElementById('chart-ventas-vendedor') || document.getElementById('chartVentasBanca');
+    // Soporte ampliado de IDs para que no se pierda la gráfica original
+    const canvas = document.getElementById('chart-ventas-vendedor') || document.getElementById('chartVentasBanca') || document.getElementById('chart-sales-by-banca');
     if (!canvas) return;
 
     const bancasMap = {};
@@ -643,12 +645,13 @@ function renderizarGraficoVendedores(tickets = []) {
 }
 window.renderizarGraficoVendedores = renderizarGraficoVendedores;
 
-function renderizarGraficoSorteos(tickets = []) {
-    const canvas = document.getElementById('chart-distribucion-sorteo') || document.getElementById('chartDistribucionSorteo');
+function renderizarGraficoSorteosBarras(tickets = []) {
+    const canvas = document.getElementById('chart-sorteos-barras');
     if (!canvas) return;
 
     const sorteosMap = {};
 
+    // Usando tu misma lógica de extracción de datos, pero adaptada para dos barras
     tickets.forEach(t => {
         const nombreSorteo = t.sorteo_nombre || t.sorteo || t.nombre_sorteo || 'Sorteo General';
         const montoVenta = parseFloat(t.total || t.monto || t.monto_total || 0);
@@ -666,16 +669,16 @@ function renderizarGraficoSorteos(tickets = []) {
         }
 
         if (!sorteosMap[nombreSorteo]) {
-            sorteosMap[nombreSorteo] = { venta: 0, premios: 0, balance: 0 };
+            sorteosMap[nombreSorteo] = { venta: 0, premios: 0 };
         }
 
         sorteosMap[nombreSorteo].venta += montoVenta;
         sorteosMap[nombreSorteo].premios += montoPremio;
-        sorteosMap[nombreSorteo].balance = sorteosMap[nombreSorteo].venta - sorteosMap[nombreSorteo].premios;
     });
 
     const labels = Object.keys(sorteosMap);
     const dataVentas = labels.map(l => sorteosMap[l].venta);
+    const dataPremios = labels.map(l => sorteosMap[l].premios);
 
     if (window.chartSorteosInstance) {
         window.chartSorteosInstance.destroy();
@@ -684,42 +687,123 @@ function renderizarGraficoSorteos(tickets = []) {
 
     const ctx = canvas.getContext('2d');
     window.chartSorteosInstance = new Chart(ctx, {
-        type: 'doughnut',
+        type: 'bar',
         data: {
             labels: labels.length ? labels : ['Sin Datos'],
-            datasets: [{
-                data: dataVentas.length ? dataVentas : [1],
-                backgroundColor: ['#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'],
-                borderWidth: 2,
-                borderColor: '#0f172a'
-            }]
+            datasets: [
+                {
+                    label: 'VENTA',
+                    data: dataVentas.length ? dataVentas : [0],
+                    backgroundColor: 'rgba(16, 185, 129, 0.8)', // Verde
+                    borderColor: '#10b981',
+                    borderWidth: 1,
+                    borderRadius: 4
+                },
+                {
+                    label: 'PREMIOS',
+                    data: dataPremios.length ? dataPremios : [0],
+                    backgroundColor: 'rgba(244, 63, 94, 0.8)', // Rojo
+                    borderColor: '#f43f5e',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }
+            ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } },
+            plugins: { 
+                legend: { 
+                    display: true, 
+                    position: 'top', 
+                    align: 'end',
+                    labels: { color: '#94a3b8', boxWidth: 12, font: { size: 10, family: 'monospace' } } 
+                },
                 tooltip: {
                     callbacks: {
-                        label: (ctx) => {
-                            const label = ctx.label || '';
-                            const info = sorteosMap[label];
-                            if (!info) return `${label}: $${ctx.raw}`;
-                            const estadoStr = info.balance >= 0 ? 'GANANCIA' : 'PÉRDIDA';
-                            return [
-                                `${label}`,
-                                `• Venta Total: $${info.venta.toFixed(2)}`,
-                                `• Premios Pagados: $${info.premios.toFixed(2)}`,
-                                `• Balance (${estadoStr}): $${info.balance.toFixed(2)}`
-                            ];
-                        }
+                        label: (ctx) => ` $${Number(ctx.raw).toFixed(2)}`
                     }
                 }
+            },
+            scales: {
+                y: { ticks: { color: '#94a3b8', font: {size: 10} }, grid: { color: 'rgba(51, 65, 85, 0.3)' } },
+                x: { ticks: { color: '#cbd5e1', font: { size: 9, weight: 'bold' } }, grid: { display: false } }
             }
         }
     });
 }
-window.renderizarGraficoSorteos = renderizarGraficoSorteos;
+window.renderizarGraficoSorteosBarras = renderizarGraficoSorteosBarras;
+
+function renderizarMinicuadrosNumeros(tickets = []) {
+    const bodyNumeros = document.getElementById('dash-top-numeros');
+    const bodyLimites = document.getElementById('dash-top-limites');
+    if (!bodyNumeros || !bodyLimites) return;
+
+    const conteoGlobal = {};
+
+    tickets.forEach(t => {
+        let jugadas = t.jugadas || t.detalles || [];
+        if (typeof jugadas === 'string') {
+            try { jugadas = JSON.parse(jugadas); } catch (e) { jugadas = []; }
+        }
+        
+        jugadas.forEach(j => {
+            if (String(t.estatus || t.estado).toLowerCase() === 'cancelado') return;
+            let num = String(j.numero || '').trim();
+            const tipo = String(j.tipo || 'chance').toLowerCase();
+            const sorteo = String(t.sorteo_nombre || t.sorteo || t.nombre_sorteo || 'Sorteo').toUpperCase().substring(0, 5); 
+            const monto = parseFloat(j.monto || j.monto_jugado || j.valor || 0);
+
+            if (tipo === 'pale' && num.length === 4) num = [num.substring(0, 2), num.substring(2, 4)].sort().join('');
+            if (!num) return;
+
+            const claveNum = num; 
+            const claveLim = `${sorteo}_${num}`;
+
+            if (!conteoGlobal[claveNum]) conteoGlobal[claveNum] = { numero: num, monto: 0, cant: 0 };
+            conteoGlobal[claveNum].monto += monto;
+            conteoGlobal[claveNum].cant += 1;
+
+            if (!conteoGlobal[claveLim]) conteoGlobal[claveLim] = { sorteo: sorteo, numero: num, monto: 0 };
+            conteoGlobal[claveLim].monto += monto;
+        });
+    });
+
+    const topNumeros = Object.values(conteoGlobal)
+        .filter(x => x.cant > 0)
+        .sort((a, b) => b.monto - a.monto)
+        .slice(0, 5);
+
+    bodyNumeros.innerHTML = topNumeros.length ? topNumeros.map(n => `
+        <tr>
+            <td class="py-1.5 text-slate-400 w-8">${n.cant}</td>
+            <td class="py-1.5 font-bold text-white tracking-widest">${n.numero}</td>
+            <td class="py-1.5 text-right font-semibold text-cyan-400">$${n.monto.toFixed(2)}</td>
+        </tr>
+    `).join('') : '<tr><td colspan="3" class="text-center text-slate-500 py-3">Sin datos hoy</td></tr>';
+
+    const topeDashboard = 20.00;
+    const topLimites = Object.values(conteoGlobal)
+        .filter(x => x.sorteo)
+        .sort((a, b) => b.monto - a.monto)
+        .slice(0, 5);
+    
+    bodyLimites.innerHTML = topLimites.length ? topLimites.map(n => {
+        const pct = Math.min(Math.round((n.monto / topeDashboard) * 100), 100);
+        let colorText = 'text-emerald-400';
+        if (pct >= 90) colorText = 'text-rose-400';
+        else if (pct >= 50) colorText = 'text-amber-400';
+
+        return `
+        <tr>
+            <td class="py-1.5 text-slate-300">${n.sorteo}</td>
+            <td class="py-1.5 font-bold text-white tracking-widest">${n.numero}</td>
+            <td class="py-1.5 text-right font-black ${colorText}">${pct}%</td>
+        </tr>
+        `;
+    }).join('') : '<tr><td colspan="3" class="text-center text-slate-500 py-3">Sin datos hoy</td></tr>';
+}
+window.renderizarMinicuadrosNumeros = renderizarMinicuadrosNumeros;
 
 // ==========================================================
 // EVALUACIÓN DINÁMICA DE ESTATUS 
@@ -989,6 +1073,27 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+});
+
+// ==========================================================
+// ACCIÓN: ESCANEAR / VALIDAR TICKET DESDE EL DASHBOARD
+// ==========================================================
+document.addEventListener('DOMContentLoaded', () => {
+    const btnValidar = document.getElementById('btn-scan-qr-global');
+    if (btnValidar) {
+        btnValidar.addEventListener('click', () => {
+            const folio = prompt("🔍 VALIDACIÓN DE TICKET\n\nIngrese el código o folio del ticket:");
+            if (!folio || folio.trim() === '') return;
+            
+            if (typeof window.buxyAccionTicket === 'function') {
+                window.buxyAccionTicket(folio.trim(), 'ver');
+            } else if (typeof window.verTicketHistorial === 'function') {
+                window.verTicketHistorial(folio.trim());
+            } else {
+                alert("El visualizador de tickets se está cargando. Por favor, intente desde el menú Historial de Tickets.");
+            }
+        });
+    }
 });
 window.initPerfilAdmin = initPerfilAdmin;
 window.guardarPerfilAdmin = guardarPerfilAdmin;

@@ -28,11 +28,14 @@ async function cargarListaVendedores() {
         // --- 🚨 INICIO DE FILTRO DE SEGURIDAD POR ROL 🚨 ---
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
-        const zonaUsuario = sesion.zona;
+        
+        // CORRECCIÓN: Forzamos minúsculas y quitamos espacios en blanco
+        const zonaUsuario = String(sesion.zona || '').trim().toLowerCase();
         const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
 
         if (rol.includes('supervisor')) {
-            bancasData = bancasData.filter(b => b.zona === zonaUsuario);
+            // CORRECCIÓN: Comparamos forzando también la zona de la base de datos a minúsculas
+            bancasData = bancasData.filter(b => String(b.zona || '').trim().toLowerCase() === zonaUsuario);
         } else if (!rol.includes('admin')) {
             bancasData = bancasData.filter(b => b.nombre_banca === nombreUsuario || b.vendedor_nombre === nombreUsuario);
         }
@@ -179,8 +182,7 @@ window.generarDetalleCuadre = async function() {
     if (!bancaId) return alert("Por favor seleccione un vendedor para ver el cuadre.");
 
     if (!estadoBalances.vendedores || estadoBalances.vendedores.length === 0) {
-        const { data: bancasSupabase } = await window.supabase.from('bancas').select('*');
-        estadoBalances.vendedores = bancasSupabase || [];
+        await cargarListaVendedores();
     }
 
     let vendedor = estadoBalances.vendedores.find(v => String(v.id) === String(bancaId));

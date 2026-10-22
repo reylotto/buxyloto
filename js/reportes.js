@@ -443,6 +443,22 @@ export async function generarReporte() {
             if (fechaDesde) query = query.gte('created_at', `${fechaDesde}T00:00:00`);
             if (fechaHasta) query = query.lte('created_at', `${fechaHasta}T23:59:59`);
 
+            // 🚨 FILTRO ESTRICTO DE BASE DE DATOS (BLINDAJE DE ZONAS)
+            const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+            const rol = String(sesion.rol || '').toLowerCase();
+            
+            if (rol.includes('supervisor')) {
+                const zonaSup = String(sesion.zona || '').trim().toLowerCase();
+                const { data: bData } = await supabase.from('bancas').select('id, zona');
+                const idsPermitidos = (bData || []).filter(b => String(b.zona || '').trim().toLowerCase() === zonaSup).map(b => String(b.id));
+                query = query.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
+            } else if (!rol.includes('admin') && !rol.includes('supervisor')) {
+                const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
+                const { data: bData } = await supabase.from('bancas').select('id').or(`nombre_banca.eq.${nombreUsuario},vendedor_nombre.eq.${nombreUsuario}`);
+                const idsPermitidos = (bData || []).map(b => String(b.id));
+                query = query.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
+            }
+
             const { data: tickets, error } = await query;
             if (error) throw error;
             resultados = tickets || [];
@@ -638,11 +654,30 @@ export async function cargarHistorialTickets() {
 
     if (supabase) {
         try {
-            const { data, error } = await supabase.from('tickets')
+            // 1. Iniciamos la consulta básica
+            let query = supabase.from('tickets')
                 .select('*')
                 .gte('created_at', `${dateFromVal}T00:00:00`)
-                .lte('created_at', `${dateToVal}T23:59:59`)
-                .order('created_at', { ascending: false });
+                .lte('created_at', `${dateToVal}T23:59:59`);
+
+            // 2. 🚨 APLICAMOS EL BLINDAJE DE ZONAS DIRECTO EN LA BASE DE DATOS 🚨
+            const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+            const rol = String(sesion.rol || '').toLowerCase();
+            
+            if (rol.includes('supervisor')) {
+                const zonaSup = String(sesion.zona || '').trim().toLowerCase();
+                const { data: bData } = await supabase.from('bancas').select('id, zona');
+                const idsPermitidos = (bData || []).filter(b => String(b.zona || '').trim().toLowerCase() === zonaSup).map(b => String(b.id));
+                query = query.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
+            } else if (!rol.includes('admin') && !rol.includes('supervisor')) {
+                const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
+                const { data: bData } = await supabase.from('bancas').select('id').or(`nombre_banca.eq.${nombreUsuario},vendedor_nombre.eq.${nombreUsuario}`);
+                const idsPermitidos = (bData || []).map(b => String(b.id));
+                query = query.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
+            }
+
+            // 3. Ejecutamos la consulta ya filtrada y ordenada
+            const { data, error } = await query.order('created_at', { ascending: false });
 
             if (!error && data) {
                 ticketsCache = data;

@@ -13,26 +13,13 @@ function initHistorialNumerosModule() {
         window.cargarHistorialNumeros();
     }
 
-    const filtros = ['filtro-fecha-numeros', 'filtro-loteria-numeros', 'filtro-tipo-numeros'];
-    filtros.forEach(id => {
-        const el = document.getElementById(id);
-        if (el && !el.dataset.listenerAttached) {
-            el.dataset.listenerAttached = 'true';
-            el.addEventListener('change', () => {
-                if (typeof window.cargarHistorialNumeros === 'function') {
-                    window.cargarHistorialNumeros();
-                }
-            });
-        }
-    });
-
-    const btnConsultar = document.getElementById('btn-consultar-numeros');
-    if (btnConsultar && !btnConsultar.dataset.listenerAttached) {
-        btnConsultar.dataset.listenerAttached = 'true';
-        btnConsultar.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (typeof window.cargarHistorialNumeros === 'function') {
-                window.cargarHistorialNumeros();
+    // Activar búsqueda al presionar "Enter" en el nuevo buscador
+    const inputBusqueda = document.getElementById('filtro-busqueda-numero');
+    if (inputBusqueda && !inputBusqueda.dataset.listenerAttached) {
+        inputBusqueda.dataset.listenerAttached = 'true';
+        inputBusqueda.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') {
+                if (typeof window.cargarHistorialNumeros === 'function') window.cargarHistorialNumeros();
             }
         });
     }
@@ -73,6 +60,10 @@ window.cargarHistorialNumeros = async function() {
     
     const loteriaFiltro = document.getElementById('filtro-loteria-numeros')?.value || 'TODAS';
     const tipoFiltro = document.getElementById('filtro-tipo-numeros')?.value || 'todos';
+    
+    // 🔍 CAPTURAR EL VALOR DEL NUEVO BUSCADOR
+    const busquedaFiltro = document.getElementById('filtro-busqueda-numero')?.value.trim() || '';
+
     const tbody = document.getElementById('tabla-historial-cuerpo');
 
     if (!tbody) return;
@@ -138,8 +129,12 @@ window.cargarHistorialNumeros = async function() {
                 numJ = [numJ.substring(0, 2), numJ.substring(2, 4)].sort().join('');
             }
 
+            // APLICAR TODOS LOS FILTROS
             if (loteriaFiltro !== 'TODAS' && !sorteoNombre.includes(loteriaFiltro)) return;
             if (tipoFiltro !== 'todos' && tipoJ !== tipoFiltro) return;
+            
+            // 🔍 FILTRAR POR NÚMERO BUSCADO (Si hay texto, verifica que el número lo contenga)
+            if (busquedaFiltro && !numJ.includes(busquedaFiltro)) return;
 
             const clave = `${sorteoNombre}_${tipoJ}_${numJ}`;
             if (!acumuladoVentas[clave]) {
@@ -199,7 +194,7 @@ window.cargarHistorialNumeros = async function() {
     }
 };
 
-// Auto-inicialización segura
+// Auto-inicialización segura al cargar la vista
 document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('tabla-historial-cuerpo')) {
         initHistorialNumerosModule();

@@ -1,46 +1,31 @@
 // ==========================================================================
-// 📊 MÓDULO DE HISTORIAL Y CONTROL DE NÚMEROS (COMPATIBLE GLOBAL)
+// 📊 MÓDULO DE HISTORIAL Y CONTROL DE NÚMEROS (DASHBOARD ADMINISTRATIVO)
 // ==========================================================================
 
-function initHistorialNumerosModule() {
-    const inputFecha = document.getElementById('filtro-fecha-numeros');
-    if (inputFecha && !inputFecha.value) {
-        inputFecha.value = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
-    }
-
-    cargarLoteriasParaFiltroHistorial();
-    window.cargarHistorialNumeros();
-
-    const filtros = ['filtro-fecha-numeros', 'filtro-loteria-numeros', 'filtro-tipo-numeros'];
-    filtros.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('change', () => window.cargarHistorialNumeros());
-        }
-    });
-
-    const btnConsultar = document.getElementById('btn-consultar-numeros');
-    if (btnConsultar) {
-        btnConsultar.addEventListener('click', (e) => {
-            e.preventDefault();
-            window.cargarHistorialNumeros();
-        });
-    }
-}
-window.initHistorialNumerosModule = initHistorialNumerosModule;
-
+// ==========================================
+// CARGAR LOTERÍAS DINÁMICAS EN EL FILTRO
+// ==========================================
 async function cargarLoteriasParaFiltroHistorial() {
     try {
         const supabase = window.supabaseClient || window.supabase;
-        if (!supabase) return;
+        if (!supabase) {
+            console.warn("Supabase no está inicializado aún para cargar loterías en historial.");
+            return;
+        }
 
-        const { data, error } = await supabase.from('sorteos').select('id, nombre, estatus');
+        const { data, error } = await supabase
+            .from('sorteos')
+            .select('id, nombre, estatus');
+
         if (error) throw error;
 
         const selectFiltro = document.getElementById('filtro-loteria-numeros');
         if (!selectFiltro) return;
 
+        // Limpiar opciones previas pero mantener "TODAS"
         selectFiltro.innerHTML = '<option value="TODAS">Todas las Loterías</option>';
+
+        // Rellenar con los datos dinámicos
         if (data && data.length > 0) {
             data.forEach(loteria => {
                 const option = document.createElement('option');
@@ -50,13 +35,19 @@ async function cargarLoteriasParaFiltroHistorial() {
             });
         }
     } catch (err) {
-        console.error("Error al cargar loterías:", err);
+        console.error("Error al sincronizar loterías en el filtro de historial:", err);
     }
 }
 
+// ==========================================
+// FUNCIÓN PRINCIPAL DE CONSULTA Y SEMÁFORO
+// ==========================================
 window.cargarHistorialNumeros = async function() {
     const supabase = window.supabaseClient || window.supabase;
-    if (!supabase) return;
+    if (!supabase) {
+        console.error("Supabase no está inicializado.");
+        return alert("Error de conexión con la base de datos.");
+    }
 
     const inputFecha = document.getElementById('filtro-fecha-numeros');
     const fechaFiltro = (inputFecha && inputFecha.value) ? inputFecha.value : new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
@@ -67,57 +58,82 @@ window.cargarHistorialNumeros = async function() {
 
     if (!tbody) return;
 
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-cyan-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Procesando números vendidos...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-cyan-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Consultando jugadas en la base de datos...</td></tr>`;
 
     try {
-        const { data: reglas } = await supabase.from('restricciones_vendedor').select('*');
+        // 1. Traer reglas de riesgo y topes
+        const { data: reglas, error: errReglas } = await supabase.from('restricciones_vendedor').select('*');
+        if (errReglas) throw errReglas;
+        
+        let topeGlobalDefault = 20.00;
         const mapaTopes = {};
-        const topeGlobalDefault = 20.00;
         
         (reglas || []).forEach(r => {
             const lKey = String(r.loteria || 'TODAS').toUpperCase();
             const tKey = String(r.tipo_jugada || 'todos').toLowerCase();
             const nKey = String(r.numero_especifico || '*').trim();
             const max = parseFloat(r.monto_maximo || 0);
-            mapaTopes[nKey === '*' || nKey === '+' ? `${lKey}_${tKey}_GENERAL` : `${lKey}_${tKey}_${nKey}`] = max;
+            
+            if (nKey === '*' || nKey === '+') {
+                mapaTopes[`${lKey}_${tKey}_GENERAL`] = max;
+            } else {
+                mapaTopes[`${lKey}_${tKey}_${nKey}`] = max;
+            }
         });
 
-        const startOfDay = `${fechaFiltro}T00:00:00`;
-        const endOfDay = `${fechaFiltro}T23:59:59`;
+        // 2. Definir rango de inicio y fin del día para filtrar por created_at
+        const startOfDay = new Date(`${fechaFiltro}T00:00:00-05:00`).toISOString();
+        const endOfDay = new Date(`${fechaFiltro}T23:59:59-05:00`).toISOString();
 
+        // 🚨 3. CONSULTA SEGURA EN CASCADA PARA FILTRAR POR ZONA 🚨
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
         
-        let queryTickets = supabase.from('tickets').select('id').gte('created_at', startOfDay).lte('created_at', endOfDay);
+        let jugadas = [];
 
         if (rol.includes('supervisor')) {
             const zonaSup = String(sesion.zona || '').trim().toLowerCase();
-            const { data: bData } = await supabase.from('bancas').select('id, zona');
-            const idsPermitidos = (bData || []).filter(b => String(b.zona || '').trim().toLowerCase() === zonaSup).map(b => String(b.id));
-            queryTickets = queryTickets.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
-        } else if (!rol.includes('admin') && !rol.includes('supervisor')) {
-            const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
-            const { data: bData } = await supabase.from('bancas').select('id').or(`nombre_banca.eq.${nombreUsuario},vendedor_nombre.eq.${nombreUsuario}`);
-            const idsPermitidos = (bData || []).map(b => String(b.id));
-            queryTickets = queryTickets.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
+            
+            // A) Traer los IDs de las bancas de su zona
+            const { data: bancasData } = await supabase.from('bancas').select('id, zona');
+            const idsBancas = (bancasData || [])
+                .filter(b => String(b.zona || '').trim().toLowerCase() === zonaSup)
+                .map(b => String(b.id));
+
+            // B) Traer los tickets de esas bancas en el día
+            const { data: ticketsData } = await supabase.from('tickets')
+                .select('id')
+                .in('banca_id', idsBancas.length > 0 ? idsBancas : ['-1'])
+                .gte('created_at', startOfDay)
+                .lte('created_at', endOfDay);
+            
+            const idsTickets = (ticketsData || []).map(t => String(t.id));
+
+            // C) Traer las jugadas que pertenecen exclusivamente a esos tickets
+            const { data: jugadasData, error: errJugadas } = await supabase
+                .from('jugadas')
+                .select('sorteo_nombre, tipo, numero, monto, estatus, estado, ticket_id')
+                .in('ticket_id', idsTickets.length > 0 ? idsTickets : [-1]);
+
+            if (errJugadas) throw errJugadas;
+            jugadas = jugadasData || [];
+        } else {
+            // El Administrador Central ve todo sin restricciones
+            const { data: jugadasData, error: errJugadas } = await supabase
+                .from('jugadas')
+                .select('sorteo_nombre, tipo, numero, monto, estatus, estado')
+                .gte('created_at', startOfDay)
+                .lte('created_at', endOfDay);
+
+            if (errJugadas) throw errJugadas;
+            jugadas = jugadasData || [];
         }
 
-        const { data: ticketsData } = await queryTickets;
-        const idsTicketsPermitidos = new Set((ticketsData || []).map(t => String(t.id)));
-
-        const { data: jugadasData, error: errJugadas } = await supabase
-            .from('jugadas')
-            .select('sorteo_nombre, tipo, numero, monto, estatus, estado, ticket_id')
-            .gte('created_at', startOfDay)
-            .lte('created_at', endOfDay);
-
-        if (errJugadas) throw errJugadas;
-
-        const jugadasPermitidas = (jugadasData || []).filter(j => idsTicketsPermitidos.has(String(j.ticket_id)));
+        // 4. Agrupar y sumar las jugadas
         const acumuladoVentas = {};
 
-        jugadasPermitidas.forEach(j => {
-            if (String(j.estatus || j.estado).toLowerCase() === 'cancelado') return;
+        (jugadas || []).forEach(j => {
+            if (j.estatus === 'cancelado' || j.estado === 'cancelado') return;
 
             const sorteoNombre = String(j.sorteo_nombre || 'GENERAL').toUpperCase();
             const tipoJ = String(j.tipo || 'chance').toLowerCase();
@@ -125,7 +141,9 @@ window.cargarHistorialNumeros = async function() {
             const montoJ = parseFloat(j.monto || 0);
 
             if (tipoJ === 'pale' && numJ.length === 4) {
-                numJ = [numJ.substring(0, 2), numJ.substring(2, 4)].sort().join('');
+                const p1 = numJ.substring(0, 2);
+                const p2 = numJ.substring(2, 4);
+                numJ = [p1, p2].sort().join('');
             }
 
             if (loteriaFiltro !== 'TODAS' && !sorteoNombre.includes(loteriaFiltro)) return;
@@ -133,65 +151,83 @@ window.cargarHistorialNumeros = async function() {
 
             const clave = `${sorteoNombre}_${tipoJ}_${numJ}`;
             if (!acumuladoVentas[clave]) {
-                acumuladoVentas[clave] = { loteria: sorteoNombre, tipo: tipoJ, numero: numJ, totalVendido: 0 };
+                acumuladoVentas[clave] = {
+                    loteria: sorteoNombre,
+                    tipo: tipoJ,
+                    numero: numJ,
+                    totalVendido: 0
+                };
             }
             acumuladoVentas[clave].totalVendido += montoJ;
         });
 
-        const listaResultados = Object.values(acumuladoVentas).sort((a, b) => b.totalVendido - a.totalVendido);
+        const listaResultados = Object.values(acumuladoVentas);
 
         if (listaResultados.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400">No hay números vendidos con los filtros seleccionados.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400">No hay jugadas registradas para esta fecha y filtros seleccionados.</td></tr>`;
             return;
         }
 
-        tbody.innerHTML = listaResultados.map(item => {
+        listaResultados.sort((a, b) => b.totalVendido - a.totalVendido);
+
+        tbody.innerHTML = '';
+        listaResultados.forEach(item => {
             const topeMax = mapaTopes[`${item.loteria}_${item.tipo}_${item.numero}`] || 
                             mapaTopes[`TODAS_${item.tipo}_GENERAL`] || 
-                            mapaTopes[`TODAS_todos_GENERAL`] || topeGlobalDefault;
+                            mapaTopes[`TODAS_todos_GENERAL`] || 
+                            topeGlobalDefault;
 
             const porcentaje = Math.min(Math.round((item.totalVendido / topeMax) * 100), 100);
+
             let colorClase = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
             let semaforoTexto = 'Disponible (Verde)';
             let barraColor = 'bg-emerald-500';
 
             if (porcentaje >= 90) {
-                colorClase = 'bg-rose-500/20 text-rose-400 border-rose-500/30'; semaforoTexto = 'Agotado (Rojo)'; barraColor = 'bg-rose-500';
+                colorClase = 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+                semaforoTexto = 'Agotado (Rojo)';
+                barraColor = 'bg-rose-500';
             } else if (porcentaje >= 50) {
-                colorClase = 'bg-amber-500/20 text-amber-400 border-amber-500/30'; semaforoTexto = 'Moderado (Amarillo)'; barraColor = 'bg-amber-500';
+                colorClase = 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+                semaforoTexto = 'Moderado (Amarillo)';
+                barraColor = 'bg-amber-500';
             }
 
-            return `
-                <tr class="hover:bg-slate-750 transition border-b border-slate-700/50 font-mono">
-                    <td class="p-3 font-bold text-slate-300 uppercase">${item.loteria}</td>
-                    <td class="p-3 uppercase text-xs text-cyan-300 font-sans font-semibold">${item.tipo}</td>
-                    <td class="p-3 text-lg font-black text-white tracking-widest">${item.numero}</td>
-                    <td class="p-3 text-right font-bold text-cyan-400">$${item.totalVendido.toFixed(2)}</td>
-                    <td class="p-3 text-right text-slate-400">$${topeMax.toFixed(2)}</td>
-                    <td class="p-3 text-center">
-                        <span class="px-2.5 py-1 rounded-full text-xs font-bold border ${colorClase}">${semaforoTexto}</span>
-                    </td>
-                    <td class="p-3">
-                        <div class="flex items-center gap-2">
-                            <div class="flex-1 bg-slate-700 h-2.5 rounded-full overflow-hidden">
-                                <div class="${barraColor} h-full rounded-full transition-all duration-500" style="width: ${porcentaje}%"></div>
-                            </div>
-                            <span class="text-xs font-bold text-slate-300 w-10 text-right">${porcentaje}%</span>
+            const tr = document.createElement('tr');
+            tr.className = "hover:bg-slate-750 transition border-b border-slate-700/50 font-mono";
+            tr.innerHTML = `
+                <td class="p-3 font-bold text-slate-300 uppercase">${item.loteria}</td>
+                <td class="p-3 uppercase text-xs text-cyan-300 font-sans font-semibold">${item.tipo}</td>
+                <td class="p-3 text-lg font-black text-white tracking-widest">${item.numero}</td>
+                <td class="p-3 text-right font-bold text-cyan-400">$${item.totalVendido.toFixed(2)}</td>
+                <td class="p-3 text-right text-slate-400">$${topeMax.toFixed(2)}</td>
+                <td class="p-3 text-center">
+                    <span class="px-2.5 py-1 rounded-full text-xs font-bold border ${colorClase}">
+                        ${semaforoTexto}
+                    </span>
+                </td>
+                <td class="p-3">
+                    <div class="flex items-center gap-2">
+                        <div class="flex-1 bg-slate-700 h-2.5 rounded-full overflow-hidden">
+                            <div class="${barraColor} h-full rounded-full transition-all duration-500" style="width: ${porcentaje}%"></div>
                         </div>
-                    </td>
-                </tr>
+                        <span class="text-xs font-bold text-slate-300 w-10 text-right">${porcentaje}%</span>
+                    </div>
+                </td>
             `;
-        }).join('');
+            tbody.appendChild(tr);
+        });
 
     } catch (err) {
-        console.error("Error en el historial de números:", err);
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-rose-400">Error al consultar los datos.</td></tr>`;
+        console.error("Error al procesar el historial de números:", err);
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-rose-400">Error al cargar los datos. Verifique la consola.</td></tr>`;
     }
 };
 
-// Auto-iniciar al cargar el DOM si existe el contenedor
 document.addEventListener('DOMContentLoaded', () => {
-    if (document.getElementById('tabla-historial-cuerpo')) {
-        initHistorialNumerosModule();
+    const inputFecha = document.getElementById('filtro-fecha-numeros');
+    if (inputFecha) {
+        inputFecha.value = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
     }
+    setTimeout(cargarLoteriasParaFiltroHistorial, 1000);
 });

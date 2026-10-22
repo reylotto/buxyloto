@@ -339,10 +339,9 @@ window.procesarPagoVendedor = async function(tipoMovimiento) {
     }
 
     try {
-        let responsable = 'Administrador';
-        if (window.currentUserProfile) {
-            responsable = window.currentUserProfile.email || window.currentUserProfile.user_metadata?.full_name || 'Administrador';
-        }
+        // 🚨 CORRECCIÓN 1: LEER EL USUARIO REAL DIRECTO DE LA SESIÓN ACTIVA 🚨
+        const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+        const responsable = sesion.nombre || sesion.username || sesion.email || 'Administrador';
 
         const b = estadoBalances.vendedorActual;
         const nombreBancaReal = b.nombre_banca || b.vendedor_nombre || b.name || `Banca ${b.id}`;
@@ -368,7 +367,24 @@ window.procesarPagoVendedor = async function(tipoMovimiento) {
         console.error("Error al registrar pago en Supabase:", e);
         alert("❌ Error al guardar el pago: " + e.message);
     }
-}; // 🚨 ESTA LLAVE FALTABA EN TU CÓDIGO ORIGINAL
+};
+
+// 🚨 CORRECCIÓN 2: FUNCIÓN PARA ELIMINAR EL PAGO (FALTABA EN EL CÓDIGO) 🚨
+window.eliminarPagoRegistrado = async function(pagoId) {
+    if (!confirm('¿Está seguro de que desea anular y eliminar este pago registrado?')) return;
+    
+    try {
+        const { error } = await window.supabase.from('pagos_bancas').delete().eq('id', pagoId);
+        if (error) throw error;
+        
+        alert('✅ Pago eliminado correctamente.');
+        await window.cargarResumenBalances();
+        await window.generarDetalleCuadre();
+    } catch (err) {
+        console.error("Error al eliminar pago:", err);
+        alert("❌ Error al eliminar el pago: " + err.message);
+    }
+};
 
 // ==========================================================
 // VIGILANTE AGRESIVO: CARGA AUTOMÁTICA DE LA PESTAÑA DE RESUMEN

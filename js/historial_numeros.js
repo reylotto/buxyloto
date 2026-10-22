@@ -1,17 +1,16 @@
 // ==========================================================================
-// 📊 MÓDULO DE HISTORIAL Y CONTROL DE NÚMEROS (BLINDADO Y OPTIMIZADO)
+// 📊 MÓDULO DE HISTORIAL Y CONTROL DE NÚMEROS (COMPATIBLE GLOBAL)
 // ==========================================================================
 
-export async function initHistorialNumerosModule() {
+function initHistorialNumerosModule() {
     const inputFecha = document.getElementById('filtro-fecha-numeros');
     if (inputFecha && !inputFecha.value) {
         inputFecha.value = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
     }
 
-    await cargarLoteriasParaFiltroHistorial();
-    await window.cargarHistorialNumeros();
+    cargarLoteriasParaFiltroHistorial();
+    window.cargarHistorialNumeros();
 
-    // Conectar eventos para que se actualice al instante al cambiar un filtro
     const filtros = ['filtro-fecha-numeros', 'filtro-loteria-numeros', 'filtro-tipo-numeros'];
     filtros.forEach(id => {
         const el = document.getElementById(id);
@@ -28,6 +27,7 @@ export async function initHistorialNumerosModule() {
         });
     }
 }
+window.initHistorialNumerosModule = initHistorialNumerosModule;
 
 async function cargarLoteriasParaFiltroHistorial() {
     try {
@@ -50,7 +50,7 @@ async function cargarLoteriasParaFiltroHistorial() {
             });
         }
     } catch (err) {
-        console.error("Error al cargar loterías en historial números:", err);
+        console.error("Error al cargar loterías:", err);
     }
 }
 
@@ -70,7 +70,6 @@ window.cargarHistorialNumeros = async function() {
     tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-cyan-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Procesando números vendidos...</td></tr>`;
 
     try {
-        // 1. Obtener Topes y Reglas
         const { data: reglas } = await supabase.from('restricciones_vendedor').select('*');
         const mapaTopes = {};
         const topeGlobalDefault = 20.00;
@@ -83,11 +82,9 @@ window.cargarHistorialNumeros = async function() {
             mapaTopes[nKey === '*' || nKey === '+' ? `${lKey}_${tKey}_GENERAL` : `${lKey}_${tKey}_${nKey}`] = max;
         });
 
-        // 2. Definir Rango de Fechas exacto (sin zonas horarias raras)
         const startOfDay = `${fechaFiltro}T00:00:00`;
         const endOfDay = `${fechaFiltro}T23:59:59`;
 
-        // 🚨 3. CONSULTA SEGURA BLINDADA (ZONA SUPERVISOR) 🚨
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
         
@@ -108,7 +105,6 @@ window.cargarHistorialNumeros = async function() {
         const { data: ticketsData } = await queryTickets;
         const idsTicketsPermitidos = new Set((ticketsData || []).map(t => String(t.id)));
 
-        // 4. Descargar todas las jugadas del día y cruzarlas (Para evitar límite .in de Supabase)
         const { data: jugadasData, error: errJugadas } = await supabase
             .from('jugadas')
             .select('sorteo_nombre, tipo, numero, monto, estatus, estado, ticket_id')
@@ -117,10 +113,7 @@ window.cargarHistorialNumeros = async function() {
 
         if (errJugadas) throw errJugadas;
 
-        // Filtramos las jugadas dejando SOLO las que pertenecen a los tickets permitidos de su zona
         const jugadasPermitidas = (jugadasData || []).filter(j => idsTicketsPermitidos.has(String(j.ticket_id)));
-
-        // 5. Agrupar y sumar
         const acumuladoVentas = {};
 
         jugadasPermitidas.forEach(j => {
@@ -152,7 +145,6 @@ window.cargarHistorialNumeros = async function() {
             return;
         }
 
-        // 6. Imprimir Tabla
         tbody.innerHTML = listaResultados.map(item => {
             const topeMax = mapaTopes[`${item.loteria}_${item.tipo}_${item.numero}`] || 
                             mapaTopes[`TODAS_${item.tipo}_GENERAL`] || 
@@ -196,3 +188,10 @@ window.cargarHistorialNumeros = async function() {
         tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-rose-400">Error al consultar los datos.</td></tr>`;
     }
 };
+
+// Auto-iniciar al cargar el DOM si existe el contenedor
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('tabla-historial-cuerpo')) {
+        initHistorialNumerosModule();
+    }
+});

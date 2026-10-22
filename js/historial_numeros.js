@@ -12,6 +12,30 @@ function initHistorialNumerosModule() {
     if (typeof window.cargarHistorialNumeros === 'function') {
         window.cargarHistorialNumeros();
     }
+
+    const filtros = ['filtro-fecha-numeros', 'filtro-loteria-numeros', 'filtro-tipo-numeros'];
+    filtros.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el.dataset.listenerAttached) {
+            el.dataset.listenerAttached = 'true';
+            el.addEventListener('change', () => {
+                if (typeof window.cargarHistorialNumeros === 'function') {
+                    window.cargarHistorialNumeros();
+                }
+            });
+        }
+    });
+
+    const btnConsultar = document.getElementById('btn-consultar-numeros');
+    if (btnConsultar && !btnConsultar.dataset.listenerAttached) {
+        btnConsultar.dataset.listenerAttached = 'true';
+        btnConsultar.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (typeof window.cargarHistorialNumeros === 'function') {
+                window.cargarHistorialNumeros();
+            }
+        });
+    }
 }
 window.initHistorialNumerosModule = initHistorialNumerosModule;
 
@@ -175,7 +199,7 @@ window.cargarHistorialNumeros = async function() {
     }
 };
 
-// Auto-inicialización segura al cargar la vista
+// Auto-inicialización segura
 document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('tabla-historial-cuerpo')) {
         initHistorialNumerosModule();

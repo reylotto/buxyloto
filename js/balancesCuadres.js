@@ -32,10 +32,8 @@ async function cargarListaVendedores() {
         const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
 
         if (rol.includes('supervisor')) {
-            // El supervisor solo puede auditar y ver a las bancas de su zona
             bancasData = bancasData.filter(b => b.zona === zonaUsuario);
         } else if (!rol.includes('admin')) {
-            // Cajero/Banca solo puede cuadrarse a sí mismo (por si acaso accede por error)
             bancasData = bancasData.filter(b => b.nombre_banca === nombreUsuario || b.vendedor_nombre === nombreUsuario);
         }
         // --- FIN DE FILTRO DE SEGURIDAD ---
@@ -64,32 +62,40 @@ window.cargarResumenBalances = async function() {
             await cargarListaVendedores();
         }
 
-        const { data: ticketsData } = await window.supabase.from('tickets').select('*');
-        const { data: pagosBD } = await window.supabase.from('pagos_bancas').select('*');
-        estadoBalances.pagosLocales = pagosBD || [];
-
-        let tickets = ticketsData || [];
-
-        // 🚨 FILTRO MATEMÁTICO ABSOLUTO DE SUPERVISOR (Auditoría)
+        // 🚨 FILTRO MATEMÁTICO ABSOLUTO EN LA BASE DE DATOS
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
+        
+        let queryTickets = window.supabase.from('tickets').select('*');
 
         if (rol.includes('supervisor')) {
             const zonaSup = String(sesion.zona || '').trim().toLowerCase();
-            const { data: bData } = await supabase.from('bancas').select('id, zona');
+            const { data: bData } = await window.supabase.from('bancas').select('id, zona');
             
             const idsPermitidos = (bData || [])
                 .filter(b => String(b.zona || '').trim().toLowerCase() === zonaSup)
                 .map(b => String(b.id));
 
-            tickets = tickets.filter(t => idsPermitidos.includes(String(t.banca_id || t.usuario_id)));
+            // Filtrar desde la descarga para mayor seguridad y velocidad
+            queryTickets = queryTickets.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
+        } else if (!rol.includes('admin')) {
+            // Filtro para cajeros
+            const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
+            const { data: bData } = await window.supabase.from('bancas')
+                .select('id')
+                .or(`nombre_banca.eq.${nombreUsuario},vendedor_nombre.eq.${nombreUsuario}`);
+            const idsPermitidos = (bData || []).map(b => String(b.id));
+            queryTickets = queryTickets.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
         }
-        // --- FIN DE FILTRO DE SEGURIDAD ---
 
+        const { data: ticketsData } = await queryTickets;
+        const { data: pagosBD } = await window.supabase.from('pagos_bancas').select('*');
+        estadoBalances.pagosLocales = pagosBD || [];
+
+        let tickets = ticketsData || [];
         let html = '';
 
         estadoBalances.vendedores.forEach(b => {
-            // El resto de la matemática queda EXACTAMENTE IGUAL
             const ticketsVendedor = (tickets || []).filter(t => String(t.banca_id) === String(b.id) && String(t.estatus).toLowerCase() !== 'cancelado' && String(t.estatus).toLowerCase() !== 'anulado');
             
             let ventas = 0; let premios = 0; let comisiones = 0;
@@ -114,9 +120,6 @@ window.cargarResumenBalances = async function() {
             const totIngresos = pagosVendedor.filter(p => p.tipo === 'ingreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
             const totEgresos = pagosVendedor.filter(p => p.tipo === 'egreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
 
-            // ==========================================
-            // MATE CORREGIDA Y DEFINITIVA (Sincronizada con APK)
-            // ==========================================
             const resultadoNeto = ventas - premios - comisiones;
             let balanceFinal = resultadoNeto - totIngresos + totEgresos; 
             balanceFinal = Math.round(balanceFinal * 100) / 100;
@@ -158,6 +161,7 @@ window.cargarResumenBalances = async function() {
         console.error("Error cargando resumen de balances:", e); 
     }
 };
+
 window.irACuadreDetalle = function(bancaId) {
     const select = document.getElementById('cuadre-vendedor');
     if (select) select.value = bancaId;
@@ -174,7 +178,6 @@ window.generarDetalleCuadre = async function() {
 
     if (!bancaId) return alert("Por favor seleccione un vendedor para ver el cuadre.");
 
-    // 🛡️ BLINDAJE: Si la lista está vacía, intentamos cargarla o rescatarla de Supabase
     if (!estadoBalances.vendedores || estadoBalances.vendedores.length === 0) {
         const { data: bancasSupabase } = await window.supabase.from('bancas').select('*');
         estadoBalances.vendedores = bancasSupabase || [];
@@ -182,7 +185,6 @@ window.generarDetalleCuadre = async function() {
 
     let vendedor = estadoBalances.vendedores.find(v => String(v.id) === String(bancaId));
     
-    // Si aún así no se encuentra en memoria, hacemos una consulta directa de rescate
     if (!vendedor) {
         const { data: bancaDirecta } = await window.supabase.from('bancas').select('*').eq('id', bancaId).maybeSingle();
         vendedor = bancaDirecta || { id: bancaId, nombre_banca: 'Banca ' + bancaId, comision: 10 };
@@ -213,7 +215,6 @@ window.generarDetalleCuadre = async function() {
             const estatus = String(t.estatus || t.estado || '').toLowerCase();
             if (estatus === 'cancelado' || estatus === 'anulado') return;
             
-            // 🛡️ CORRECCIÓN DE ERROR: Evitar que falle si no hay fecha
             const rawDate = t.created_at || t.createdAt;
             if (!rawDate) return; 
 
@@ -259,7 +260,6 @@ window.generarDetalleCuadre = async function() {
         });
         tbodyVentas.innerHTML = htmlVentas || '<tr><td colspan="5" class="text-center py-4 text-slate-500">No hay ventas en este rango.</td></tr>';
 
-        // RECARGAR PAGOS DESDE SUPABASE
         const { data: pagosBD } = await window.supabase.from('pagos_bancas').select('*');
         estadoBalances.pagosLocales = pagosBD || [];
 
@@ -273,8 +273,6 @@ window.generarDetalleCuadre = async function() {
         tbodyPagos.innerHTML = pagosVendedor.map(p => {
             const esIngreso = p.tipo === 'ingreso';
             const fechaDisplay = p.created_at ? new Date(p.created_at).toLocaleString('es-PA', { dateStyle: 'short', timeStyle: 'short' }) : 'Reciente';
-            
-            // Iconos claros: Ingreso (Casa recibe) = Verde. Egreso (Casa paga) = Rojo.
             const tipoIcono = esIngreso ? '<i class="fa-solid fa-arrow-down text-emerald-400 mr-1" title="Banca Pagó a Casa"></i>' : '<i class="fa-solid fa-arrow-up text-rose-400 mr-1" title="Casa Pagó a Banca"></i>';
             return `
             <tr class="border-b border-slate-700/50 hover:bg-slate-800/50 transition">
@@ -290,10 +288,6 @@ window.generarDetalleCuadre = async function() {
         `}).join('') || '<tr><td colspan="4" class="text-center py-4 text-slate-500">No hay pagos registrados.</td></tr>';
 
         const totResultado = totVentas - totPremios - totComision;
-        
-        // 📊 FÓRMULA MATEMÁTICA DEFINITIVA
-        // Ingresos: Banca nos da plata (Resta a la deuda de la banca)
-        // Egresos: Nosotros damos plata (Suma y acerca a 0 nuestra deuda con ellos)
         const balanceNeto = totResultado - totIngresos + totEgresos;
 
         document.getElementById('cuadre-val-ventas').textContent = `$${totVentas.toFixed(2)}`;
@@ -301,7 +295,6 @@ window.generarDetalleCuadre = async function() {
         document.getElementById('cuadre-val-comision').textContent = `$${totComision.toFixed(2)}`;
         document.getElementById('cuadre-val-resultado').textContent = `$${totResultado.toFixed(2)}`;
         
-        // Texto visual claro de lo que se movió
         let displayPagosStr = '$0.00';
         if (totIngresos > 0) displayPagosStr = `+$${totIngresos.toFixed(2)} (Recibido)`;
         if (totEgresos > 0) displayPagosStr = `-$${totEgresos.toFixed(2)} (Pagado)`;
@@ -321,27 +314,23 @@ window.generarDetalleCuadre = async function() {
 window.procesarPagoVendedor = async function(tipoMovimiento) {
     if (!estadoBalances.vendedorActual) return alert("Seleccione un vendedor primero.");
 
-    // La fecha sugerida será la que tienes en el filtro "Hasta"
     const fechaSugerida = document.getElementById('cuadre-fecha-hasta')?.value || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
 
     let mensajeMonto = tipoMovimiento === 'ingreso' 
         ? `⬇️ RECIBIR DINERO DE BANCA\nLa banca le está entregando dinero a la Casa.\n\nIngrese el MONTO A RECIBIR:`
         : `⬆️ PAGAR A LA BANCA\nUsted (La Casa) le está entregando dinero a la Banca.\n\nIngrese el MONTO A PAGAR:`;
 
-    // 1. Pedir el Monto
     const montoStr = prompt(mensajeMonto);
     if (montoStr === null || montoStr.trim() === '') return;
     const monto = parseFloat(montoStr);
     
     if (isNaN(monto) || monto <= 0) return alert("Monto inválido. Ingrese un número mayor a 0.");
 
-    // 2. Pedir la Fecha Exacta
     let mensajeFecha = `📅 SELECCIONAR FECHA DE CUADRE\n\n¿A qué día de venta pertenece este pago?\n(Use el formato YYYY-MM-DD)\n\nDeje la fecha mostrada para cuadrar el día seleccionado:`;
     
     const fechaInput = prompt(mensajeFecha, fechaSugerida);
     if (fechaInput === null || fechaInput.trim() === '') return;
     
-    // Validar formato básico de fecha YYYY-MM-DD
     const regexFecha = /^\d{4}-\d{2}-\d{2}$/;
     if (!regexFecha.test(fechaInput.trim())) {
         return alert("❌ Formato de fecha inválido. Debe ser YYYY-MM-DD (Ejemplo: 2026-10-18).");
@@ -356,14 +345,13 @@ window.procesarPagoVendedor = async function(tipoMovimiento) {
         const b = estadoBalances.vendedorActual;
         const nombreBancaReal = b.nombre_banca || b.vendedor_nombre || b.name || `Banca ${b.id}`;
         
-        // El nuevo pago usa la fecha ingresada por el administrador, no necesariamente la de "hoy"
         const nuevoPago = {
             banca_id: String(b.id),
             banca_nombre: String(nombreBancaReal), 
             monto: monto,
             tipo: tipoMovimiento,
             responsable: responsable,
-            fecha: fechaInput.trim() // 🚀 FECHA ELEGIDA QUIRÚRGICAMENTE
+            fecha: fechaInput.trim() 
         };
 
         const { error } = await window.supabase.from('pagos_bancas').insert([nuevoPago]);
@@ -378,12 +366,12 @@ window.procesarPagoVendedor = async function(tipoMovimiento) {
         console.error("Error al registrar pago en Supabase:", e);
         alert("❌ Error al guardar el pago: " + e.message);
     }
+}; // 🚨 ESTA LLAVE FALTABA EN TU CÓDIGO ORIGINAL
+
 // ==========================================================
 // VIGILANTE AGRESIVO: CARGA AUTOMÁTICA DE LA PESTAÑA DE RESUMEN
 // ==========================================================
 document.addEventListener('DOMContentLoaded', () => {
-    
-    // 1. Vincular clics en el menú principal para cargar saldos
     const linksMenu = document.querySelectorAll('.nav-link, a');
     linksMenu.forEach(link => {
         if (link.textContent.includes('Balances & Cuadres') || link.dataset.target === 'balances-cuadres') {
@@ -397,7 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 2. Vincular el botón "Resumen de Balances" de las pestañas superiores
     const botonesPestanas = document.querySelectorAll('button');
     botonesPestanas.forEach(btn => {
         if (btn.textContent.includes('Resumen de Balances')) {
@@ -414,7 +401,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 3. Vincular el botón verde "Actualizar" que está en esa vista
     const btnActualizarResumen = document.querySelector('button[onclick*="cargarResumenBalances"]') || Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Actualizar'));
     if (btnActualizarResumen) {
         btnActualizarResumen.addEventListener('click', (e) => {
@@ -425,7 +411,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 4. Intentar cargar si la tabla está vacía al iniciar la app
     setTimeout(() => {
         const contenedorResumen = document.getElementById('tabla-resumen-balances');
         if (contenedorResumen && contenedorResumen.innerHTML.includes('No hay datos')) {
@@ -435,4 +420,3 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 1000);
 });
-};

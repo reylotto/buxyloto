@@ -220,7 +220,8 @@ async function cargarMetricasSeguras() {
         if (rol.includes('supervisor')) {
             const bancasCache = window._bancasCache || [];
             const idsBancasZona = bancasCache.filter(b => b.zona === sesion.zona).map(b => String(b.id));
-            tickets = tickets.filter(t => idsBancasZona.includes(String(t.banca_id || t.usuario_id)));
+            // 👇 AQUÍ ESTÁ LA CORRECCIÓN: "tickets" ahora es "listaTickets" 👇
+            listaTickets = listaTickets.filter(t => idsBancasZona.includes(String(t.banca_id || t.usuario_id)));
         }
 
         const listaTicketsValidos = listaTickets.filter(t => {
@@ -444,8 +445,11 @@ async function cargarResumenOperacionesHoy() {
 
         let ticketsRaw = ticketsHoy || [];
 
+        // 👇 AQUÍ ESTÁ EL "FILTRO FANTASMA" REPARADO CON IDS 👇
         if (rol.includes('supervisor')) {
-            ticketsRaw = ticketsRaw.filter(t => t.zona === zonaUsuario);
+            const bancasCache = window._bancasCache || [];
+            const idsBancasZona = bancasCache.filter(b => b.zona === zonaUsuario).map(b => String(b.id));
+            ticketsRaw = ticketsRaw.filter(t => idsBancasZona.includes(String(t.banca_id || t.usuario_id)));
         } else if (!rol.includes('admin')) {
             ticketsRaw = ticketsRaw.filter(t => 
                 t.creador === nombreUsuario || 

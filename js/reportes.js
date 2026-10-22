@@ -15,23 +15,45 @@ function getHoyYMD() {
 async function asegurarBancasCache() {
     if (bancasCache.length > 0) return bancasCache;
 
-    if (window.AppState && Array.isArray(window.AppState.bancas) && window.AppState.bancas.length > 0) {
-        bancasCache = window.AppState.bancas;
-        return bancasCache;
-    }
+    // Obtener sesión del usuario
+    const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+    const rol = String(sesion.rol || '').toLowerCase();
+    const zonaUsuario = String(sesion.zona || '').trim().toLowerCase();
+    const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
 
-    const supabase = window.supabase;
-    if (supabase) {
-        try {
-            const { data: bancas } = await supabase.from('bancas').select('*');
-            if (bancas && bancas.length > 0) {
-                bancasCache = bancas;
-                window._bancasCache = bancas;
+    let bancasData = [];
+
+    // Si ya existen en memoria global, las usamos como base
+    if (window.AppState && Array.isArray(window.AppState.bancas) && window.AppState.bancas.length > 0) {
+        bancasData = window.AppState.bancas;
+    } else {
+        const supabase = window.supabase;
+        if (supabase) {
+            try {
+                const { data: bancas } = await supabase.from('bancas').select('*');
+                if (bancas && bancas.length > 0) {
+                    bancasData = bancas;
+                }
+            } catch (e) {
+                console.warn("Error al cargar caché de bancas:", e);
             }
-        } catch (e) {
-            console.warn("Error al cargar caché de bancas:", e);
         }
     }
+
+    // 🚨 FILTRO OBLIGATORIO DE SEGURIDAD POR ROL 🚨
+    if (bancasData.length > 0) {
+        if (rol.includes('supervisor') && zonaUsuario !== '') {
+            // El supervisor SOLO ve bancas de su zona exacta
+            bancasData = bancasData.filter(b => String(b.zona || '').trim().toLowerCase() === zonaUsuario);
+        } else if (!rol.includes('admin') && !rol.includes('supervisor')) {
+            // Cajero SOLO se ve a sí mismo
+            bancasData = bancasData.filter(b => b.nombre_banca === nombreUsuario || b.vendedor_nombre === nombreUsuario);
+        }
+    }
+
+    bancasCache = bancasData;
+    window._bancasCache = bancasData;
+    
     return bancasCache;
 }
 

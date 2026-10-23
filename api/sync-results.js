@@ -12,27 +12,52 @@ function getFechaPanama() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); 
 }
 
+// 🔥 REGLAS ESTRICTAS para separar Día y Noche
+const REGLAS_SORTEOS = [
+    { pattern: /PRIMERA.*(11|12|DIA|MEDIODIA|AM)/i, keywords: ['PRIMERA DIA', 'PRIMERA TARDE', 'PRIMERA 12', 'LA PRIMERA'] },
+    { pattern: /PRIMERA.*(6|8|NOCHE|PM)/i, keywords: ['PRIMERA NOCHE', 'PRIMERA 8', 'PRIMERA 6'] },
+    { pattern: /ANGUILLA.*(10|AM)/i, keywords: ['ANGUILLA 10', 'ANGUILLA MA'] },
+    { pattern: /ANGUILLA.*(12|1|MEDIODIA|PM)/i, keywords: ['ANGUILLA 1', 'ANGUILLA 12', 'ANGUILLA MEDIODIA', 'ANGUILLA TARDE'] },
+    { pattern: /ANGUILLA.*(5|6)/i, keywords: ['ANGUILLA 6', 'ANGUILLA 5'] },
+    { pattern: /ANGUILLA.*(8|9|NOCHE)/i, keywords: ['ANGUILLA 9', 'ANGUILLA 8', 'ANGUILLA NOCHE'] },
+    { pattern: /FLORIDA.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['FLORIDA DIA', 'FLORIDA TARDE', 'FLORIDA MEDIODIA'] },
+    { pattern: /FLORIDA.*(8|9|NOCHE)/i, keywords: ['FLORIDA NOCHE'] },
+    { pattern: /NEW YORK.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['NEW YORK TARDE', 'NEW YORK DIA', 'NEW YORK MEDIODIA', 'YORK DIA'] },
+    { pattern: /NEW YORK.*(7|8|9|10|NOCHE)/i, keywords: ['NEW YORK NOCHE', 'YORK NOCHE'] }
+];
+
 function extraerPremios(html, nombreSorteo) {
     if (!html) return null;
     const normHtml = normalizar(html).replace(/<[^>]+>/g, ' '); 
-    let palabras = nombreSorteo.split(' ').filter(p => p.length > 3);
-    if (palabras.length === 0) palabras = [nombreSorteo];
-    const palabraClave = normalizar(palabras[0]);
     
-    let pos = normHtml.indexOf(palabraClave);
-    while (pos !== -1) {
-        let fragmento = normHtml.substring(pos, pos + 400);
-        fragmento = fragmento.replace(/\b\d{1,2}:\d{2}\b/g, ' ');
-        fragmento = fragmento.replace(/\b202\d\b/g, ' ');
-
-        const numeros = fragmento.match(/\b\d{2}\b/g);
-        if (numeros && numeros.length >= 3) {
-            const reales = numeros.filter(n => n !== '90');
-            if (reales.length >= 3) {
-                return { p1: reales[0], p2: reales[1], p3: reales[2] };
-            }
+    // Identificar qué palabras clave buscar basado en el nombre del sorteo
+    let keywordsToSearch = [normalizar(nombreSorteo)]; // Fallback
+    for (const regla of REGLAS_SORTEOS) {
+        if (regla.pattern.test(nombreSorteo)) {
+            keywordsToSearch = regla.keywords;
+            break;
         }
-        pos = normHtml.indexOf(palabraClave, pos + 10);
+    }
+    
+    for (const kw of keywordsToSearch) {
+        let pos = normHtml.indexOf(kw);
+        while (pos !== -1) {
+            let fragmento = normHtml.substring(pos, pos + 250);
+            
+            // Evitar que lea horas y años como premios
+            fragmento = fragmento.replace(/\b\d{1,2}:\d{2}\b/g, ' ');
+            fragmento = fragmento.replace(/\b202\d\b/g, ' ');
+
+            const numeros = fragmento.match(/\b\d{2}\b/g);
+            if (numeros && numeros.length >= 3) {
+                const reales = numeros.filter(n => n !== '90'); // Evita tamaño CSS
+                if (reales.length >= 3) {
+                    return { p1: reales[0], p2: reales[1], p3: reales[2] };
+                }
+            }
+            // Sigue buscando por si la primera coincidencia no tenía números
+            pos = normHtml.indexOf(kw, pos + 10);
+        }
     }
     return null;
 }
@@ -47,7 +72,7 @@ export default async function handler(req, res) {
         const fecha = getFechaPanama();
         let htmlCompleto = '';
         
-        // 1. Matriz de Fuentes con Cache-Busting (Evita bloqueos cacheados)
+        // 🚀 EL BOMBARDEO ANTIBLOQUEO (Que funcionó en el paso anterior)
         const timestamp = Date.now();
         const sitios = [
             `https://loterias.do/?v=${timestamp}`,
@@ -56,7 +81,6 @@ export default async function handler(req, res) {
             `https://loteriadominicana.com.do/?v=${timestamp}`
         ];
 
-        // 2. Matriz de Proxies Públicos
         const proxies = [
             'https://api.allorigins.win/raw?url=',
             'https://api.codetabs.com/v1/proxy?quest='
@@ -64,7 +88,6 @@ export default async function handler(req, res) {
 
         let exitoLectura = false;
 
-        // 3. Bombardeo: Probar cada sitio con cada proxy hasta atravesar el cortafuegos
         for (const sitio of sitios) {
             for (const proxy of proxies) {
                 try {
@@ -72,24 +95,20 @@ export default async function handler(req, res) {
                     const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
                     if (r.ok) {
                         const texto = await r.text();
-                        // Verificamos que no sea la página de bloqueo de Cloudflare
                         if (texto.length > 2000 && !texto.includes('Cloudflare') && !texto.includes('Just a moment')) {
                             htmlCompleto += texto + ' \n ';
                             exitoLectura = true;
-                            break; // Rompe el ciclo de proxies para este sitio si ya funcionó
+                            break;
                         }
                     }
-                } catch (e) {
-                    // Ignora fallos silenciosos y sigue intentando
-                }
+                } catch (e) {}
             }
         }
 
-        // Diagnóstico Final
         if (!exitoLectura || htmlCompleto.length < 500) {
             return res.status(200).json({ 
                 success: true, 
-                message: `🚨 ALERTA: Bloqueo extremo detectado. Vercel fue rechazado en los 8 intentos de conexión.` 
+                message: `🚨 ALERTA: Bloqueo extremo detectado. Vercel fue rechazado en todos los intentos.` 
             });
         }
 
@@ -109,7 +128,7 @@ export default async function handler(req, res) {
         if (aInsertar.length === 0) {
             return res.status(200).json({ 
                 success: true, 
-                message: `Escaneo completado. Se leyeron ${htmlCompleto.length} letras saltando la seguridad, pero los premios de hoy aún no están publicados.` 
+                message: `Escaneo completado. Se leyó la web, pero los premios exactos de hoy aún no están publicados.` 
             });
         }
 
@@ -130,7 +149,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({ 
             success: true, 
-            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos automáticamente penetrando los bloqueos.`, 
+            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos con los números separados correctamente.`, 
             data: aInsertar 
         });
 

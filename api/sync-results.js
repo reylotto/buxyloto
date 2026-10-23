@@ -7,113 +7,72 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 function normalizarNombre(nombre) {
     if (!nombre) return '';
-    return nombre
-        .toUpperCase()
-        .replace(/[:.]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
+    return nombre.toUpperCase().replace(/[:.]/g, '').replace(/\s+/g, ' ').trim();
 }
 
 const REGLAS_SORTEOS = [
-    {
-        pattern: /PRIMERA.*11|PRIMERA.*MEDIODIA/i,
-        horaPanama: '11:00',
-        keywords: ['la primera', 'primera 12pm', 'la primera 11am']
-    },
-    {
-        pattern: /PRIMERA.*6|PRIMERA.*NOCHE|PRIMERA.*8/i,
-        horaPanama: '18:00',
-        keywords: ['la primera', 'primera noche', 'primera 8pm', 'primera 6pm']
-    },
-    {
-        pattern: /ANGUILLA.*12|ANGUILLA.*1/i,
-        horaPanama: '12:00',
-        keywords: ['anguilla', '1pm', '12pm']
-    },
-    {
-        pattern: /ANGUILLA.*5|ANGUILLA.*6/i,
-        horaPanama: '17:00',
-        keywords: ['anguilla', '6pm', '5pm']
-    },
-    {
-        pattern: /ANGUILLA.*8|ANGUILLA.*9/i,
-        horaPanama: '20:00',
-        keywords: ['anguilla', '9pm', '8pm']
-    },
-    {
-        pattern: /FLORIDA.*D[IÍ]A|FLORIDA.*12|FLORIDA.*MEDIODIA/i,
-        horaPanama: '12:30',
-        keywords: ['florida', 'mediodia', 'midday', 'dia']
-    },
-    {
-        pattern: /FLORIDA.*NOCHE|FLORIDA.*8|FLORIDA.*9/i,
-        horaPanama: '20:45',
-        keywords: ['florida', 'noche', 'evening']
-    },
-    {
-        pattern: /NEW YORK.*D[IÍ]A|NEW YORK.*1|NEW YORK.*MEDIODIA/i,
-        horaPanama: '13:30',
-        keywords: ['new york', 'mediodia', 'midday', 'dia']
-    },
-    {
-        pattern: /NEW YORK.*NOCHE|NEW YORK.*9|NEW YORK.*10/i,
-        horaPanama: '21:30',
-        keywords: ['new york', 'noche', 'evening']
-    }
+    { pattern: /PRIMERA.*11|PRIMERA.*MEDIODIA/i, horaPanama: '11:00', keywords: ['primera 12', 'primera mediodia', 'la primera'] },
+    { pattern: /PRIMERA.*6|PRIMERA.*NOCHE|PRIMERA.*8/i, horaPanama: '18:00', keywords: ['primera noche', 'primera 8', 'la primera'] },
+    { pattern: /ANGUILLA.*12|ANGUILLA.*1/i, horaPanama: '12:00', keywords: ['anguilla 1', 'anguilla 12'] },
+    { pattern: /ANGUILLA.*5|ANGUILLA.*6/i, horaPanama: '17:00', keywords: ['anguilla 6', 'anguilla 5'] },
+    { pattern: /ANGUILLA.*8|ANGUILLA.*9/i, horaPanama: '20:00', keywords: ['anguilla 9', 'anguilla 8'] },
+    { pattern: /FLORIDA.*D[IÍ]A|FLORIDA.*12|FLORIDA.*MEDIODIA/i, horaPanama: '12:30', keywords: ['florida dia', 'florida mediodia', 'florida midday'] },
+    { pattern: /FLORIDA.*NOCHE|FLORIDA.*8|FLORIDA.*9/i, horaPanama: '20:45', keywords: ['florida noche', 'florida evening'] },
+    { pattern: /NEW YORK.*D[IÍ]A|NEW YORK.*1|NEW YORK.*MEDIODIA/i, horaPanama: '13:30', keywords: ['new york dia', 'new york mediodia', 'new york midday'] },
+    { pattern: /NEW YORK.*NOCHE|NEW YORK.*9|NEW YORK.*10/i, horaPanama: '21:30', keywords: ['new york noche', 'new york evening'] }
 ];
 
 function getFechaPanama() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
 }
 
-function obtenerConfigSorteo(nombreSorteo) {
-    const norm = normalizarNombre(nombreSorteo);
-    for (const regla of REGLAS_SORTEOS) {
-        if (regla.pattern.test(norm)) {
-            return regla;
-        }
-    }
-    return {
-        horaPanama: '00:00',
-        keywords: [norm.toLowerCase(), nombreSorteo.toLowerCase()]
-    };
+function yaJugoEnPanama(horaSorteoStr) {
+    if (!horaSorteoStr) return true;
+    const ahoraStr = new Date().toLocaleTimeString('en-US', { timeZone: 'America/Panama', hour12: false });
+    const [hAhora, mAhora] = ahoraStr.split(':').map(Number);
+    const [hSorteo, mSorteo] = horaSorteoStr.split(':').map(Number);
+    return (hAhora * 60 + mAhora) >= (hSorteo * 60 + mSorteo);
 }
 
+function obtenerConfigSorteo(nombreSorteo) {
+    const norm = normalizarNombre(nombreSorteo);
+    return REGLAS_SORTEOS.find(r => r.pattern.test(norm)) || { horaPanama: '00:00', keywords: [norm.toLowerCase()] };
+}
+
+// 🔥 Escáner Profundo Multi-Bloque
 function buscarResultadoEnHtml(html, keywords) {
     if (!html) return null;
-
-    let htmlLimpio = html
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
-        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ');
-
-    const htmlLower = htmlLimpio.toLowerCase();
+    const htmlLower = html.toLowerCase();
 
     for (const kw of keywords) {
-        const pos = htmlLower.indexOf(kw.toLowerCase());
-        if (pos !== -1) {
-            let fragmento = htmlLimpio.substring(pos, pos + 500);
+        let pos = htmlLower.indexOf(kw.toLowerCase());
+        
+        // Bucle para buscar en TODAS las menciones de la palabra (evita quedarse atrapado en el menú)
+        while (pos !== -1) {
+            let fragmento = htmlLower.substring(pos, pos + 800);
 
-            // Depuración de formato
-            fragmento = fragmento.replace(/\b\d{1,2}:\d{2}\s*(am|pm)?\b/gi, ' ');
-            fragmento = fragmento.replace(/\b\d{1,2}\s*(am|pm)\b/gi, ' ');
+            // Limpieza agresiva de HTML, fechas y horas
+            fragmento = fragmento.replace(/<[^>]+>/g, ' '); 
+            fragmento = fragmento.replace(/\b\d{1,2}:\d{2}\s*(am|pm)?\b/gi, ' '); 
             fragmento = fragmento.replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/gi, ' ');
-            fragmento = fragmento.replace(/\b\d{4}-\d{2}-\d{2}\b/gi, ' ');
-            fragmento = fragmento.replace(/<[^>]+>/g, ' ');
+            fragmento = fragmento.replace(/\b202\d\b/g, ' ');
 
-            const numerosBrutos = fragmento.match(/\b\d{2}\b/g);
+            const numeros = fragmento.match(/\b\d{2}\b/g);
 
-            if (numerosBrutos && numerosBrutos.length >= 1) {
-                // Filtro anti-90 para ignorar valores de diseño
-                const bolasReales = numerosBrutos.filter(num => num !== '90' || numerosBrutos.length >= 3);
+            if (numeros && numeros.length >= 3) {
+                // Filtro Anti-90
+                const bolasReales = numeros.filter(n => n !== '90'); 
                 
-                if (bolasReales.length >= 1) {
+                if (bolasReales.length >= 3) {
                     return {
-                        p1: bolasReales[0] || '',
-                        p2: bolasReales[1] || '',
-                        p3: bolasReales[2] || ''
+                        p1: bolasReales[0],
+                        p2: bolasReales[1],
+                        p3: bolasReales[2]
                     };
                 }
             }
+            // Sigue buscando la siguiente coincidencia en la página
+            pos = htmlLower.indexOf(kw.toLowerCase(), pos + 10);
         }
     }
     return null;
@@ -131,34 +90,36 @@ export default async function handler(req, res) {
             return res.status(400).json({ success: false, message: 'No hay sorteos configurados.' });
         }
 
-        // URLs oficiales proporcionadas por el usuario consultadas mediante proxy de respaldo
-        const urlsObjetivo = [
-            'https://enloteria.com/loterias/la-primera',
-            'https://enloteria.com/resultados-anguilla',
-            'https://enloteria.com/loterias/new-york',
-            'https://enloteria.com/loterias/florida'
+        // 🔥 MULTI-FUENTE DE RESPALDO (Bypass de seguridad)
+        const fuentes = [
+            'https://loteriadominicanas.com/',
+            'https://conectate.com.do/loterias/',
+            'https://enloteria.com/'
         ];
 
-        const htmlResponses = await Promise.all(
-            urlsObjetivo.map(async (url) => {
-                try {
-                    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-                    const r = await fetch(proxyUrl);
-                    if (r.ok) {
-                        const json = await r.json();
-                        return json.contents || '';
-                    }
-                } catch (e) {}
-                return '';
-            })
-        );
+        let htmlCompleto = '';
+        for (const fuente of fuentes) {
+            try {
+                // Se usa el flag /raw para obtener el HTML puro sin conversiones JSON
+                const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(fuente)}`);
+                if (r.ok) {
+                    htmlCompleto += await r.text() + ' \n\n ';
+                }
+            } catch (e) {
+                console.warn("Fallo temporal en fuente:", fuente);
+            }
+        }
 
-        const htmlCompleto = htmlResponses.join(' ');
         const resultadosAInsertar = [];
         const sorteosAActualizar = [];
 
         for (const sorteo of sorteos) {
             const config = obtenerConfigSorteo(sorteo.nombre);
+
+            if (config && !yaJugoEnPanama(config.horaPanama)) {
+                continue; 
+            }
+
             const resultadoEncontrado = buscarResultadoEnHtml(htmlCompleto, config.keywords);
 
             if (resultadoEncontrado && resultadoEncontrado.p1) {
@@ -216,14 +177,12 @@ export default async function handler(req, res) {
                     p_num2: item.p2,
                     p_num3: item.p3
                 });
-            } catch (rpcErr) {
-                console.warn(`Aviso al evaluar tickets del sorteo #${item.id}:`, rpcErr.message || rpcErr);
-            }
+            } catch (rpcErr) {}
         }
 
         return res.status(200).json({
             success: true,
-            message: `¡Sincronización exitosa! Se actualizaron ${resultadosAInsertar.length} sorteos oficiales.`,
+            message: `¡Éxito! Se actualizaron ${resultadosAInsertar.length} sorteos automáticamente.`,
             data: resultadosAInsertar
         });
 

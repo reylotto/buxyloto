@@ -78,19 +78,6 @@ function yaJugoEnPanama(horaSorteoStr) {
     return minutosActuales >= minutosSorteo;
 }
 
-function obtenerConfigSorteo(nombreSorteo) {
-    const norm = normalizarNombre(nombreSorteo);
-    for (const regla of REGLAS_SORTEOS) {
-        if (regla.pattern.test(norm)) {
-            return regla;
-        }
-    }
-    return {
-        horaPanama: '00:00',
-        keywords: [norm.toLowerCase(), nombreSorteo.toLowerCase()]
-    };
-}
-
 function buscarResultadoEnHtml(html, keywords) {
     if (!html) return null;
 
@@ -105,18 +92,17 @@ function buscarResultadoEnHtml(html, keywords) {
         if (pos !== -1) {
             let fragmento = htmlLimpio.substring(pos, pos + 400);
 
-            // Depurar horas y fechas
+            // Limpieza de formato para extraer bolas limpias
             fragmento = fragmento.replace(/\b\d{1,2}:\d{2}\s*(am|pm)?\b/gi, ' ');
             fragmento = fragmento.replace(/\b\d{1,2}\s*(am|pm)\b/gi, ' ');
             fragmento = fragmento.replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/gi, ' ');
             fragmento = fragmento.replace(/\b\d{4}-\d{2}-\d{2}\b/gi, ' ');
             fragmento = fragmento.replace(/<[^>]+>/g, ' ');
 
-            // Extraer jugadas brutas
             const numerosBrutos = fragmento.match(/\b\d{2}\b/g);
 
             if (numerosBrutos && numerosBrutos.length >= 1) {
-                // 🔥 FILTRO ESTRICTO ANTI-90
+                // Filtro estricto anti-90
                 const bolasReales = numerosBrutos.filter(num => num !== '90' || numerosBrutos.length >= 3);
                 
                 if (bolasReales.length >= 1) {
@@ -144,23 +130,18 @@ export default async function handler(req, res) {
             return res.status(400).json({ success: false, message: 'No hay sorteos configurados.' });
         }
 
-        const urls = [
-            'https://enloteria.com/',
-            'https://enloteria.com/resultados-anguilla',
-            'https://enloteria.com/la-primera',
-            'https://enloteria.com/florida',
-            'https://enloteria.com/new-york'
-        ];
+        // UNIFICACIÓN DE FUENTE: Leemos agencia-reylotto a través del proxy para saltar bloqueos de Vercel
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent('https://agencia-reylotto.com/resultados.php')}`;
+        
+        let htmlCompleto = '';
+        try {
+            const fetchRes = await fetch(proxyUrl);
+            const data = await fetchRes.json();
+            htmlCompleto = data.contents || '';
+        } catch (fetchErr) {
+            console.error("Error al extraer HTML externo:", fetchErr);
+        }
 
-        const htmlResponses = await Promise.all(
-            urls.map(url => 
-                fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
-                    .then(r => r.ok ? r.text() : '')
-                    .catch(() => '')
-            )
-        );
-
-        const htmlCompleto = htmlResponses.join(' ');
         const resultadosAInsertar = [];
         const sorteosAActualizar = [];
 
@@ -168,7 +149,7 @@ export default async function handler(req, res) {
             const config = obtenerConfigSorteo(sorteo.nombre);
 
             if (config && !yaJugoEnPanama(config.horaPanama)) {
-                continue;
+                continue; // Ignora los sorteos cuya hora aún no ha pasado en Panamá
             }
 
             const resultadoEncontrado = buscarResultadoEnHtml(htmlCompleto, config.keywords);
@@ -202,14 +183,12 @@ export default async function handler(req, res) {
             });
         }
 
-        // 1. Guardar en tabla 'resultados'
         const { error: upsertError } = await supabase
             .from('resultados')
             .upsert(resultadosAInsertar, { onConflict: 'sorteo_id,fecha' });
 
         if (upsertError) throw upsertError;
 
-        // 2. Ejecutar escrutinio (Sin forzar cierre permanente)
         for (const item of sorteosAActualizar) {
             await supabase
                 .from('sorteos')
@@ -220,7 +199,6 @@ export default async function handler(req, res) {
                     primer_premio: item.p1,
                     segundo_premio: item.p2,
                     tercer_premio: item.p3
-                    // SE ELIMINÓ estatus: 'cerrado' PARA QUE EL HORARIO DINÁMICO LO CONTROLE
                 })
                 .eq('id', item.id);
 

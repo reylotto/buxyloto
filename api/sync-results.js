@@ -15,24 +15,23 @@ function getFechaPanama() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); 
 }
 
-// Reglas estrictas para separar Día y Noche
+// Reglas estrictas y ampliadas para asegurar que encuentre el texto exacto
 const REGLAS_SORTEOS = [
     { pattern: /PRIMERA.*(11|12|DIA|MEDIODIA|AM)/i, keywords: ['PRIMERA DIA', 'PRIMERA TARDE', 'PRIMERA 12', 'LA PRIMERA'] },
-    { pattern: /PRIMERA.*(6|8|NOCHE|PM)/i, keywords: ['PRIMERA NOCHE', 'PRIMERA 8', 'PRIMERA 6'] },
+    { pattern: /PRIMERA.*(6|8|NOCHE|PM)/i, keywords: ['PRIMERA NOCHE', 'PRIMERA 8', 'LA PRIMERA NOCHE'] },
     { pattern: /ANGUILLA.*(10|AM)/i, keywords: ['ANGUILLA 10', 'ANGUILLA MA'] },
     { pattern: /ANGUILLA.*(12|1|MEDIODIA|PM)/i, keywords: ['ANGUILLA 1', 'ANGUILLA 12', 'ANGUILLA MEDIODIA', 'ANGUILLA TARDE'] },
     { pattern: /ANGUILLA.*(5|6)/i, keywords: ['ANGUILLA 6', 'ANGUILLA 5'] },
     { pattern: /ANGUILLA.*(8|9|NOCHE)/i, keywords: ['ANGUILLA 9', 'ANGUILLA 8', 'ANGUILLA NOCHE'] },
-    { pattern: /FLORIDA.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['FLORIDA DIA', 'FLORIDA TARDE', 'FLORIDA MEDIODIA'] },
+    { pattern: /FLORIDA.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['FLORIDA DIA', 'FLORIDA TARDE', 'FLORIDA MEDIODIA', 'FLORIDA'] },
     { pattern: /FLORIDA.*(8|9|NOCHE)/i, keywords: ['FLORIDA NOCHE'] },
-    { pattern: /NEW YORK.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['NEW YORK TARDE', 'NEW YORK DIA', 'NEW YORK MEDIODIA', 'YORK DIA'] },
+    { pattern: /NEW YORK.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['NEW YORK TARDE', 'NEW YORK DIA', 'NEW YORK MEDIODIA', 'YORK TARDE', 'NEW YORK'] },
     { pattern: /NEW YORK.*(7|8|9|10|NOCHE)/i, keywords: ['NEW YORK NOCHE', 'YORK NOCHE'] }
 ];
 
 function extraerPremios(html, nombreSorteo) {
     if (!html) return null;
-    // Limpiamos etiquetas HTML convirtiéndolas en espacios para evitar que los números se peguen
-    const normHtml = normalizar(html).replace(/<[^>]+>/g, ' '); 
+    const htmlUpper = normalizar(html); 
     
     let keywordsToSearch = [normalizar(nombreSorteo)]; 
     for (const regla of REGLAS_SORTEOS) {
@@ -43,24 +42,45 @@ function extraerPremios(html, nombreSorteo) {
     }
     
     for (const kw of keywordsToSearch) {
-        let pos = normHtml.indexOf(kw);
+        let pos = htmlUpper.indexOf(kw);
         while (pos !== -1) {
-            // Buscamos solo en los siguientes 300 caracteres después del título
-            let fragmento = normHtml.substring(pos + kw.length, pos + kw.length + 300);
+            // Tomamos un bloque grande del código fuente justo después del nombre del sorteo
+            let fragmento = html.substring(pos, pos + 800);
             
-            // Eliminamos horas y años para despejar la zona
-            fragmento = fragmento.replace(/\b\d{1,2}:\d{2}\b/g, ' ');
-            fragmento = fragmento.replace(/\b202\d\b/g, ' ');
+            // ESTRATEGIA 1: Buscar números atrapados exactamente entre etiquetas HTML (ej: <span class="score">45</span>)
+            const regexEtiquetas = />\s*(\d{2})\s*</g;
+            let matches = [];
+            let m;
+            while ((m = regexEtiquetas.exec(fragmento)) !== null) {
+                matches.push(m[1]);
+            }
+            let reales = matches.filter(n => n !== '90');
+            if (reales.length >= 3) {
+                return { p1: reales[0], p2: reales[1], p3: reales[2] };
+            }
 
-            // 🎯 NUEVO RADAR: Busca estrictamente un grupo de TRES números de 2 dígitos consecutivos
-            const regexCluster = /(?:^|[^\d])(\d{2})(?:[^\w\d]+)(\d{2})(?:[^\w\d]+)(\d{2})(?!\d)/;
-            const match = fragmento.match(regexCluster);
-
-            if (match) {
-                return { p1: match[1], p2: match[2], p3: match[3] };
+            // ESTRATEGIA 2: Limpiar el HTML e intentar buscar el bloque de 3 números seguidos
+            let textoLimpio = fragmento.replace(/<[^>]+>/g, ' ');
+            textoLimpio = textoLimpio.replace(/\b\d{1,2}:\d{2}\b/g, ' '); // Destruye horas
+            textoLimpio = textoLimpio.replace(/\b202\d\b/g, ' '); // Destruye el año
+            
+            let regexGrupo = /(?:^|[^\d])(\d{2})\s*[-/|*]?\s*(\d{2})\s*[-/|*]?\s*(\d{2})(?!\d)/;
+            let matchGrupo = textoLimpio.match(regexGrupo);
+            
+            if (matchGrupo) {
+                return { p1: matchGrupo[1], p2: matchGrupo[2], p3: matchGrupo[3] };
             }
             
-            pos = normHtml.indexOf(kw, pos + 10);
+            // ESTRATEGIA 3: Atrapar los 3 primeros números sueltos válidos
+            let sueltos = textoLimpio.match(/\b\d{2}\b/g);
+            if (sueltos && sueltos.length >= 3) {
+                let sueltosReales = sueltos.filter(n => n !== '90');
+                if (sueltosReales.length >= 3) {
+                    return { p1: sueltosReales[0], p2: sueltosReales[1], p3: sueltosReales[2] };
+                }
+            }
+
+            pos = htmlUpper.indexOf(kw, pos + 10);
         }
     }
     return null;

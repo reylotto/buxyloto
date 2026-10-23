@@ -68,41 +68,38 @@ export default async function handler(req, res) {
         const fecha = getFechaPanama();
         let htmlCompleto = '';
 
-        // CONEXIÓN QUE SÍ FUNCIONÓ (Bombardeo Múltiple con Texto Crudo)
-        const timestamp = Date.now();
+        // 🔥 MÉTODO JSON ESTRICTO (El único que comprobamos que evade Cloudflare en Vercel)
         const sitios = [
-            `https://loteriasdominicanas.com/?v=${timestamp}`,
-            `https://conectate.com.do/loterias/?v=${timestamp}`
-        ];
-
-        const proxies = [
-            'https://api.allorigins.win/raw?url=',
-            'https://api.codetabs.com/v1/proxy?quest='
+            'https://loteriasdominicanas.com/',
+            'https://conectate.com.do/loterias/'
         ];
 
         let exitoLectura = false;
 
         for (const sitio of sitios) {
-            for (const proxy of proxies) {
-                try {
-                    const url = proxy + encodeURIComponent(sitio);
-                    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-                    if (r.ok) {
-                        const texto = await r.text();
+            try {
+                const url = `https://api.allorigins.win/get?url=${encodeURIComponent(sitio)}`;
+                const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                
+                if (r.ok) {
+                    const data = await r.json();
+                    if (data && data.contents) {
+                        const texto = data.contents;
                         if (texto.length > 2000 && !texto.includes('Cloudflare') && !texto.includes('Just a moment')) {
                             htmlCompleto += texto + ' \n ';
                             exitoLectura = true;
-                            break;
                         }
                     }
-                } catch (e) {}
+                }
+            } catch (e) {
+                console.warn("Fallo proxy JSON para:", sitio);
             }
         }
 
         if (!exitoLectura || htmlCompleto.length < 500) {
             return res.status(200).json({ 
                 success: true, 
-                message: `🚨 ALERTA: Bloqueo extremo detectado. Vercel fue rechazado en todos los intentos.` 
+                message: `🚨 ALERTA: Bloqueo extremo detectado. Falló la lectura JSON. (Letras leídas: ${htmlCompleto.length}).` 
             });
         }
 
@@ -122,7 +119,7 @@ export default async function handler(req, res) {
         if (aInsertar.length === 0) {
             return res.status(200).json({ 
                 success: true, 
-                message: `Escaneo completado. Se leyeron ${htmlCompleto.length} letras saltando la seguridad, pero los premios de hoy aún no están publicados.` 
+                message: `Escaneo exitoso (${htmlCompleto.length} letras). No se encontraron resultados ganadores aún para hoy.` 
             });
         }
 

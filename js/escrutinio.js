@@ -205,7 +205,7 @@ window.eliminarResultadoSorteo = async function(id) {
     }
 };
 
-// 💡 SCRAPER MEJORADO: Ignora números de diseño y busca solo las "bolas" reales
+// 💡 SCRAPER BLINDADO CONTRA FALSOS POSITIVOS (ANTI-90)
 window.consultarScraperGlobal = async function(nombreSorteoBuscado) {
     if (!nombreSorteoBuscado) return null;
     try {
@@ -216,30 +216,30 @@ window.consultarScraperGlobal = async function(nombreSorteoBuscado) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(data.contents, 'text/html');
         
-        const elementosSorteo = Array.from(doc.querySelectorAll('tr, div.resultado, div.card, div.item'));
+        const elementosSorteo = Array.from(doc.querySelectorAll('tr, div.resultado, div.card, li, article'));
         
         for (const el of elementosSorteo) {
-            const textoBloque = el.textContent.toUpperCase();
+            // Se extrae el texto puro, ignorando nombres de clases HTML
+            const textoBloque = (el.innerText || el.textContent || '').toUpperCase();
             
             if (textoBloque.includes(nombreSorteoBuscado.toUpperCase())) {
-                // Filtra el interior de etiquetas específicas y exige que sean exactamente 2 dígitos numéricos
-                const posiblesBolas = Array.from(el.querySelectorAll('span, strong, b, td, .bola, .badge, .number'))
-                    .map(nodo => nodo.textContent.trim())
-                    .filter(texto => /^\d{2}$/.test(texto)); 
+                // Extraer exactamente pares de 2 dígitos numéricos
+                const coincidencias = [...textoBloque.matchAll(/(?<!\d)(\d{2})(?!\d)/g)].map(m => m[1]);
                 
-                // Limpia duplicados en caso de que haya etiquetas anidadas
-                const bolasUnicas = [...new Set(posiblesBolas)];
-
-                if (bolasUnicas.length >= 1) {
+                // 🔥 FILTRO ESTRICTO: Si encuentra un "90" solitario, lo ignora asumiendo que es código CSS/HTML. 
+                // Solo lo acepta si viene acompañado de otros premios (ej. 3 premios completos).
+                const bolasReales = coincidencias.filter(num => num !== '90' || coincidencias.length >= 3);
+                
+                if (bolasReales.length >= 1) {
                     return {
-                        p1: bolasUnicas[0] || null,
-                        p2: bolasUnicas[1] || null,
-                        p3: bolasUnicas[2] || null
+                        p1: bolasReales[0] || null,
+                        p2: bolasReales[1] || null,
+                        p3: bolasReales[2] || null
                     };
                 }
             }
         }
-        return null;
+        return null; // No inyecta errores si falla
     } catch (e) {
         console.warn("Fallo scraper:", e);
         return null;

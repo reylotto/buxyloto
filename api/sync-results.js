@@ -105,26 +105,27 @@ function buscarResultadoEnHtml(html, keywords) {
         if (pos !== -1) {
             let fragmento = htmlLimpio.substring(pos, pos + 400);
 
-            // Depurar horas (ej: 08:00 PM, 8:45, 8pm, 12:30am)
+            // Depurar horas y fechas
             fragmento = fragmento.replace(/\b\d{1,2}:\d{2}\s*(am|pm)?\b/gi, ' ');
             fragmento = fragmento.replace(/\b\d{1,2}\s*(am|pm)\b/gi, ' ');
-
-            // Depurar fechas (ej: 08/10/2026, 2026-10-08)
             fragmento = fragmento.replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/gi, ' ');
             fragmento = fragmento.replace(/\b\d{4}-\d{2}-\d{2}\b/gi, ' ');
-
-            // Depurar etiquetas HTML
             fragmento = fragmento.replace(/<[^>]+>/g, ' ');
 
-            // Extraer jugadas reales de 2 dígitos
-            const numeros = fragmento.match(/\b\d{2}\b/g);
+            // Extraer jugadas brutas
+            const numerosBrutos = fragmento.match(/\b\d{2}\b/g);
 
-            if (numeros && numeros.length >= 1) {
-                return {
-                    p1: numeros[0] || '',
-                    p2: numeros[1] || '',
-                    p3: numeros[2] || ''
-                };
+            if (numerosBrutos && numerosBrutos.length >= 1) {
+                // 🔥 FILTRO ESTRICTO ANTI-90
+                const bolasReales = numerosBrutos.filter(num => num !== '90' || numerosBrutos.length >= 3);
+                
+                if (bolasReales.length >= 1) {
+                    return {
+                        p1: bolasReales[0] || '',
+                        p2: bolasReales[1] || '',
+                        p3: bolasReales[2] || ''
+                    };
+                }
             }
         }
     }
@@ -208,7 +209,7 @@ export default async function handler(req, res) {
 
         if (upsertError) throw upsertError;
 
-        // 2. Cerrar sorteo y ejecutar escrutinio
+        // 2. Ejecutar escrutinio (Sin forzar cierre permanente)
         for (const item of sorteosAActualizar) {
             await supabase
                 .from('sorteos')
@@ -218,9 +219,8 @@ export default async function handler(req, res) {
                     p3: item.p3,
                     primer_premio: item.p1,
                     segundo_premio: item.p2,
-                    tercer_premio: item.p3,
-                    estatus: 'cerrado',
-                    estado: 'cerrado'
+                    tercer_premio: item.p3
+                    // SE ELIMINÓ estatus: 'cerrado' PARA QUE EL HORARIO DINÁMICO LO CONTROLE
                 })
                 .eq('id', item.id);
 

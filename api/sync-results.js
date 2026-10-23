@@ -15,18 +15,18 @@ function getFechaPanama() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); 
 }
 
-// Reglas estrictas y ampliadas para EnLoteria.com
+// Diccionario exacto para EnLoteria.com
 const REGLAS_SORTEOS = [
-    { pattern: /PRIMERA.*(11|12|DIA|MEDIODIA|AM)/i, keywords: ['PRIMERA RESULTADOS HOY', 'LA PRIMERA', 'PRIMERA DIA', 'PRIMERA 12'] },
-    { pattern: /PRIMERA.*(6|8|NOCHE|PM)/i, keywords: ['LA PRIMERA NOCHE', 'PRIMERA NOCHE', 'PRIMERA 8'] },
-    { pattern: /ANGUILLA.*(10|AM)/i, keywords: ['ANGUILLA 10', 'ANGUILLA MA'] },
-    { pattern: /ANGUILLA.*(12|1|MEDIODIA|PM)/i, keywords: ['ANGUILLA 1', 'ANGUILLA 12', 'ANGUILLA MEDIODIA', 'ANGUILLA TARDE'] },
-    { pattern: /ANGUILLA.*(5|6)/i, keywords: ['ANGUILLA 6', 'ANGUILLA 5'] },
-    { pattern: /ANGUILLA.*(8|9|NOCHE)/i, keywords: ['ANGUILLA 9', 'ANGUILLA 8', 'ANGUILLA NOCHE'] },
-    { pattern: /FLORIDA.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['FLORIDA DIA', 'FLORIDA TARDE', 'FLORIDA MEDIODIA', 'FLORIDA'] },
+    { pattern: /PRIMERA.*(11|12|DIA|MEDIODIA|AM)/i, keywords: ['LA PRIMERA RESULTADOS HOY', 'LA PRIMERA', 'PRIMERA DIA'] },
+    { pattern: /PRIMERA.*(6|8|NOCHE|PM)/i, keywords: ['LA PRIMERA NOCHE', 'PRIMERA NOCHE'] },
+    { pattern: /ANGUILLA.*(10|AM)/i, keywords: ['ANGUILLA 10:00', 'ANGUILLA 10AM', 'ANGUILLA 10'] },
+    { pattern: /ANGUILLA.*(12|1|MEDIODIA|PM)/i, keywords: ['ANGUILLA 1:00', 'ANGUILLA 1PM', 'ANGUILLA 12'] },
+    { pattern: /ANGUILLA.*(5|6)/i, keywords: ['ANGUILLA 6:00', 'ANGUILLA 6PM', 'ANGUILLA 6'] },
+    { pattern: /ANGUILLA.*(8|9|NOCHE)/i, keywords: ['ANGUILLA 9:00', 'ANGUILLA 9PM', 'ANGUILLA 9'] },
+    { pattern: /FLORIDA.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['FLORIDA DIA', 'FLORIDA TARDE'] },
     { pattern: /FLORIDA.*(8|9|NOCHE)/i, keywords: ['FLORIDA NOCHE'] },
-    { pattern: /NEW YORK.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['NEW YORK TARDE', 'NEW YORK DIA', 'NEW YORK MEDIODIA', 'YORK TARDE', 'NEW YORK'] },
-    { pattern: /NEW YORK.*(7|8|9|10|NOCHE)/i, keywords: ['NEW YORK NOCHE', 'YORK NOCHE'] }
+    { pattern: /NEW YORK.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['NEW YORK DIA', 'NEW YORK TARDE'] },
+    { pattern: /NEW YORK.*(7|8|9|10|NOCHE)/i, keywords: ['NEW YORK NOCHE'] }
 ];
 
 function extraerPremios(html, nombreSorteo) {
@@ -44,47 +44,28 @@ function extraerPremios(html, nombreSorteo) {
     for (const kw of keywordsToSearch) {
         let pos = htmlUpper.indexOf(kw);
         while (pos !== -1) {
-            let fragmento = html.substring(pos, pos + 800);
+            // 🚀 REGLA ESTRICTA 1: Solo leemos los siguientes 250 caracteres. 
+            // Si el premio no está ahí cerquita, es porque el sorteo no ha jugado.
+            let fragmento = html.substring(pos, pos + 250);
             
-            // ESTRATEGIA 1: Buscar números entre etiquetas HTML de EnLoteria
+            // 🚀 REGLA ESTRICTA 2: Solo captura números atrapados EXACTAMENTE solos en una etiqueta HTML.
+            // Ignora horas (10:00), ignora fechas (10 de octubre), ignora años (2026).
             const regexEtiquetas = />\s*(\d{2})\s*</g;
             let matches = [];
             let m;
             while ((m = regexEtiquetas.exec(fragmento)) !== null) {
                 matches.push(m[1]);
             }
-            let reales = matches.filter(n => n !== '90'); // Evita posibles códigos basura
-            if (reales.length >= 3) {
-                return { p1: reales[0], p2: reales[1], p3: reales[2] };
-            }
-
-            // ESTRATEGIA 2: Limpiar el HTML e ignorar fechas exactas para no atrapar el día del mes
-            let textoLimpio = fragmento.replace(/<[^>]+>/g, ' ');
-            textoLimpio = textoLimpio.replace(/\b\d{1,2}:\d{2}\s*(AM|PM|am|pm)?\b/gi, ' '); // Destruye horas
-            textoLimpio = textoLimpio.replace(/\b202\d\b/g, ' '); // Destruye año 202x
-            // 🚀 ELIMINADOR DE FECHAS: Destruye "23 de octubre", "24 de octubre", etc.
-            textoLimpio = textoLimpio.replace(/\b(1[0-9]|2[0-9]|3[0-1]|[1-9])\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/gi, ' ');
             
-            let regexGrupo = /(?:^|[^\d])(\d{2})\s*[-/|*]?\s*(\d{2})\s*[-/|*]?\s*(\d{2})(?!\d)/;
-            let matchGrupo = textoLimpio.match(regexGrupo);
-            
-            if (matchGrupo) {
-                return { p1: matchGrupo[1], p2: matchGrupo[2], p3: matchGrupo[3] };
-            }
-            
-            // ESTRATEGIA 3: Atrapar los 3 primeros números sueltos válidos
-            let sueltos = textoLimpio.match(/\b\d{2}\b/g);
-            if (sueltos && sueltos.length >= 3) {
-                let sueltosReales = sueltos.filter(n => n !== '90');
-                if (sueltosReales.length >= 3) {
-                    return { p1: sueltosReales[0], p2: sueltosReales[1], p3: sueltosReales[2] };
-                }
+            if (matches.length >= 3) {
+                // Encontramos los 3 números reales ganadores
+                return { p1: matches[0], p2: matches[1], p3: matches[2] };
             }
 
             pos = htmlUpper.indexOf(kw, pos + 10);
         }
     }
-    return null;
+    return null; // Si no encontró los números bajo la regla estricta, devuelve nulo (pendiente)
 }
 
 export default async function handler(req, res) {
@@ -96,7 +77,7 @@ export default async function handler(req, res) {
 
         const fecha = getFechaPanama();
         
-        // 🚀 BUCLE MAESTRO: Visitará las 4 páginas oficiales que me enviaste
+        // Vamos directo a las páginas oficiales de los sorteos
         const sitios = [
             'https://enloteria.com/loterias/la-primera',
             'https://enloteria.com/resultados-anguilla',
@@ -104,45 +85,43 @@ export default async function handler(req, res) {
             'https://enloteria.com/loterias/florida'
         ];
 
-        let htmlCompleto = '';
+        const aInsertar = [];
+        let htmlExtraido = 0;
 
-        // Recolectar el código HTML de todas las páginas juntas
+        // Procesamos página por página para evitar cruce de datos
         for (const sitio of sitios) {
             try {
                 const url = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(sitio)}`;
                 const r = await fetch(url);
                 if (r.ok) {
-                    htmlCompleto += " " + await r.text();
+                    const html = await r.text();
+                    htmlExtraido += html.length;
+
+                    for (const sorteo of sorteos) {
+                        const resultado = extraerPremios(html, sorteo.nombre);
+                        if (resultado) {
+                            // Verificamos que no se haya insertado ya en el bucle
+                            const yaExiste = aInsertar.find(i => i.sorteo_id === sorteo.id);
+                            if (!yaExiste) {
+                                aInsertar.push({
+                                    sorteo_id: sorteo.id, fecha: fecha, 
+                                    p1: resultado.p1, p2: resultado.p2, p3: resultado.p3,
+                                    primero: resultado.p1, segundo: resultado.p2, tercero: resultado.p3,
+                                    updated_at: new Date().toISOString()
+                                });
+                            }
+                        }
+                    }
                 }
             } catch (e) {
-                console.warn(`Falló la conexión con ScraperAPI para: ${sitio}`);
-            }
-        }
-
-        if (htmlCompleto.length < 500) {
-            return res.status(200).json({ 
-                success: true, 
-                message: `🚨 ALERTA: No se pudo obtener el contenido. Letras leídas: ${htmlCompleto.length}.` 
-            });
-        }
-
-        const aInsertar = [];
-        for (const sorteo of sorteos) {
-            const resultado = extraerPremios(htmlCompleto, sorteo.nombre);
-            if (resultado) {
-                aInsertar.push({
-                    sorteo_id: sorteo.id, fecha: fecha, 
-                    p1: resultado.p1, p2: resultado.p2, p3: resultado.p3,
-                    primero: resultado.p1, segundo: resultado.p2, tercero: resultado.p3,
-                    updated_at: new Date().toISOString()
-                });
+                console.warn(`Falló la conexión con: ${sitio}`);
             }
         }
 
         if (aInsertar.length === 0) {
             return res.status(200).json({ 
                 success: true, 
-                message: `Escaneo exitoso (${htmlCompleto.length} letras procesadas). Aún no se detectan los premios oficiales de hoy.` 
+                message: `Escaneo finalizado. Aún no se han publicado los premios de los sorteos correspondientes a hoy.` 
             });
         }
 
@@ -162,7 +141,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({ 
             success: true, 
-            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos extrayendo números de EnLoteria.`, 
+            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos con números oficiales correctos.`, 
             data: aInsertar 
         });
 

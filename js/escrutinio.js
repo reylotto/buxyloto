@@ -205,12 +205,10 @@ window.eliminarResultadoSorteo = async function(id) {
     }
 };
 
-// 💡 CORRECCIÓN 3: Scraper dinámico que evita el error "90"
+// 💡 SCRAPER MEJORADO: Ignora números de diseño y busca solo las "bolas" reales
 window.consultarScraperGlobal = async function(nombreSorteoBuscado) {
     if (!nombreSorteoBuscado) return null;
     try {
-        // Enlazar al scraper que usábamos en tu código de cronjob o al API
-        // Si no lo encuentra, ya no devuelve "90", devuelve null para que no registre errores.
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent('https://agencia-reylotto.com/resultados.php')}`;
         const response = await fetch(proxyUrl);
         const data = await response.json();
@@ -218,23 +216,30 @@ window.consultarScraperGlobal = async function(nombreSorteoBuscado) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(data.contents, 'text/html');
         
-        // Lógica de búsqueda por nombre de sorteo en el HTML extraído
-        const elementosSorteo = Array.from(doc.querySelectorAll('tr, div.resultado-item'));
+        const elementosSorteo = Array.from(doc.querySelectorAll('tr, div.resultado, div.card, div.item'));
         
         for (const el of elementosSorteo) {
-            const textoLimpio = el.textContent.toUpperCase();
-            if (textoLimpio.includes(nombreSorteoBuscado.toUpperCase())) {
-                const numerosMatches = el.textContent.match(/\b\d{2}\b/g);
-                if (numerosMatches && numerosMatches.length >= 1) {
+            const textoBloque = el.textContent.toUpperCase();
+            
+            if (textoBloque.includes(nombreSorteoBuscado.toUpperCase())) {
+                // Filtra el interior de etiquetas específicas y exige que sean exactamente 2 dígitos numéricos
+                const posiblesBolas = Array.from(el.querySelectorAll('span, strong, b, td, .bola, .badge, .number'))
+                    .map(nodo => nodo.textContent.trim())
+                    .filter(texto => /^\d{2}$/.test(texto)); 
+                
+                // Limpia duplicados en caso de que haya etiquetas anidadas
+                const bolasUnicas = [...new Set(posiblesBolas)];
+
+                if (bolasUnicas.length >= 1) {
                     return {
-                        p1: numerosMatches[0] || null,
-                        p2: numerosMatches[1] || null,
-                        p3: numerosMatches[2] || null
+                        p1: bolasUnicas[0] || null,
+                        p2: bolasUnicas[1] || null,
+                        p3: bolasUnicas[2] || null
                     };
                 }
             }
         }
-        return null; // Si no lo encuentra, no guarda 90.
+        return null;
     } catch (e) {
         console.warn("Fallo scraper:", e);
         return null;

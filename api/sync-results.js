@@ -15,40 +15,39 @@ function getFechaPanama() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); 
 }
 
-// 🎯 Diccionario de títulos exactos tal como aparecen en Conectate.com.do
+// 🎯 Diccionario amplio de palabras clave para Conectate.com.do
 const REGLAS_SORTEOS = [
-    { pattern: /PRIMERA.*(11|12|DIA|MEDIODIA|AM)/i, keywords: ['La Primera Día', 'Primera Día', 'La Primera'] },
-    { pattern: /PRIMERA.*(6|8|NOCHE|PM)/i, keywords: ['Primera Noche', 'La Primera Noche'] },
-    { pattern: /ANGUILLA.*(10|AM)/i, keywords: ['Anguilla 10 AM', 'Anguilla 10'] },
-    { pattern: /ANGUILLA.*(12|1|MEDIODIA|PM)/i, keywords: ['Anguilla 1 PM', 'Anguilla 1'] },
-    { pattern: /ANGUILLA.*(5|6)/i, keywords: ['Anguilla 6 PM', 'Anguilla 6'] },
-    { pattern: /ANGUILLA.*(8|9|NOCHE)/i, keywords: ['Anguilla 9 PM', 'Anguilla 9'] },
-    { pattern: /FLORIDA.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['Florida Día', 'Florida Tarde', 'Florida'] },
-    { pattern: /FLORIDA.*(8|9|NOCHE)/i, keywords: ['Florida Noche'] },
-    { pattern: /NEW YORK.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['New York Día', 'New York Tarde', 'New York'] },
-    { pattern: /NEW YORK.*(7|8|9|10|NOCHE)/i, keywords: ['New York Noche'] }
+    { pattern: /PRIMERA.*(11|12|DIA|MEDIODIA|AM)/i, keywords: ['PRIMERA', 'LA PRIMERA', 'PRIMERA DIA'] },
+    { pattern: /PRIMERA.*(6|8|NOCHE|PM)/i, keywords: ['PRIMERA NOCHE', 'LA PRIMERA NOCHE'] },
+    { pattern: /ANGUILLA.*(10|AM)/i, keywords: ['ANGUILLA 10', 'ANGUILA 10'] },
+    { pattern: /ANGUILLA.*(12|1|MEDIODIA|PM)/i, keywords: ['ANGUILLA 1', 'ANGUILA 1', 'ANGUILLA 12'] },
+    { pattern: /ANGUILLA.*(5|6)/i, keywords: ['ANGUILLA 6', 'ANGUILA 6', 'ANGUILLA 5'] },
+    { pattern: /ANGUILLA.*(8|9|NOCHE)/i, keywords: ['ANGUILLA 9', 'ANGUILA 9', 'ANGUILLA 8'] },
+    { pattern: /FLORIDA.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['FLORIDA DIA', 'FLORIDA TARDE', 'FLORIDA'] },
+    { pattern: /FLORIDA.*(8|9|NOCHE)/i, keywords: ['FLORIDA NOCHE'] },
+    { pattern: /NEW YORK.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['NEW YORK', 'YORK DIA', 'NEW YORK TARDE'] },
+    { pattern: /NEW YORK.*(7|8|9|10|NOCHE)/i, keywords: ['NEW YORK NOCHE', 'YORK NOCHE'] }
 ];
 
 function extraerPremios(html, nombreSorteo) {
     if (!html) return null;
+    const normHtml = normalizar(html);
     
-    let keywordsToSearch = [nombreSorteo]; 
+    let keywordsToSearch = [normalizar(nombreSorteo)]; 
     for (const regla of REGLAS_SORTEOS) {
         if (regla.pattern.test(nombreSorteo)) {
-            keywordsToSearch = regla.keywords;
+            keywordsToSearch = regla.keywords.map(k => normalizar(k));
             break;
         }
     }
     
     for (const kw of keywordsToSearch) {
-        // Buscamos la sección exacta del sorteo usando el título visual en la página
-        let pos = html.indexOf(kw);
+        let pos = normHtml.indexOf(kw);
         while (pos !== -1) {
-            // Extraemos un bloque de 500 caracteres justo después del título del sorteo
-            let fragmento = html.substring(pos, pos + 500);
+            // Extraemos un bloque de 600 caracteres alrededor de la coincidencia
+            let fragmento = html.substring(pos, pos + 600);
             
-            // 🎯 EXTRACCIÓN QUIRÚRGICA BASADA EN TU INSPECTOR:
-            // Busca exactamente etiquetas <span class="text-gray-800">XX</span>
+            // 🎯 EXTRACCIÓN QUIRÚRGICA: Busca los span con la clase de los números ganadores
             const regexSpanExacto = /<span\s+class="[^"]*text-gray-800[^"]*">\s*(\d{2})\s*<\/span>/gi;
             
             let numeros = [];
@@ -61,7 +60,7 @@ function extraerPremios(html, nombreSorteo) {
                 return { p1: numeros[0], p2: numeros[1], p3: numeros[2] };
             }
             
-            pos = html.indexOf(kw, pos + 10);
+            pos = normHtml.indexOf(kw, pos + 10);
         }
     }
     return null;

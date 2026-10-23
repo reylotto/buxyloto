@@ -14,25 +14,20 @@ function getFechaPanama() {
 
 function extraerPremios(html, nombreSorteo) {
     if (!html) return null;
-    
     const normHtml = normalizar(html).replace(/<[^>]+>/g, ' '); 
-    
     let palabras = nombreSorteo.split(' ').filter(p => p.length > 3);
     if (palabras.length === 0) palabras = [nombreSorteo];
     const palabraClave = normalizar(palabras[0]);
     
     let pos = normHtml.indexOf(palabraClave);
-    
     while (pos !== -1) {
         let fragmento = normHtml.substring(pos, pos + 400);
-        
-        // Limpiamos fechas y horas
         fragmento = fragmento.replace(/\b\d{1,2}:\d{2}\b/g, ' ');
         fragmento = fragmento.replace(/\b202\d\b/g, ' ');
 
         const numeros = fragmento.match(/\b\d{2}\b/g);
         if (numeros && numeros.length >= 3) {
-            const reales = numeros.filter(n => n !== '90'); // Filtro Anti-90
+            const reales = numeros.filter(n => n !== '90');
             if (reales.length >= 3) {
                 return { p1: reales[0], p2: reales[1], p3: reales[2] };
             }
@@ -44,42 +39,57 @@ function extraerPremios(html, nombreSorteo) {
 
 export default async function handler(req, res) {
     try {
-        const { data: sorteos, error: errSorteos } = await supabase.from('sorteos').select('id, nombre, estatus');
-        if (errSorteos || !sorteos || sorteos.length === 0) {
+        const { data: sorteos } = await supabase.from('sorteos').select('id, nombre, estatus');
+        if (!sorteos || sorteos.length === 0) {
             return res.status(400).json({ success: false, message: 'No hay sorteos configurados.' });
         }
 
         const fecha = getFechaPanama();
         let htmlCompleto = '';
-
-        // 🔥 CONEXIÓN DIRECTA (SIN PROXIES) HACIÉNDONOS PASAR POR UN NAVEGADOR
+        
+        // 1. Matriz de Fuentes con Cache-Busting (Evita bloqueos cacheados)
+        const timestamp = Date.now();
         const sitios = [
-            'https://conectate.com.do/loterias/',
-            'https://loteriasdominicanas.com/'
+            `https://loterias.do/?v=${timestamp}`,
+            `https://www.sorteosrd.com/?v=${timestamp}`,
+            `https://conectate.com.do/loterias/?v=${timestamp}`,
+            `https://loteriadominicana.com.do/?v=${timestamp}`
         ];
 
+        // 2. Matriz de Proxies Públicos
+        const proxies = [
+            'https://api.allorigins.win/raw?url=',
+            'https://api.codetabs.com/v1/proxy?quest='
+        ];
+
+        let exitoLectura = false;
+
+        // 3. Bombardeo: Probar cada sitio con cada proxy hasta atravesar el cortafuegos
         for (const sitio of sitios) {
-            try {
-                const r = await fetch(sitio, { 
-                    headers: { 
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml',
-                        'Accept-Language': 'es-DO,es;q=0.9,en-US;q=0.8,en;q=0.7'
+            for (const proxy of proxies) {
+                try {
+                    const url = proxy + encodeURIComponent(sitio);
+                    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                    if (r.ok) {
+                        const texto = await r.text();
+                        // Verificamos que no sea la página de bloqueo de Cloudflare
+                        if (texto.length > 2000 && !texto.includes('Cloudflare') && !texto.includes('Just a moment')) {
+                            htmlCompleto += texto + ' \n ';
+                            exitoLectura = true;
+                            break; // Rompe el ciclo de proxies para este sitio si ya funcionó
+                        }
                     }
-                });
-                
-                if (r.ok) {
-                    htmlCompleto += await r.text() + ' \n ';
+                } catch (e) {
+                    // Ignora fallos silenciosos y sigue intentando
                 }
-            } catch (e) {
-                console.warn("Fallo conexión directa a:", sitio);
             }
         }
 
-        if (htmlCompleto.length < 500) {
+        // Diagnóstico Final
+        if (!exitoLectura || htmlCompleto.length < 500) {
             return res.status(200).json({ 
                 success: true, 
-                message: `🚨 ALERTA: La lectura directa falló. (Letras leídas: ${htmlCompleto.length}).` 
+                message: `🚨 ALERTA: Bloqueo extremo detectado. Vercel fue rechazado en los 8 intentos de conexión.` 
             });
         }
 
@@ -88,8 +98,7 @@ export default async function handler(req, res) {
             const resultado = extraerPremios(htmlCompleto, sorteo.nombre);
             if (resultado) {
                 aInsertar.push({
-                    sorteo_id: sorteo.id, 
-                    fecha: fecha, 
+                    sorteo_id: sorteo.id, fecha: fecha, 
                     p1: resultado.p1, p2: resultado.p2, p3: resultado.p3,
                     primero: resultado.p1, segundo: resultado.p2, tercero: resultado.p3,
                     updated_at: new Date().toISOString()
@@ -100,10 +109,11 @@ export default async function handler(req, res) {
         if (aInsertar.length === 0) {
             return res.status(200).json({ 
                 success: true, 
-                message: `Escaneo directo completado con éxito. Leímos ${htmlCompleto.length} letras de las páginas, pero aún no publican los resultados ganadores de hoy.` 
+                message: `Escaneo completado. Se leyeron ${htmlCompleto.length} letras saltando la seguridad, pero los premios de hoy aún no están publicados.` 
             });
         }
 
+        // Guardado y Escrutinio
         const { error: errUpsert } = await supabase.from('resultados').upsert(aInsertar, { onConflict: 'sorteo_id,fecha' });
         if (errUpsert) throw errUpsert;
         
@@ -120,7 +130,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({ 
             success: true, 
-            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos automáticamente de las fuentes directas.`, 
+            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos automáticamente penetrando los bloqueos.`, 
             data: aInsertar 
         });
 

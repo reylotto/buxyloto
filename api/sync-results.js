@@ -4,7 +4,6 @@ const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Normaliza el texto quitando acentos y caracteres raros
 function normalizar(texto) { 
     return texto ? texto.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : ''; 
 }
@@ -13,24 +12,20 @@ function getFechaPanama() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); 
 }
 
-// Escáner profundo que busca el nombre del sorteo en toda la página
 function extraerPremios(html, nombreSorteo) {
     if (!html) return null;
     
     const normHtml = normalizar(html).replace(/<[^>]+>/g, ' '); 
     
-    // Busca la palabra principal (ej: FLORIDA, ANGUILLA, PRIMERA)
     let palabras = nombreSorteo.split(' ').filter(p => p.length > 3);
     if (palabras.length === 0) palabras = [nombreSorteo];
     const palabraClave = normalizar(palabras[0]);
     
     let pos = normHtml.indexOf(palabraClave);
     
-    // Bucle para buscar en todas las apariciones de la palabra (evita quedarse leyendo el menú)
     while (pos !== -1) {
         let fragmento = normHtml.substring(pos, pos + 400);
         
-        // Limpiar horas y años para no confundirlos con premios
         fragmento = fragmento.replace(/\b\d{1,2}:\d{2}\b/g, ' ');
         fragmento = fragmento.replace(/\b202\d\b/g, ' ');
 
@@ -41,7 +36,6 @@ function extraerPremios(html, nombreSorteo) {
                 return { p1: reales[0], p2: reales[1], p3: reales[2] };
             }
         }
-        // Buscar la siguiente coincidencia
         pos = normHtml.indexOf(palabraClave, pos + 10);
     }
     return null;
@@ -57,26 +51,31 @@ export default async function handler(req, res) {
         const fecha = getFechaPanama();
         let htmlCompleto = '';
 
-        // TÚNELES ANTIBLOQUEO: conectate.com.do como principal y enloteria.com de respaldo
-        const urlsObjetivo = [
-            'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://conectate.com.do/loterias/'),
-            'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent('https://enloteria.com/')
+        // 🔥 NUEVAS FUENTES: LoteriasDominicanas y Conectate (Empaquetadas en JSON para evitar bloqueos)
+        const sitios = [
+            'https://loteriasdominicanas.com/',
+            'https://conectate.com.do/loterias/'
         ];
 
-        for (const url of urlsObjetivo) {
+        for (const sitio of sitios) {
             try {
-                const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }});
-                if (r.ok) htmlCompleto += await r.text() + ' \n ';
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(sitio)}`;
+                const r = await fetch(proxyUrl);
+                if (r.ok) {
+                    const data = await r.json();
+                    if (data && data.contents) {
+                        htmlCompleto += data.contents + ' \n ';
+                    }
+                }
             } catch (e) {
-                console.warn("Fallo proxy:", url);
+                console.warn("Fallo proxy para:", sitio);
             }
         }
 
-        // MODO DIAGNÓSTICO: Nos avisará si nos están bloqueando midiendo el tamaño de la página
         if (htmlCompleto.length < 500) {
             return res.status(200).json({ 
                 success: true, 
-                message: `🚨 ALERTA: Seguridad web activada. Nos bloquearon el escáner. (Letras leídas: ${htmlCompleto.length}).` 
+                message: `🚨 ALERTA: Seguimos sin poder leer las páginas. (Letras leídas: ${htmlCompleto.length}). Cloudflare está bloqueando la IP del servidor.` 
             });
         }
 
@@ -97,15 +96,13 @@ export default async function handler(req, res) {
         if (aInsertar.length === 0) {
             return res.status(200).json({ 
                 success: true, 
-                message: `Escaneo completado. Se leyeron ${htmlCompleto.length} letras de conectate.com.do, pero aún no publican los resultados ganadores de hoy.` 
+                message: `Escaneo completado. Leímos ${htmlCompleto.length} letras de las páginas, pero no hallamos números para los sorteos configurados hoy.` 
             });
         }
 
-        // 1. Guardar resultados
         const { error: errUpsert } = await supabase.from('resultados').upsert(aInsertar, { onConflict: 'sorteo_id,fecha' });
         if (errUpsert) throw errUpsert;
         
-        // 2. Escrutar automáticamente
         for (const item of aInsertar) {
             await supabase.from('sorteos').update({ 
                 p1: item.p1, p2: item.p2, p3: item.p3, 
@@ -119,7 +116,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({ 
             success: true, 
-            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos automáticamente.`, 
+            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos utilizando loteriasdominicanas.com.`, 
             data: aInsertar 
         });
 

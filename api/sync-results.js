@@ -31,7 +31,7 @@ function extraerPremios(html, nombreSorteo) {
 
         const numeros = fragmento.match(/\b\d{2}\b/g);
         if (numeros && numeros.length >= 3) {
-            const reales = numeros.filter(n => n !== '90'); // Filtro Anti-90
+            const reales = numeros.filter(n => n !== '90');
             if (reales.length >= 3) {
                 return { p1: reales[0], p2: reales[1], p3: reales[2] };
             }
@@ -51,16 +51,23 @@ export default async function handler(req, res) {
         const fecha = getFechaPanama();
         let htmlCompleto = '';
 
-        // 🔥 NUEVAS FUENTES: LoteriasDominicanas y Conectate (Empaquetadas en JSON para evitar bloqueos)
+        // NUEVAS FUENTES Y PROXIES (corsproxy.io y allorigins)
         const sitios = [
-            'https://loteriasdominicanas.com/',
+            'https://loteriadominicana.com.do/',
             'https://conectate.com.do/loterias/'
         ];
 
         for (const sitio of sitios) {
             try {
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(sitio)}`;
-                const r = await fetch(proxyUrl);
+                // Intento 1: corsproxy.io
+                let r = await fetch(`https://corsproxy.io/?${encodeURIComponent(sitio)}`);
+                if (r.ok) {
+                    htmlCompleto += await r.text() + ' \n ';
+                    continue;
+                }
+                
+                // Intento 2: api.allorigins.win
+                r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(sitio)}`);
                 if (r.ok) {
                     const data = await r.json();
                     if (data && data.contents) {
@@ -75,7 +82,7 @@ export default async function handler(req, res) {
         if (htmlCompleto.length < 500) {
             return res.status(200).json({ 
                 success: true, 
-                message: `🚨 ALERTA: Seguimos sin poder leer las páginas. (Letras leídas: ${htmlCompleto.length}). Cloudflare está bloqueando la IP del servidor.` 
+                message: `🚨 ALERTA: Seguimos sin poder leer las páginas. (Letras leídas: ${htmlCompleto.length}). El bloqueo persiste.` 
             });
         }
 
@@ -116,7 +123,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({ 
             success: true, 
-            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos utilizando loteriasdominicanas.com.`, 
+            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos automáticamente.`, 
             data: aInsertar 
         });
 

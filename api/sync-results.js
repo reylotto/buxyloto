@@ -78,6 +78,20 @@ function yaJugoEnPanama(horaSorteoStr) {
     return minutosActuales >= minutosSorteo;
 }
 
+// 🔥 AQUÍ ESTÁ LA FUNCIÓN QUE FALTABA 🔥
+function obtenerConfigSorteo(nombreSorteo) {
+    const norm = normalizarNombre(nombreSorteo);
+    for (const regla of REGLAS_SORTEOS) {
+        if (regla.pattern.test(norm)) {
+            return regla;
+        }
+    }
+    return {
+        horaPanama: '00:00',
+        keywords: [norm.toLowerCase(), nombreSorteo.toLowerCase()]
+    };
+}
+
 function buscarResultadoEnHtml(html, keywords) {
     if (!html) return null;
 
@@ -160,7 +174,7 @@ export default async function handler(req, res) {
                     fecha: fechaProcesar,
                     primero: resultadoEncontrado.p1,
                     segundo: resultadoEncontrado.p2,
-                    tercero: resultadoEncontrado.p3,
+                    tercer: resultadoEncontrado.p3,
                     p1: resultadoEncontrado.p1,
                     p2: resultadoEncontrado.p2,
                     p3: resultadoEncontrado.p3,

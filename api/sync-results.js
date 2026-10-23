@@ -31,6 +31,7 @@ const REGLAS_SORTEOS = [
 
 function extraerPremios(html, nombreSorteo) {
     if (!html) return null;
+    // Limpiamos etiquetas HTML convirtiéndolas en espacios para evitar que los números se peguen
     const normHtml = normalizar(html).replace(/<[^>]+>/g, ' '); 
     
     let keywordsToSearch = [normalizar(nombreSorteo)]; 
@@ -44,17 +45,21 @@ function extraerPremios(html, nombreSorteo) {
     for (const kw of keywordsToSearch) {
         let pos = normHtml.indexOf(kw);
         while (pos !== -1) {
-            let fragmento = normHtml.substring(pos, pos + 250);
+            // Buscamos solo en los siguientes 300 caracteres después del título
+            let fragmento = normHtml.substring(pos + kw.length, pos + kw.length + 300);
+            
+            // Eliminamos horas y años para despejar la zona
             fragmento = fragmento.replace(/\b\d{1,2}:\d{2}\b/g, ' ');
             fragmento = fragmento.replace(/\b202\d\b/g, ' ');
 
-            const numeros = fragmento.match(/\b\d{2}\b/g);
-            if (numeros && numeros.length >= 3) {
-                const reales = numeros.filter(n => n !== '90');
-                if (reales.length >= 3) {
-                    return { p1: reales[0], p2: reales[1], p3: reales[2] };
-                }
+            // 🎯 NUEVO RADAR: Busca estrictamente un grupo de TRES números de 2 dígitos consecutivos
+            const regexCluster = /(?:^|[^\d])(\d{2})(?:[^\w\d]+)(\d{2})(?:[^\w\d]+)(\d{2})(?!\d)/;
+            const match = fragmento.match(regexCluster);
+
+            if (match) {
+                return { p1: match[1], p2: match[2], p3: match[3] };
             }
+            
             pos = normHtml.indexOf(kw, pos + 10);
         }
     }

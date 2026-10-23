@@ -12,7 +12,7 @@ function getFechaPanama() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); 
 }
 
-// 🔥 REGLAS ESTRICTAS para separar Día y Noche
+// 🔥 REGLAS ESTRICTAS (Las que separan correctamente Día y Noche)
 const REGLAS_SORTEOS = [
     { pattern: /PRIMERA.*(11|12|DIA|MEDIODIA|AM)/i, keywords: ['PRIMERA DIA', 'PRIMERA TARDE', 'PRIMERA 12', 'LA PRIMERA'] },
     { pattern: /PRIMERA.*(6|8|NOCHE|PM)/i, keywords: ['PRIMERA NOCHE', 'PRIMERA 8', 'PRIMERA 6'] },
@@ -30,8 +30,7 @@ function extraerPremios(html, nombreSorteo) {
     if (!html) return null;
     const normHtml = normalizar(html).replace(/<[^>]+>/g, ' '); 
     
-    // Identificar qué palabras clave buscar basado en el nombre del sorteo
-    let keywordsToSearch = [normalizar(nombreSorteo)]; // Fallback
+    let keywordsToSearch = [normalizar(nombreSorteo)]; 
     for (const regla of REGLAS_SORTEOS) {
         if (regla.pattern.test(nombreSorteo)) {
             keywordsToSearch = regla.keywords;
@@ -44,18 +43,17 @@ function extraerPremios(html, nombreSorteo) {
         while (pos !== -1) {
             let fragmento = normHtml.substring(pos, pos + 250);
             
-            // Evitar que lea horas y años como premios
+            // Limpieza de fechas y horas
             fragmento = fragmento.replace(/\b\d{1,2}:\d{2}\b/g, ' ');
             fragmento = fragmento.replace(/\b202\d\b/g, ' ');
 
             const numeros = fragmento.match(/\b\d{2}\b/g);
             if (numeros && numeros.length >= 3) {
-                const reales = numeros.filter(n => n !== '90'); // Evita tamaño CSS
+                const reales = numeros.filter(n => n !== '90'); // Anti-90
                 if (reales.length >= 3) {
                     return { p1: reales[0], p2: reales[1], p3: reales[2] };
                 }
             }
-            // Sigue buscando por si la primera coincidencia no tenía números
             pos = normHtml.indexOf(kw, pos + 10);
         }
     }
@@ -71,44 +69,32 @@ export default async function handler(req, res) {
 
         const fecha = getFechaPanama();
         let htmlCompleto = '';
-        
-        // 🚀 EL BOMBARDEO ANTIBLOQUEO (Que funcionó en el paso anterior)
-        const timestamp = Date.now();
+
+        // 🚀 EL MÉTODO DE CONEXIÓN QUE SÍ VENCIÓ A CLOUDFLARE (Vía JSON)
         const sitios = [
-            `https://loterias.do/?v=${timestamp}`,
-            `https://www.sorteosrd.com/?v=${timestamp}`,
-            `https://conectate.com.do/loterias/?v=${timestamp}`,
-            `https://loteriadominicana.com.do/?v=${timestamp}`
+            'https://loteriasdominicanas.com/',
+            'https://conectate.com.do/loterias/'
         ];
-
-        const proxies = [
-            'https://api.allorigins.win/raw?url=',
-            'https://api.codetabs.com/v1/proxy?quest='
-        ];
-
-        let exitoLectura = false;
 
         for (const sitio of sitios) {
-            for (const proxy of proxies) {
-                try {
-                    const url = proxy + encodeURIComponent(sitio);
-                    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-                    if (r.ok) {
-                        const texto = await r.text();
-                        if (texto.length > 2000 && !texto.includes('Cloudflare') && !texto.includes('Just a moment')) {
-                            htmlCompleto += texto + ' \n ';
-                            exitoLectura = true;
-                            break;
-                        }
+            try {
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(sitio)}`;
+                const r = await fetch(proxyUrl);
+                if (r.ok) {
+                    const data = await r.json();
+                    if (data && data.contents) {
+                        htmlCompleto += data.contents + ' \n ';
                     }
-                } catch (e) {}
+                }
+            } catch (e) {
+                console.warn("Fallo proxy para:", sitio);
             }
         }
 
-        if (!exitoLectura || htmlCompleto.length < 500) {
+        if (htmlCompleto.length < 500) {
             return res.status(200).json({ 
                 success: true, 
-                message: `🚨 ALERTA: Bloqueo extremo detectado. Vercel fue rechazado en todos los intentos.` 
+                message: `🚨 ALERTA: Seguridad web activada. Nos bloquearon. (Letras leídas: ${htmlCompleto.length}).` 
             });
         }
 
@@ -128,11 +114,10 @@ export default async function handler(req, res) {
         if (aInsertar.length === 0) {
             return res.status(200).json({ 
                 success: true, 
-                message: `Escaneo completado. Se leyó la web, pero los premios exactos de hoy aún no están publicados.` 
+                message: `Escaneo completado. Leímos ${htmlCompleto.length} letras de las páginas, pero no hallamos números para los sorteos configurados hoy.` 
             });
         }
 
-        // Guardado y Escrutinio
         const { error: errUpsert } = await supabase.from('resultados').upsert(aInsertar, { onConflict: 'sorteo_id,fecha' });
         if (errUpsert) throw errUpsert;
         
@@ -149,7 +134,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({ 
             success: true, 
-            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos con los números separados correctamente.`, 
+            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos automáticamente separando Día y Noche.`, 
             data: aInsertar 
         });
 

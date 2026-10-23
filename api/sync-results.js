@@ -4,7 +4,7 @@ const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// 🔥 API Key de ScraperAPI (Evade bloqueos de Cloudflare)
+// 🔥 API Key de ScraperAPI
 const SCRAPER_API_KEY = 'dcebab8a24bfa2e19a1e6e333d26ac85'; 
 
 function normalizar(texto) { 
@@ -15,57 +15,58 @@ function getFechaPanama() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); 
 }
 
-// Diccionario exacto para EnLoteria.com
-const REGLAS_SORTEOS = [
-    { pattern: /PRIMERA.*(11|12|DIA|MEDIODIA|AM)/i, keywords: ['LA PRIMERA RESULTADOS HOY', 'LA PRIMERA', 'PRIMERA DIA'] },
-    { pattern: /PRIMERA.*(6|8|NOCHE|PM)/i, keywords: ['LA PRIMERA NOCHE', 'PRIMERA NOCHE'] },
-    { pattern: /ANGUILLA.*(10|AM)/i, keywords: ['ANGUILLA 10:00', 'ANGUILLA 10AM', 'ANGUILLA 10'] },
-    { pattern: /ANGUILLA.*(12|1|MEDIODIA|PM)/i, keywords: ['ANGUILLA 1:00', 'ANGUILLA 1PM', 'ANGUILLA 12'] },
-    { pattern: /ANGUILLA.*(5|6)/i, keywords: ['ANGUILLA 6:00', 'ANGUILLA 6PM', 'ANGUILLA 6'] },
-    { pattern: /ANGUILLA.*(8|9|NOCHE)/i, keywords: ['ANGUILLA 9:00', 'ANGUILLA 9PM', 'ANGUILLA 9'] },
-    { pattern: /FLORIDA.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['FLORIDA DIA', 'FLORIDA TARDE'] },
-    { pattern: /FLORIDA.*(8|9|NOCHE)/i, keywords: ['FLORIDA NOCHE'] },
-    { pattern: /NEW YORK.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['NEW YORK DIA', 'NEW YORK TARDE'] },
-    { pattern: /NEW YORK.*(7|8|9|10|NOCHE)/i, keywords: ['NEW YORK NOCHE'] }
-];
-
 function extraerPremios(html, nombreSorteo) {
     if (!html) return null;
-    const htmlUpper = normalizar(html); 
     
-    let keywordsToSearch = [normalizar(nombreSorteo)]; 
-    for (const regla of REGLAS_SORTEOS) {
-        if (regla.pattern.test(nombreSorteo)) {
-            keywordsToSearch = regla.keywords;
-            break;
-        }
+    let dbName = normalizar(nombreSorteo);
+    let keywords = [dbName];
+    
+    // 🧠 DICCIONARIO INTELIGENTE: Traduce los nombres de tu base de datos a los títulos de las páginas web
+    if (dbName.includes('PRIMERA')) {
+        if (dbName.includes('NOCHE') || dbName.includes('8')) keywords = ['LA PRIMERA NOCHE', 'PRIMERA NOCHE'];
+        else keywords = ['LA PRIMERA', 'PRIMERA DIA', 'PRIMERA 12'];
+    } else if (dbName.includes('ANGUILLA') || dbName.includes('ANGUILA')) {
+        if (dbName.includes('10')) keywords = ['ANGUILA 10', 'ANGUILLA 10'];
+        else if (dbName.includes('1') || dbName.includes('12')) keywords = ['ANGUILA 1', 'ANGUILLA 1', 'ANGUILA MEDIODIA'];
+        else if (dbName.includes('6')) keywords = ['ANGUILA 6', 'ANGUILLA 6', 'ANGUILA TARDE'];
+        else if (dbName.includes('9') || dbName.includes('8')) keywords = ['ANGUILA 9', 'ANGUILLA 9', 'ANGUILA NOCHE'];
+    } else if (dbName.includes('FLORIDA')) {
+        if (dbName.includes('NOCHE') || dbName.includes('8') || dbName.includes('9')) keywords = ['FLORIDA NOCHE'];
+        else keywords = ['FLORIDA DIA', 'FLORIDA TARDE'];
+    } else if (dbName.includes('YORK')) {
+        if (dbName.includes('NOCHE') || dbName.includes('7') || dbName.includes('8') || dbName.includes('9') || dbName.includes('10')) keywords = ['NEW YORK NOCHE', 'YORK NOCHE'];
+        else keywords = ['NEW YORK DIA', 'NEW YORK TARDE', 'YORK DIA'];
     }
+
+    const normHtml = normalizar(html);
     
-    for (const kw of keywordsToSearch) {
-        let pos = htmlUpper.indexOf(kw);
+    for (const kw of keywords) {
+        let pos = normHtml.indexOf(kw);
         while (pos !== -1) {
-            // 🚀 REGLA ESTRICTA 1: Solo leemos los siguientes 250 caracteres. 
-            // Si el premio no está ahí cerquita, es porque el sorteo no ha jugado.
-            let fragmento = html.substring(pos, pos + 250);
+            // Toma el bloque de texto inmediatamente después del título del sorteo
+            let fragment = html.substring(pos, pos + 600);
             
-            // 🚀 REGLA ESTRICTA 2: Solo captura números atrapados EXACTAMENTE solos en una etiqueta HTML.
-            // Ignora horas (10:00), ignora fechas (10 de octubre), ignora años (2026).
-            const regexEtiquetas = />\s*(\d{2})\s*</g;
-            let matches = [];
-            let m;
-            while ((m = regexEtiquetas.exec(fragmento)) !== null) {
-                matches.push(m[1]);
-            }
+            // 🧹 1. DESTRUIR CÓDIGO: Quita todas las etiquetas HTML y deja solo texto puro
+            let texto = fragment.replace(/<[^>]+>/g, ' ');
+            texto = normalizar(texto);
             
-            if (matches.length >= 3) {
-                // Encontramos los 3 números reales ganadores
+            // 🧹 2. DESTRUIR FECHAS Y HORAS: Para evitar que el robot crea que "23 de octubre" es el premio 23.
+            texto = texto.replace(/\b(LUNES|MARTES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO)\b/g, ' ');
+            texto = texto.replace(/\b\d{1,2}\s+(DE\s+)?(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\b/g, ' ');
+            texto = texto.replace(/\b202[0-9]\b/g, ' '); // Borra años (2024, 2026, etc)
+            texto = texto.replace(/\b\d{1,2}:\d{2}\s*(AM|PM)?\b/g, ' '); // Borra horas como 12:00PM
+            texto = texto.replace(/\b(AM|PM)\b/g, ' '); 
+            
+            // 🎯 3. CAPTURA: Después de limpiar la basura, los 3 primeros números que encuentre son obligatoriamente los premios.
+            let matches = texto.match(/\b\d{2}\b/g);
+            if (matches && matches.length >= 3) {
                 return { p1: matches[0], p2: matches[1], p3: matches[2] };
             }
-
-            pos = htmlUpper.indexOf(kw, pos + 10);
+            
+            pos = normHtml.indexOf(kw, pos + 10);
         }
     }
-    return null; // Si no encontró los números bajo la regla estricta, devuelve nulo (pendiente)
+    return null; // Si no encontró números es porque aún no juega
 }
 
 export default async function handler(req, res) {
@@ -77,18 +78,18 @@ export default async function handler(req, res) {
 
         const fecha = getFechaPanama();
         
-        // Vamos directo a las páginas oficiales de los sorteos
+        // Vamos directo a tus páginas requeridas + 1 respaldo
         const sitios = [
             'https://enloteria.com/loterias/la-primera',
             'https://enloteria.com/resultados-anguilla',
             'https://enloteria.com/loterias/new-york',
-            'https://enloteria.com/loterias/florida'
+            'https://enloteria.com/loterias/florida',
+            'https://conectate.com.do/loterias/'
         ];
 
         const aInsertar = [];
         let htmlExtraido = 0;
 
-        // Procesamos página por página para evitar cruce de datos
         for (const sitio of sitios) {
             try {
                 const url = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(sitio)}`;
@@ -100,7 +101,6 @@ export default async function handler(req, res) {
                     for (const sorteo of sorteos) {
                         const resultado = extraerPremios(html, sorteo.nombre);
                         if (resultado) {
-                            // Verificamos que no se haya insertado ya en el bucle
                             const yaExiste = aInsertar.find(i => i.sorteo_id === sorteo.id);
                             if (!yaExiste) {
                                 aInsertar.push({

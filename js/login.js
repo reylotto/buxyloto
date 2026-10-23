@@ -19,8 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 1. Buscamos primero en tu tabla 'usuarios' para ver si ingresó un nombre de usuario o un correo
                 const { data: userData, error: userError } = await supabase
                     .from('usuarios')
-                    .select('email, inquilino_id, nombre_usuario, rol_id')
-                    .or(`email.eq.${usuarioInput},nombre_usuario.eq.${usuarioInput}`)
+                    .select('email, inquilino_id, username, rol') // 🔥 Ajustado a tus columnas reales
+                    .or(`email.eq.${usuarioInput},username.eq.${usuarioInput}`) // 🔥 Ajustado a username
                     .single();
 
                 if (userError || !userData) {

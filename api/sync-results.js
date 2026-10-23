@@ -4,7 +4,6 @@ const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// 🔥 API Key de ScraperAPI
 const SCRAPER_API_KEY = 'dcebab8a24bfa2e19a1e6e333d26ac85'; 
 
 function normalizar(texto) { 
@@ -15,52 +14,41 @@ function getFechaPanama() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); 
 }
 
-// 🎯 Diccionario amplio de palabras clave para Conectate.com.do
-const REGLAS_SORTEOS = [
-    { pattern: /PRIMERA.*(11|12|DIA|MEDIODIA|AM)/i, keywords: ['PRIMERA', 'LA PRIMERA', 'PRIMERA DIA'] },
-    { pattern: /PRIMERA.*(6|8|NOCHE|PM)/i, keywords: ['PRIMERA NOCHE', 'LA PRIMERA NOCHE'] },
-    { pattern: /ANGUILLA.*(10|AM)/i, keywords: ['ANGUILLA 10', 'ANGUILA 10'] },
-    { pattern: /ANGUILLA.*(12|1|MEDIODIA|PM)/i, keywords: ['ANGUILLA 1', 'ANGUILA 1', 'ANGUILLA 12'] },
-    { pattern: /ANGUILLA.*(5|6)/i, keywords: ['ANGUILLA 6', 'ANGUILA 6', 'ANGUILLA 5'] },
-    { pattern: /ANGUILLA.*(8|9|NOCHE)/i, keywords: ['ANGUILLA 9', 'ANGUILA 9', 'ANGUILLA 8'] },
-    { pattern: /FLORIDA.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['FLORIDA DIA', 'FLORIDA TARDE', 'FLORIDA'] },
-    { pattern: /FLORIDA.*(8|9|NOCHE)/i, keywords: ['FLORIDA NOCHE'] },
-    { pattern: /NEW YORK.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['NEW YORK', 'YORK DIA', 'NEW YORK TARDE'] },
-    { pattern: /NEW YORK.*(7|8|9|10|NOCHE)/i, keywords: ['NEW YORK NOCHE', 'YORK NOCHE'] }
+// 🎯 URLs individuales por cada tipo de lotería para garantizar lectura directa
+const PAGINAS_LOTERIAS = [
+    { nombreRegla: 'PRIMERA', url: 'https://conectate.com.do/loterias/la-primera' },
+    { nombreRegla: 'ANGUILLA', url: 'https://conectate.com.do/loterias/anguilla' },
+    { nombreRegla: 'FLORIDA', url: 'https://conectate.com.do/loterias/florida' },
+    { nombreRegla: 'NEW YORK', url: 'https://conectate.com.do/loterias/new-york' }
 ];
 
-function extraerPremios(html, nombreSorteo) {
+function extraerPremiosDeHtml(html, nombreSorteo) {
     if (!html) return null;
-    const normHtml = normalizar(html);
+    const normSorteo = normalizar(nombreSorteo);
     
-    let keywordsToSearch = [normalizar(nombreSorteo)]; 
-    for (const regla of REGLAS_SORTEOS) {
-        if (regla.pattern.test(nombreSorteo)) {
-            keywordsToSearch = regla.keywords.map(k => normalizar(k));
-            break;
-        }
+    // Buscamos dentro de la página individual el bloque que coincida con el nombre del sorteo (ej: "Noche", "Día", "10 AM")
+    let pos = normalizar(html).indexOf(normSorteo);
+    if (pos === -1) {
+        // Búsqueda flexible por palabras clave si el nombre exacto varía
+        if (normSorteo.includes('PRIMERA')) pos = normalizar(html).indexOf('PRIMERA');
+        if (normSorteo.includes('ANGUILLA')) pos = normalizar(html).indexOf('ANGUILLA');
+        if (normSorteo.includes('FLORIDA')) pos = normalizar(html).indexOf('FLORIDA');
+        if (normSorteo.includes('YORK')) pos = normalizar(html).indexOf('YORK');
     }
-    
-    for (const kw of keywordsToSearch) {
-        let pos = normHtml.indexOf(kw);
-        while (pos !== -1) {
-            // Extraemos un bloque de 600 caracteres alrededor de la coincidencia
-            let fragmento = html.substring(pos, pos + 600);
-            
-            // 🎯 EXTRACCIÓN QUIRÚRGICA: Busca los span con la clase de los números ganadores
-            const regexSpanExacto = /<span\s+class="[^"]*text-gray-800[^"]*">\s*(\d{2})\s*<\/span>/gi;
-            
-            let numeros = [];
-            let match;
-            while ((match = regexSpanExacto.exec(fragmento)) !== null) {
-                numeros.push(match[1]);
-            }
-            
-            if (numeros.length >= 3) {
-                return { p1: numeros[0], p2: numeros[1], p3: numeros[2] };
-            }
-            
-            pos = normHtml.indexOf(kw, pos + 10);
+
+    if (pos !== -1) {
+        let fragmento = html.substring(pos, pos + 800);
+        
+        // Buscamos los span con la clase text-gray-800 que identificamos en el inspector
+        const regexSpan = /<span\s+class="[^"]*text-gray-800[^"]*">\s*(\d{2})\s*<\/span>/gi;
+        let numeros = [];
+        let match;
+        while ((match = regexSpan.exec(fragmento)) !== null) {
+            numeros.push(match[1]);
+        }
+        
+        if (numeros.length >= 3) {
+            return { p1: numeros[0], p2: numeros[1], p3: numeros[2] };
         }
     }
     return null;
@@ -74,47 +62,43 @@ export default async function handler(req, res) {
         }
 
         const fecha = getFechaPanama();
-        let htmlCompleto = '';
-
-        const sitio = 'https://conectate.com.do/loterias/';
-
-        try {
-            const url = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(sitio)}`;
-            const r = await fetch(url);
-            if (r.ok) {
-                htmlCompleto = await r.text();
-            }
-        } catch (e) {
-            console.warn("Falló la conexión con ScraperAPI");
-        }
-
-        if (htmlCompleto.length < 500) {
-            return res.status(200).json({ 
-                success: true, 
-                message: `🚨 ALERTA: No se pudo obtener la página. Letras leídas: ${htmlCompleto.length}.` 
-            });
-        }
-
         const aInsertar = [];
-        for (const sorteo of sorteos) {
-            const resultado = extraerPremios(htmlCompleto, sorteo.nombre);
-            if (resultado) {
-                const yaExiste = aInsertar.find(i => i.sorteo_id === sorteo.id);
-                if (!yaExiste) {
-                    aInsertar.push({
-                        sorteo_id: sorteo.id, fecha: fecha, 
-                        p1: resultado.p1, p2: resultado.p2, p3: resultado.p3,
-                        primero: resultado.p1, segundo: resultado.p2, tercero: resultado.p3,
-                        updated_at: new Date().toISOString()
-                    });
+
+        // Consultamos de forma independiente cada página oficial específica
+        for (const pagina of PAGINAS_LOTERIAS) {
+            try {
+                const scraperUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(pagina.url)}`;
+                const r = await fetch(scraperUrl);
+                if (r.ok) {
+                    const html = await r.text();
+                    
+                    for (const sorteo of sorteos) {
+                        const normNombre = normalizar(sorteo.nombre);
+                        if (normNombre.includes(pagina.nombreRegla)) {
+                            const resultado = extraerPremiosDeHtml(html, sorteo.nombre);
+                            if (resultado) {
+                                const yaExiste = aInsertar.find(i => i.sorteo_id === sorteo.id);
+                                if (!yaExiste) {
+                                    aInsertar.push({
+                                        sorteo_id: sorteo.id, fecha: fecha, 
+                                        p1: resultado.p1, p2: resultado.p2, p3: resultado.p3,
+                                        primero: resultado.p1, segundo: resultado.p2, tercero: resultado.p3,
+                                        updated_at: new Date().toISOString()
+                                    });
+                                }
+                            }
+                        }
+                    }
                 }
+            } catch (e) {
+                console.warn(`Error consultando ${pagina.url}`);
             }
         }
 
         if (aInsertar.length === 0) {
             return res.status(200).json({ 
                 success: true, 
-                message: `Escaneo exitoso (${htmlCompleto.length} letras). Aún no publican los resultados oficiales de hoy.` 
+                message: `Escaneo completado en páginas secundarias. Aún no se detectan resultados para hoy.` 
             });
         }
 
@@ -134,7 +118,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({ 
             success: true, 
-            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos extrayendo las bolitas exactas.`, 
+            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos mediante subpáginas directas.`, 
             data: aInsertar 
         });
 

@@ -12,7 +12,6 @@ function getFechaPanama() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); 
 }
 
-// REGLAS ESTRICTAS para separar Día y Noche
 const REGLAS_SORTEOS = [
     { pattern: /PRIMERA.*(11|12|DIA|MEDIODIA|AM)/i, keywords: ['PRIMERA DIA', 'PRIMERA TARDE', 'PRIMERA 12', 'LA PRIMERA'] },
     { pattern: /PRIMERA.*(6|8|NOCHE|PM)/i, keywords: ['PRIMERA NOCHE', 'PRIMERA 8', 'PRIMERA 6'] },
@@ -68,7 +67,6 @@ export default async function handler(req, res) {
         const fecha = getFechaPanama();
         let htmlCompleto = '';
 
-        // 🔥 MÉTODO JSON ESTRICTO (El único que comprobamos que evade Cloudflare en Vercel)
         const sitios = [
             'https://loteriasdominicanas.com/',
             'https://conectate.com.do/loterias/'
@@ -76,30 +74,33 @@ export default async function handler(req, res) {
 
         let exitoLectura = false;
 
+        // Disfraz de Googlebot para evadir Cloudflare
+        const googlebotHeaders = {
+            'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'es-DO,es;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Cache-Control': 'no-cache'
+        };
+
         for (const sitio of sitios) {
             try {
-                const url = `https://api.allorigins.win/get?url=${encodeURIComponent(sitio)}`;
-                const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-                
+                const r = await fetch(sitio, { headers: googlebotHeaders });
                 if (r.ok) {
-                    const data = await r.json();
-                    if (data && data.contents) {
-                        const texto = data.contents;
-                        if (texto.length > 2000 && !texto.includes('Cloudflare') && !texto.includes('Just a moment')) {
-                            htmlCompleto += texto + ' \n ';
-                            exitoLectura = true;
-                        }
+                    const texto = await r.text();
+                    if (texto.length > 2000 && !texto.includes('Cloudflare') && !texto.includes('Just a moment')) {
+                        htmlCompleto += texto + ' \n ';
+                        exitoLectura = true;
                     }
                 }
             } catch (e) {
-                console.warn("Fallo proxy JSON para:", sitio);
+                console.warn("Fallo conexión directa para:", sitio);
             }
         }
 
         if (!exitoLectura || htmlCompleto.length < 500) {
             return res.status(200).json({ 
                 success: true, 
-                message: `🚨 ALERTA: Bloqueo extremo detectado. Falló la lectura JSON. (Letras leídas: ${htmlCompleto.length}).` 
+                message: `🚨 ALERTA: Bloqueo extremo detectado. Falló la lectura con Googlebot. (Letras leídas: ${htmlCompleto.length}).` 
             });
         }
 

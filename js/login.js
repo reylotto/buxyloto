@@ -1,9 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-// Tus credenciales de Supabase
-const supabaseUrl = 'https://ruruabsbkvfbudnqkjby.supabase.co'; 
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // (Asegúrate de poner tu llave anon real)
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = window.supabaseClient || window.supabase;
 
 document.addEventListener('DOMContentLoaded', () => {
     const formLogin = document.getElementById('login-form'); // Coincide con tu HTML

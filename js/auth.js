@@ -55,22 +55,35 @@ if (loginForm) {
             let cuentaUsuario = null;
 
             if (userInput.includes('@')) {
-                const { data: authData, error: authError } = await window.supabase.auth.signInWithPassword({
-                    email: userInput,
-                    password: passwordInput
-                });
-                if (!authError && authData.user) {
-                    cuentaUsuario = {
-                        id: authData.user.id,
-                        nombre: 'Administrador Maestro',
-                        username: 'admin',
-                        rol: 'admin',
-                        email: authData.user.email,
-                        estatus: 'activo',
-                        zona: 'Zona General'
-                    };
-                }
-            }
+    const { data: authData, error: authError } = await window.supabase.auth.signInWithPassword({
+        email: userInput,
+        password: passwordInput
+    });
+    
+    if (!authError && authData.user) {
+        // 🔥 BUSCAR EL PERFIL REAL DEL INQUILINO EN LA BD
+        const { data: perfilReal } = await window.supabase
+            .from('usuarios')
+            .select('*')
+            .eq('email', userInput)
+            .maybeSingle();
+
+        if (perfilReal) {
+            cuentaUsuario = perfilReal; // Toma los datos reales de Carlos (incluyendo su inquilino_id)
+        } else {
+            // Si no existe en la tabla, asume que eres la cuenta maestra original
+            cuentaUsuario = {
+                id: authData.user.id,
+                nombre: 'Administrador Maestro',
+                username: 'admin',
+                rol: 'admin',
+                email: authData.user.email,
+                estatus: 'activo',
+                zona: 'Zona General'
+            };
+        }
+    }
+}
 
             if (!cuentaUsuario) {
                 const { data: usuarioData, error: errUsu } = await window.supabase

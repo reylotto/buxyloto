@@ -26,12 +26,13 @@ function extraerPremios(html, nombreSorteo) {
     while (pos !== -1) {
         let fragmento = normHtml.substring(pos, pos + 400);
         
+        // Limpiamos fechas y horas
         fragmento = fragmento.replace(/\b\d{1,2}:\d{2}\b/g, ' ');
         fragmento = fragmento.replace(/\b202\d\b/g, ' ');
 
         const numeros = fragmento.match(/\b\d{2}\b/g);
         if (numeros && numeros.length >= 3) {
-            const reales = numeros.filter(n => n !== '90');
+            const reales = numeros.filter(n => n !== '90'); // Filtro Anti-90
             if (reales.length >= 3) {
                 return { p1: reales[0], p2: reales[1], p3: reales[2] };
             }
@@ -51,38 +52,34 @@ export default async function handler(req, res) {
         const fecha = getFechaPanama();
         let htmlCompleto = '';
 
-        // NUEVAS FUENTES Y PROXIES (corsproxy.io y allorigins)
+        // 🔥 CONEXIÓN DIRECTA (SIN PROXIES) HACIÉNDONOS PASAR POR UN NAVEGADOR
         const sitios = [
-            'https://loteriadominicana.com.do/',
-            'https://conectate.com.do/loterias/'
+            'https://conectate.com.do/loterias/',
+            'https://loteriasdominicanas.com/'
         ];
 
         for (const sitio of sitios) {
             try {
-                // Intento 1: corsproxy.io
-                let r = await fetch(`https://corsproxy.io/?${encodeURIComponent(sitio)}`);
+                const r = await fetch(sitio, { 
+                    headers: { 
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept': 'text/html,application/xhtml+xml',
+                        'Accept-Language': 'es-DO,es;q=0.9,en-US;q=0.8,en;q=0.7'
+                    }
+                });
+                
                 if (r.ok) {
                     htmlCompleto += await r.text() + ' \n ';
-                    continue;
-                }
-                
-                // Intento 2: api.allorigins.win
-                r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(sitio)}`);
-                if (r.ok) {
-                    const data = await r.json();
-                    if (data && data.contents) {
-                        htmlCompleto += data.contents + ' \n ';
-                    }
                 }
             } catch (e) {
-                console.warn("Fallo proxy para:", sitio);
+                console.warn("Fallo conexión directa a:", sitio);
             }
         }
 
         if (htmlCompleto.length < 500) {
             return res.status(200).json({ 
                 success: true, 
-                message: `🚨 ALERTA: Seguimos sin poder leer las páginas. (Letras leídas: ${htmlCompleto.length}). El bloqueo persiste.` 
+                message: `🚨 ALERTA: La lectura directa falló. (Letras leídas: ${htmlCompleto.length}).` 
             });
         }
 
@@ -103,7 +100,7 @@ export default async function handler(req, res) {
         if (aInsertar.length === 0) {
             return res.status(200).json({ 
                 success: true, 
-                message: `Escaneo completado. Leímos ${htmlCompleto.length} letras de las páginas, pero no hallamos números para los sorteos configurados hoy.` 
+                message: `Escaneo directo completado con éxito. Leímos ${htmlCompleto.length} letras de las páginas, pero aún no publican los resultados ganadores de hoy.` 
             });
         }
 
@@ -123,7 +120,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({ 
             success: true, 
-            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos automáticamente.`, 
+            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos automáticamente de las fuentes directas.`, 
             data: aInsertar 
         });
 

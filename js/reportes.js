@@ -659,6 +659,11 @@ export async function cargarHistorialTickets() {
                 .select('*')
                 .gte('created_at', `${dateFromVal}T00:00:00`)
                 .lte('created_at', `${dateToVal}T23:59:59`);
+            // 🔥 FILTRO MAESTRO DE INQUILINOS (MULTI-TENANT)
+            const inquilinoId = localStorage.getItem('inquilino_id');
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+                query = query.eq('inquilino_id', inquilinoId);
+            }
 
             // 2. 🚨 APLICAMOS EL BLINDAJE DE ZONAS DIRECTO EN LA BASE DE DATOS 🚨
             const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');

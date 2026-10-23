@@ -4,7 +4,7 @@ const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// 🔥 API Key de ScraperAPI
+// 🔥 API Key de ScraperAPI para evadir Cloudflare
 const SCRAPER_API_KEY = 'dcebab8a24bfa2e19a1e6e333d26ac85'; 
 
 function normalizar(texto) { 
@@ -15,70 +15,56 @@ function getFechaPanama() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); 
 }
 
-// 🧠 TRADUCTOR HORARIO: Conecta el nombre de tu base de datos con el título exacto en R.D.
-function obtenerKeywords(nombreDb) {
-    const n = normalizar(nombreDb);
-    if (n.includes('PRIMERA')) {
-        if (n.includes('6') || n.includes('NOCHE')) return ['LA PRIMERA NOCHE'];
-        return ['LA PRIMERA RESULTADOS HOY', 'LA PRIMERA'];
-    }
-    if (n.includes('ANGUILA') || n.includes('ANGUILLA')) {
-        // RD está adelantado 1 hora respecto a Panamá
-        if (n.includes('12')) return ['ANGUILLA 1:00', 'ANGUILLA 1PM', 'ANGUILLA 1 PM'];
-        if (n.includes('8') || n.includes('NOCHE')) return ['ANGUILLA 9:00', 'ANGUILLA 9PM', 'ANGUILLA 9 PM'];
-        if (n.includes('10')) return ['ANGUILLA 10'];
-    }
-    if (n.includes('FLORIDA')) {
-        if (n.includes('8') || n.includes('9') || n.includes('NOCHE')) return ['FLORIDA NOCHE'];
-        return ['FLORIDA DIA', 'FLORIDA TARDE'];
-    }
-    if (n.includes('YORK')) {
-        if (n.includes('9') || n.includes('10') || n.includes('NOCHE')) return ['NEW YORK NOCHE'];
-        return ['NEW YORK DIA', 'NEW YORK TARDE'];
-    }
-    return [n];
-}
+// 🎯 Diccionario de palabras clave exactas para Conectate.com.do
+const REGLAS_SORTEOS = [
+    { pattern: /PRIMERA.*(11|12|DIA|MEDIODIA|AM)/i, keywords: ['LA PRIMERA', 'PRIMERA DIA', 'PRIMERA 12'] },
+    { pattern: /PRIMERA.*(6|8|NOCHE|PM)/i, keywords: ['PRIMERA NOCHE', 'PRIMERA 8'] },
+    { pattern: /ANGUILLA.*(10|AM)/i, keywords: ['ANGUILLA 10', 'ANGUILLA 10 AM'] },
+    { pattern: /ANGUILLA.*(12|1|MEDIODIA|PM)/i, keywords: ['ANGUILLA 1', 'ANGUILLA 1 PM', 'ANGUILLA 12'] },
+    { pattern: /ANGUILLA.*(5|6)/i, keywords: ['ANGUILLA 5', 'ANGUILLA 6', 'ANGUILLA 6 PM'] },
+    { pattern: /ANGUILLA.*(8|9|NOCHE)/i, keywords: ['ANGUILLA 9', 'ANGUILLA 9 PM', 'ANGUILLA 8'] },
+    { pattern: /FLORIDA.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['FLORIDA DIA', 'FLORIDA TARDE'] },
+    { pattern: /FLORIDA.*(8|9|NOCHE)/i, keywords: ['FLORIDA NOCHE'] },
+    { pattern: /NEW YORK.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['NEW YORK TARDE', 'NEW YORK DIA', 'YORK DIA'] },
+    { pattern: /NEW YORK.*(7|8|9|10|NOCHE)/i, keywords: ['NEW YORK NOCHE', 'YORK NOCHE'] }
+];
 
 function extraerPremios(html, nombreSorteo) {
     if (!html) return null;
     const normHtml = normalizar(html); 
-    const keywords = obtenerKeywords(nombreSorteo);
     
-    for (const kw of keywords) {
+    let keywordsToSearch = [normalizar(nombreSorteo)]; 
+    for (const regla of REGLAS_SORTEOS) {
+        if (regla.pattern.test(nombreSorteo)) {
+            keywordsToSearch = regla.keywords;
+            break;
+        }
+    }
+    
+    for (const kw of keywordsToSearch) {
         let pos = normHtml.indexOf(kw);
         while (pos !== -1) {
-            // Tomamos un bloque de texto después del título
-            let fragmento = html.substring(pos, pos + 500);
-            let textUpper = normalizar(fragmento);
+            // Extraemos un fragmento limpio de texto después de encontrar el nombre del sorteo
+            let fragmento = html.substring(pos, pos + 400);
             
-            // 🛑 FILTRO INTELIGENTE: Si dice "Avisame", el sorteo AÚN NO HA JUGADO.
-            if (textUpper.includes('AVISAME CUANDO') || textUpper.includes('PROXIMO CIERRE')) {
-                pos = normHtml.indexOf(kw, pos + 10);
-                continue;
+            // Convertimos a texto plano quitando etiquetas HTML
+            let textoLimpio = fragmento.replace(/<[^>]+>/g, ' ');
+            textoLimpio = normalizar(textoLimpio);
+            
+            // Destruimos horas y años para que no interfieran
+            textoLimpio = textoLimpio.replace(/\b\d{1,2}:\d{2}\b/g, ' ');
+            textoLimpio = textoLimpio.replace(/\b202\d\b/g, ' ');
+            
+            // Buscamos 3 números de dos dígitos seguidos que representen los premios
+            let numeros = textoLimpio.match(/\b\d{2}\b/g);
+            if (numeros && numeros.length >= 3) {
+                // Filtramos posibles números de versión o códigos basura comunes
+                let reales = numeros.filter(n => n !== '90' && n !== '20' && n !== '26');
+                if (reales.length >= 3) {
+                    return { p1: reales[0], p2: reales[1], p3: reales[2] };
+                }
             }
             
-            // 🧹 DESTRUCTOR DE BASURA: Quitamos todo el código y dejamos solo texto puro
-            let texto = fragmento.replace(/<[^>]+>/g, ' ');
-            texto = normalizar(texto);
-            
-            // Eliminamos horas (ej. 12:00 PM, 1:00) y Años (2026)
-            texto = texto.replace(/\b\d{1,2}:\d{2}\s*(AM|PM)?\b/g, ' ');
-            texto = texto.replace(/\b(AM|PM)\b/g, ' ');
-            texto = texto.replace(/\b202\d\b/g, ' ');
-            
-            // Eliminamos fechas (Lunes, "23 de octubre", "10/23")
-            texto = texto.replace(/\b(LUNES|MARTES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO)\b/g, ' ');
-            texto = texto.replace(/\b\d{1,2}\s+DE\s+[A-Z]+\b/gi, ' ');
-            texto = texto.replace(/\b\d{1,2}[/-]\d{1,2}\b/g, ' '); 
-            
-            // 🎯 CAPTURA LÁSER: Busca exactamente 3 bolitas juntas separadas por espacios.
-            const regex = /(?:^|[^\d])(\d{2})\s+[-]*\s*(\d{2})\s+[-]*\s*(\d{2})(?!\d)/;
-            const match = texto.match(regex);
-            
-            if (match) {
-                return { p1: match[1], p2: match[2], p3: match[3] };
-            }
-
             pos = normHtml.indexOf(kw, pos + 10);
         }
     }
@@ -93,50 +79,48 @@ export default async function handler(req, res) {
         }
 
         const fecha = getFechaPanama();
-        
-        // Las URLs exactas que me enviaste
-        const sitios = [
-            'https://enloteria.com/loterias/la-primera',
-            'https://enloteria.com/resultados-anguilla',
-            'https://enloteria.com/loterias/new-york',
-            'https://enloteria.com/loterias/florida'
-        ];
+        let htmlCompleto = '';
+
+        // 🌐 Fuente principal y confiable: Conectate.com.do
+        const sitio = 'https://conectate.com.do/loterias/';
+
+        try {
+            const url = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(sitio)}`;
+            const r = await fetch(url);
+            if (r.ok) {
+                htmlCompleto = await r.text();
+            }
+        } catch (e) {
+            console.warn("Falló la conexión con ScraperAPI");
+        }
+
+        if (htmlCompleto.length < 500) {
+            return res.status(200).json({ 
+                success: true, 
+                message: `🚨 ALERTA: No se pudo obtener la página de Conectate. Letras leídas: ${htmlCompleto.length}.` 
+            });
+        }
 
         const aInsertar = [];
-        let htmlExtraido = 0;
-
-        for (const sitio of sitios) {
-            try {
-                const url = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(sitio)}`;
-                const r = await fetch(url);
-                if (r.ok) {
-                    const html = await r.text();
-                    htmlExtraido += html.length;
-
-                    for (const sorteo of sorteos) {
-                        const resultado = extraerPremios(html, sorteo.nombre);
-                        if (resultado) {
-                            const yaExiste = aInsertar.find(i => i.sorteo_id === sorteo.id);
-                            if (!yaExiste) {
-                                aInsertar.push({
-                                    sorteo_id: sorteo.id, fecha: fecha, 
-                                    p1: resultado.p1, p2: resultado.p2, p3: resultado.p3,
-                                    primero: resultado.p1, segundo: resultado.p2, tercero: resultado.p3,
-                                    updated_at: new Date().toISOString()
-                                });
-                            }
-                        }
-                    }
+        for (const sorteo of sorteos) {
+            const resultado = extraerPremios(htmlCompleto, sorteo.nombre);
+            if (resultado) {
+                const yaExiste = aInsertar.find(i => i.sorteo_id === sorteo.id);
+                if (!yaExiste) {
+                    aInsertar.push({
+                        sorteo_id: sorteo.id, fecha: fecha, 
+                        p1: resultado.p1, p2: resultado.p2, p3: resultado.p3,
+                        primero: resultado.p1, segundo: resultado.p2, tercero: resultado.p3,
+                        updated_at: new Date().toISOString()
+                    });
                 }
-            } catch (e) {
-                console.warn(`Falló la conexión con: ${sitio}`);
             }
         }
 
         if (aInsertar.length === 0) {
             return res.status(200).json({ 
                 success: true, 
-                message: `Escaneo finalizado. Aún no se han publicado los premios correspondientes a hoy.` 
+                message: `Escaneo exitoso en Conectate (${htmlCompleto.length} letras). Aún no publican los resultados de hoy.` 
             });
         }
 
@@ -156,7 +140,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({ 
             success: true, 
-            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos con números oficiales correctos.`, 
+            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos desde Conectate.com.do.`, 
             data: aInsertar 
         });
 

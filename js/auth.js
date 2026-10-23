@@ -118,6 +118,13 @@ if (loginForm) {
             window.currentUserProfile = cuentaUsuario;
             localStorage.setItem('usuario_sesion', JSON.stringify(cuentaUsuario));
 
+            // 🔥 GUARDADO DEL INQUILINO PARA EL FILTRO DE AISLAMIENTO
+            if (cuentaUsuario.inquilino_id) {
+                localStorage.setItem('inquilino_id', cuentaUsuario.inquilino_id);
+            } else {
+                localStorage.removeItem('inquilino_id'); // Eres tú (SuperAdmin), limpiamos la memoria
+            }
+
             const loginWrapper = document.getElementById('auth-login-wrapper');
             const mainContainer = document.getElementById('main-app-container');
             if (loginWrapper) loginWrapper.classList.add('hidden');

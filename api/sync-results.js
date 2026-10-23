@@ -15,58 +15,74 @@ function getFechaPanama() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); 
 }
 
+// 🧠 TRADUCTOR HORARIO: Conecta el nombre de tu base de datos con el título exacto en R.D.
+function obtenerKeywords(nombreDb) {
+    const n = normalizar(nombreDb);
+    if (n.includes('PRIMERA')) {
+        if (n.includes('6') || n.includes('NOCHE')) return ['LA PRIMERA NOCHE'];
+        return ['LA PRIMERA RESULTADOS HOY', 'LA PRIMERA'];
+    }
+    if (n.includes('ANGUILA') || n.includes('ANGUILLA')) {
+        // RD está adelantado 1 hora respecto a Panamá
+        if (n.includes('12')) return ['ANGUILLA 1:00', 'ANGUILLA 1PM', 'ANGUILLA 1 PM'];
+        if (n.includes('8') || n.includes('NOCHE')) return ['ANGUILLA 9:00', 'ANGUILLA 9PM', 'ANGUILLA 9 PM'];
+        if (n.includes('10')) return ['ANGUILLA 10'];
+    }
+    if (n.includes('FLORIDA')) {
+        if (n.includes('8') || n.includes('9') || n.includes('NOCHE')) return ['FLORIDA NOCHE'];
+        return ['FLORIDA DIA', 'FLORIDA TARDE'];
+    }
+    if (n.includes('YORK')) {
+        if (n.includes('9') || n.includes('10') || n.includes('NOCHE')) return ['NEW YORK NOCHE'];
+        return ['NEW YORK DIA', 'NEW YORK TARDE'];
+    }
+    return [n];
+}
+
 function extraerPremios(html, nombreSorteo) {
     if (!html) return null;
-    
-    let dbName = normalizar(nombreSorteo);
-    let keywords = [dbName];
-    
-    // 🧠 DICCIONARIO INTELIGENTE: Traduce los nombres de tu base de datos a los títulos de las páginas web
-    if (dbName.includes('PRIMERA')) {
-        if (dbName.includes('NOCHE') || dbName.includes('8')) keywords = ['LA PRIMERA NOCHE', 'PRIMERA NOCHE'];
-        else keywords = ['LA PRIMERA', 'PRIMERA DIA', 'PRIMERA 12'];
-    } else if (dbName.includes('ANGUILLA') || dbName.includes('ANGUILA')) {
-        if (dbName.includes('10')) keywords = ['ANGUILA 10', 'ANGUILLA 10'];
-        else if (dbName.includes('1') || dbName.includes('12')) keywords = ['ANGUILA 1', 'ANGUILLA 1', 'ANGUILA MEDIODIA'];
-        else if (dbName.includes('6')) keywords = ['ANGUILA 6', 'ANGUILLA 6', 'ANGUILA TARDE'];
-        else if (dbName.includes('9') || dbName.includes('8')) keywords = ['ANGUILA 9', 'ANGUILLA 9', 'ANGUILA NOCHE'];
-    } else if (dbName.includes('FLORIDA')) {
-        if (dbName.includes('NOCHE') || dbName.includes('8') || dbName.includes('9')) keywords = ['FLORIDA NOCHE'];
-        else keywords = ['FLORIDA DIA', 'FLORIDA TARDE'];
-    } else if (dbName.includes('YORK')) {
-        if (dbName.includes('NOCHE') || dbName.includes('7') || dbName.includes('8') || dbName.includes('9') || dbName.includes('10')) keywords = ['NEW YORK NOCHE', 'YORK NOCHE'];
-        else keywords = ['NEW YORK DIA', 'NEW YORK TARDE', 'YORK DIA'];
-    }
-
-    const normHtml = normalizar(html);
+    const normHtml = normalizar(html); 
+    const keywords = obtenerKeywords(nombreSorteo);
     
     for (const kw of keywords) {
         let pos = normHtml.indexOf(kw);
         while (pos !== -1) {
-            // Toma el bloque de texto inmediatamente después del título del sorteo
-            let fragment = html.substring(pos, pos + 600);
+            // Tomamos un bloque de texto después del título
+            let fragmento = html.substring(pos, pos + 500);
+            let textUpper = normalizar(fragmento);
             
-            // 🧹 1. DESTRUIR CÓDIGO: Quita todas las etiquetas HTML y deja solo texto puro
-            let texto = fragment.replace(/<[^>]+>/g, ' ');
-            texto = normalizar(texto);
-            
-            // 🧹 2. DESTRUIR FECHAS Y HORAS: Para evitar que el robot crea que "23 de octubre" es el premio 23.
-            texto = texto.replace(/\b(LUNES|MARTES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO)\b/g, ' ');
-            texto = texto.replace(/\b\d{1,2}\s+(DE\s+)?(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\b/g, ' ');
-            texto = texto.replace(/\b202[0-9]\b/g, ' '); // Borra años (2024, 2026, etc)
-            texto = texto.replace(/\b\d{1,2}:\d{2}\s*(AM|PM)?\b/g, ' '); // Borra horas como 12:00PM
-            texto = texto.replace(/\b(AM|PM)\b/g, ' '); 
-            
-            // 🎯 3. CAPTURA: Después de limpiar la basura, los 3 primeros números que encuentre son obligatoriamente los premios.
-            let matches = texto.match(/\b\d{2}\b/g);
-            if (matches && matches.length >= 3) {
-                return { p1: matches[0], p2: matches[1], p3: matches[2] };
+            // 🛑 FILTRO INTELIGENTE: Si dice "Avisame", el sorteo AÚN NO HA JUGADO.
+            if (textUpper.includes('AVISAME CUANDO') || textUpper.includes('PROXIMO CIERRE')) {
+                pos = normHtml.indexOf(kw, pos + 10);
+                continue;
             }
             
+            // 🧹 DESTRUCTOR DE BASURA: Quitamos todo el código y dejamos solo texto puro
+            let texto = fragmento.replace(/<[^>]+>/g, ' ');
+            texto = normalizar(texto);
+            
+            // Eliminamos horas (ej. 12:00 PM, 1:00) y Años (2026)
+            texto = texto.replace(/\b\d{1,2}:\d{2}\s*(AM|PM)?\b/g, ' ');
+            texto = texto.replace(/\b(AM|PM)\b/g, ' ');
+            texto = texto.replace(/\b202\d\b/g, ' ');
+            
+            // Eliminamos fechas (Lunes, "23 de octubre", "10/23")
+            texto = texto.replace(/\b(LUNES|MARTES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO)\b/g, ' ');
+            texto = texto.replace(/\b\d{1,2}\s+DE\s+[A-Z]+\b/gi, ' ');
+            texto = texto.replace(/\b\d{1,2}[/-]\d{1,2}\b/g, ' '); 
+            
+            // 🎯 CAPTURA LÁSER: Busca exactamente 3 bolitas juntas separadas por espacios.
+            const regex = /(?:^|[^\d])(\d{2})\s+[-]*\s*(\d{2})\s+[-]*\s*(\d{2})(?!\d)/;
+            const match = texto.match(regex);
+            
+            if (match) {
+                return { p1: match[1], p2: match[2], p3: match[3] };
+            }
+
             pos = normHtml.indexOf(kw, pos + 10);
         }
     }
-    return null; // Si no encontró números es porque aún no juega
+    return null;
 }
 
 export default async function handler(req, res) {
@@ -78,13 +94,12 @@ export default async function handler(req, res) {
 
         const fecha = getFechaPanama();
         
-        // Vamos directo a tus páginas requeridas + 1 respaldo
+        // Las URLs exactas que me enviaste
         const sitios = [
             'https://enloteria.com/loterias/la-primera',
             'https://enloteria.com/resultados-anguilla',
             'https://enloteria.com/loterias/new-york',
-            'https://enloteria.com/loterias/florida',
-            'https://conectate.com.do/loterias/'
+            'https://enloteria.com/loterias/florida'
         ];
 
         const aInsertar = [];
@@ -121,7 +136,7 @@ export default async function handler(req, res) {
         if (aInsertar.length === 0) {
             return res.status(200).json({ 
                 success: true, 
-                message: `Escaneo finalizado. Aún no se han publicado los premios de los sorteos correspondientes a hoy.` 
+                message: `Escaneo finalizado. Aún no se han publicado los premios correspondientes a hoy.` 
             });
         }
 

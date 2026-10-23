@@ -4,7 +4,7 @@ const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// 🔥 API Key de ScraperAPI para evadir Cloudflare
+// 🔥 API Key de ScraperAPI
 const SCRAPER_API_KEY = 'dcebab8a24bfa2e19a1e6e333d26ac85'; 
 
 function normalizar(texto) { 
@@ -15,25 +15,24 @@ function getFechaPanama() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); 
 }
 
-// 🎯 Diccionario de palabras clave exactas para Conectate.com.do
+// 🎯 Diccionario de títulos exactos tal como aparecen en Conectate.com.do
 const REGLAS_SORTEOS = [
-    { pattern: /PRIMERA.*(11|12|DIA|MEDIODIA|AM)/i, keywords: ['LA PRIMERA', 'PRIMERA DIA', 'PRIMERA 12'] },
-    { pattern: /PRIMERA.*(6|8|NOCHE|PM)/i, keywords: ['PRIMERA NOCHE', 'PRIMERA 8'] },
-    { pattern: /ANGUILLA.*(10|AM)/i, keywords: ['ANGUILLA 10', 'ANGUILLA 10 AM'] },
-    { pattern: /ANGUILLA.*(12|1|MEDIODIA|PM)/i, keywords: ['ANGUILLA 1', 'ANGUILLA 1 PM', 'ANGUILLA 12'] },
-    { pattern: /ANGUILLA.*(5|6)/i, keywords: ['ANGUILLA 5', 'ANGUILLA 6', 'ANGUILLA 6 PM'] },
-    { pattern: /ANGUILLA.*(8|9|NOCHE)/i, keywords: ['ANGUILLA 9', 'ANGUILLA 9 PM', 'ANGUILLA 8'] },
-    { pattern: /FLORIDA.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['FLORIDA DIA', 'FLORIDA TARDE'] },
-    { pattern: /FLORIDA.*(8|9|NOCHE)/i, keywords: ['FLORIDA NOCHE'] },
-    { pattern: /NEW YORK.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['NEW YORK TARDE', 'NEW YORK DIA', 'YORK DIA'] },
-    { pattern: /NEW YORK.*(7|8|9|10|NOCHE)/i, keywords: ['NEW YORK NOCHE', 'YORK NOCHE'] }
+    { pattern: /PRIMERA.*(11|12|DIA|MEDIODIA|AM)/i, keywords: ['La Primera Día', 'Primera Día', 'La Primera'] },
+    { pattern: /PRIMERA.*(6|8|NOCHE|PM)/i, keywords: ['Primera Noche', 'La Primera Noche'] },
+    { pattern: /ANGUILLA.*(10|AM)/i, keywords: ['Anguilla 10 AM', 'Anguilla 10'] },
+    { pattern: /ANGUILLA.*(12|1|MEDIODIA|PM)/i, keywords: ['Anguilla 1 PM', 'Anguilla 1'] },
+    { pattern: /ANGUILLA.*(5|6)/i, keywords: ['Anguilla 6 PM', 'Anguilla 6'] },
+    { pattern: /ANGUILLA.*(8|9|NOCHE)/i, keywords: ['Anguilla 9 PM', 'Anguilla 9'] },
+    { pattern: /FLORIDA.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['Florida Día', 'Florida Tarde', 'Florida'] },
+    { pattern: /FLORIDA.*(8|9|NOCHE)/i, keywords: ['Florida Noche'] },
+    { pattern: /NEW YORK.*(12|1|DIA|MEDIODIA|TARDE)/i, keywords: ['New York Día', 'New York Tarde', 'New York'] },
+    { pattern: /NEW YORK.*(7|8|9|10|NOCHE)/i, keywords: ['New York Noche'] }
 ];
 
 function extraerPremios(html, nombreSorteo) {
     if (!html) return null;
-    const normHtml = normalizar(html); 
     
-    let keywordsToSearch = [normalizar(nombreSorteo)]; 
+    let keywordsToSearch = [nombreSorteo]; 
     for (const regla of REGLAS_SORTEOS) {
         if (regla.pattern.test(nombreSorteo)) {
             keywordsToSearch = regla.keywords;
@@ -42,30 +41,27 @@ function extraerPremios(html, nombreSorteo) {
     }
     
     for (const kw of keywordsToSearch) {
-        let pos = normHtml.indexOf(kw);
+        // Buscamos la sección exacta del sorteo usando el título visual en la página
+        let pos = html.indexOf(kw);
         while (pos !== -1) {
-            // Extraemos un fragmento limpio de texto después de encontrar el nombre del sorteo
-            let fragmento = html.substring(pos, pos + 400);
+            // Extraemos un bloque de 500 caracteres justo después del título del sorteo
+            let fragmento = html.substring(pos, pos + 500);
             
-            // Convertimos a texto plano quitando etiquetas HTML
-            let textoLimpio = fragmento.replace(/<[^>]+>/g, ' ');
-            textoLimpio = normalizar(textoLimpio);
+            // 🎯 EXTRACCIÓN QUIRÚRGICA BASADA EN TU INSPECTOR:
+            // Busca exactamente etiquetas <span class="text-gray-800">XX</span>
+            const regexSpanExacto = /<span\s+class="[^"]*text-gray-800[^"]*">\s*(\d{2})\s*<\/span>/gi;
             
-            // Destruimos horas y años para que no interfieran
-            textoLimpio = textoLimpio.replace(/\b\d{1,2}:\d{2}\b/g, ' ');
-            textoLimpio = textoLimpio.replace(/\b202\d\b/g, ' ');
-            
-            // Buscamos 3 números de dos dígitos seguidos que representen los premios
-            let numeros = textoLimpio.match(/\b\d{2}\b/g);
-            if (numeros && numeros.length >= 3) {
-                // Filtramos posibles números de versión o códigos basura comunes
-                let reales = numeros.filter(n => n !== '90' && n !== '20' && n !== '26');
-                if (reales.length >= 3) {
-                    return { p1: reales[0], p2: reales[1], p3: reales[2] };
-                }
+            let numeros = [];
+            let match;
+            while ((match = regexSpanExacto.exec(fragmento)) !== null) {
+                numeros.push(match[1]);
             }
             
-            pos = normHtml.indexOf(kw, pos + 10);
+            if (numeros.length >= 3) {
+                return { p1: numeros[0], p2: numeros[1], p3: numeros[2] };
+            }
+            
+            pos = html.indexOf(kw, pos + 10);
         }
     }
     return null;
@@ -81,7 +77,6 @@ export default async function handler(req, res) {
         const fecha = getFechaPanama();
         let htmlCompleto = '';
 
-        // 🌐 Fuente principal y confiable: Conectate.com.do
         const sitio = 'https://conectate.com.do/loterias/';
 
         try {
@@ -97,7 +92,7 @@ export default async function handler(req, res) {
         if (htmlCompleto.length < 500) {
             return res.status(200).json({ 
                 success: true, 
-                message: `🚨 ALERTA: No se pudo obtener la página de Conectate. Letras leídas: ${htmlCompleto.length}.` 
+                message: `🚨 ALERTA: No se pudo obtener la página. Letras leídas: ${htmlCompleto.length}.` 
             });
         }
 
@@ -120,7 +115,7 @@ export default async function handler(req, res) {
         if (aInsertar.length === 0) {
             return res.status(200).json({ 
                 success: true, 
-                message: `Escaneo exitoso en Conectate (${htmlCompleto.length} letras). Aún no publican los resultados de hoy.` 
+                message: `Escaneo exitoso (${htmlCompleto.length} letras). Aún no publican los resultados oficiales de hoy.` 
             });
         }
 
@@ -140,7 +135,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({ 
             success: true, 
-            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos desde Conectate.com.do.`, 
+            message: `¡Éxito! Se actualizaron ${aInsertar.length} sorteos extrayendo las bolitas exactas.`, 
             data: aInsertar 
         });
 

@@ -74,12 +74,8 @@ window.cargarHistorialNumeros = async function() {
         // 🔥 1. CAPTURAR EL INQUILINO ACTUAL
         const inquilinoId = localStorage.getItem('inquilino_id');
 
-        // 🔥 2. BLINDAR CONSULTA DE REGLAS/RESTRICCIONES
-        let queryReglas = supabase.from('restricciones_vendedor').select('*');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
-            queryReglas = queryReglas.eq('inquilino_id', inquilinoId);
-        }
-        const { data: reglas } = await queryReglas;
+        // 🔥 2. SE RETIRA EL FILTRO INQUILINO AQUÍ PARA EVITAR EL ERROR 400
+        const { data: reglas } = await supabase.from('restricciones_vendedor').select('*');
 
         const mapaTopes = {};
         const topeGlobalDefault = 20.00;
@@ -161,7 +157,7 @@ window.cargarHistorialNumeros = async function() {
             if (loteriaFiltro !== 'TODAS' && !sorteoNombre.includes(loteriaFiltro)) return;
             if (tipoFiltro !== 'todos' && tipoJ !== tipoFiltro) return;
             
-            // 🔍 FILTRAR POR NÚMERO BUSCADO (Si hay texto, verifica que el número lo contenga)
+            // 🔍 FILTRAR POR NÚMERO BUSCADO
             if (busquedaFiltro && !numJ.includes(busquedaFiltro)) return;
 
             const clave = `${sorteoNombre}_${tipoJ}_${numJ}`;
@@ -177,8 +173,6 @@ window.cargarHistorialNumeros = async function() {
             tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400">No hay números vendidos con los filtros seleccionados.</td></tr>`;
             return;
         }
-        
-        // ... (El bloque `tbody.innerHTML = listaResultados.map(...)` queda idéntico aquí abajo)
 
         tbody.innerHTML = listaResultados.map(item => {
             const topeMax = mapaTopes[`${item.loteria}_${item.tipo}_${item.numero}`] || 

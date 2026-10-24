@@ -123,10 +123,15 @@ export async function cargarListaVendedores() {
         const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
         if (!supabase) return false;
 
-        const { data: bancasActivas, error } = await supabase
-            .from('bancas')
-            .select('*')
-            .eq('estatus', 'activo');
+        let query = supabase.from('bancas').select('*').eq('estatus', 'activo');
+
+        // 🔥 INYECTAR ESCUDO MULTI-TENANT PARA VENTA DELEGADA
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            query = query.eq('inquilino_id', inquilinoId);
+        }
+
+        const { data: bancasActivas, error } = await query;
 
         if (error) throw error;
 

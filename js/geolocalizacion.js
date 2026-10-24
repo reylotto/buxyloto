@@ -74,8 +74,8 @@ export async function cargarUbicacionesEnVivo() {
         return;
     }
 
-    try {
-        // 🔥 1. OBTENER DATOS DE BANCAS CON FILTRO INQUILINO INYECTADO
+   try {
+        // 🔥 ESCUDO MULTI-TENANT INYECTADO
         let queryBancas = supabase.from('bancas').select('id, estatus, comision, limite_credito');
         const inquilinoId = localStorage.getItem('inquilino_id');
         

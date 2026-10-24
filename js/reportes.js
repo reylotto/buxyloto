@@ -30,8 +30,9 @@ async function asegurarBancasCache() {
         const supabase = window.supabase;
         if (supabase) {
             try {
-                // 🔥 FILTRO MULTI-TENANT INYECTADO
                 let queryBancas = supabase.from('bancas').select('*');
+                
+                // 🔥 ESCUDO MULTI-TENANT INYECTADO
                 const inquilinoId = localStorage.getItem('inquilino_id');
                 if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
                     queryBancas = queryBancas.eq('inquilino_id', inquilinoId);

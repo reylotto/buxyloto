@@ -327,9 +327,14 @@ export async function cargarBancasSistema() {
         const esAdmin = rol === 'admin' || rol === 'administrador';
         const zonaUsuario = sesion.zona || 'Zona General';
 
-        // LÓGICA CORREGIDA: Eliminado el RPC que devolvía las bancas vacías. 
-        // Ahora busca directamente en la tabla y filtra si es supervisor.
         let query = supabase.from('bancas').select('*');
+        
+        // 🔥 ESCUDO MULTI-TENANT INYECTADO
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            query = query.eq('inquilino_id', inquilinoId);
+        }
+
         if (!esAdmin && zonaUsuario) {
             query = query.eq('zona', zonaUsuario);
         }

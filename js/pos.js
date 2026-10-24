@@ -125,10 +125,12 @@ export async function cargarListaVendedores() {
 
         let query = supabase.from('bancas').select('*').eq('estatus', 'activo');
 
-        // 🔥 ESCUDO MULTI-TENANT: VENTA DELEGADA AISLADA
+        // 🔥 CANDADO ESTRICTO MULTI-TENANT: VENTA DELEGADA AISLADA
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
-            query = query.eq('inquilino_id', inquilinoId);
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
+            query = query.eq('inquilino_id', inquilinoId); // El inquilino solo ve sus bancas
+        } else {
+            query = query.is('inquilino_id', null); // 🔥 TÚ (ADMIN GLOBAL) SOLO VES LAS TUYAS
         }
 
         const { data: bancasActivas, error } = await query;
@@ -237,10 +239,17 @@ export async function cargarSorteosPOS() {
         const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
         if (!supabase) return;
 
-        const { data: sorteos, error } = await supabase
-            .from('sorteos')
-            .select('*')
-            .order('id', { ascending: true });
+        let querySorteosPOS = supabase.from('sorteos').select('*');
+
+        // 🔥 CANDADO ESTRICTO MULTI-TENANT: SORTEOS DEL POS
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
+            querySorteosPOS = querySorteosPOS.eq('inquilino_id', inquilinoId);
+        } else {
+            querySorteosPOS = querySorteosPOS.is('inquilino_id', null); // 🔥 TÚ (ADMIN GLOBAL) SOLO VES TUS SORTEOS
+        }
+
+        const { data: sorteos, error } = await querySorteosPOS.order('id', { ascending: true });
 
         const contCheckboxes = document.getElementById('pos-loterias-checkboxes');
         if (!contCheckboxes) return;

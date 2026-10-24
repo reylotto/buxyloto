@@ -137,10 +137,12 @@ export async function cargarUsuariosSistema() {
     try {
         let query = supabase.from('usuarios').select('*').order('created_at', { ascending: false });
         
-        // 🔥 ESCUDO LECTURA MULTI-TENANT
+        // 🔥 CANDADO ESTRICTO MULTI-TENANT PARA USUARIOS
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
             query = query.eq('inquilino_id', inquilinoId);
+        } else {
+            query = query.is('inquilino_id', null); // 🔥 TÚ (ADMIN) SOLO VES TUS USUARIOS
         }
 
         const { data: usuarios, error } = await query;
@@ -335,10 +337,12 @@ export async function cargarBancasSistema() {
 
         let query = supabase.from('bancas').select('*');
         
-        // 🔥 ESCUDO MULTI-TENANT INYECTADO
+        // 🔥 CANDADO ESTRICTO MULTI-TENANT PARA BANCAS
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
-            query = query.eq('inquilino_id', inquilinoId);
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
+            query = query.eq('inquilino_id', inquilinoId); // El inquilino solo ve lo suyo
+        } else {
+            query = query.is('inquilino_id', null); // 🔥 TÚ (ADMIN) SOLO VES TUS BANCAS GLOBALES
         }
 
         if (!esAdmin && zonaUsuario) {

@@ -429,11 +429,19 @@ async function cargarResumenOperacionesHoy() {
         const inicioDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0);
         const finDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59, 999);
 
-        const { data: ticketsHoy, error: errTickets } = await supabase
+        // 🔥 1. FILTRO INYECTADO PARA LOS TICKETS
+        let queryTickets = supabase
             .from('tickets')
             .select('*')
             .gte('created_at', inicioDia.toISOString())
             .lte('created_at', finDia.toISOString());
+
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            queryTickets = queryTickets.eq('inquilino_id', inquilinoId);
+        }
+
+        const { data: ticketsHoy, error: errTickets } = await queryTickets;
 
         if (errTickets) return;
 
@@ -474,7 +482,13 @@ async function cargarResumenOperacionesHoy() {
         
         let bancasCache = window._bancasCache || [];
         if (bancasCache.length === 0) {
-            const { data: bancasDirectas } = await supabase.from('bancas').select('*');
+            // 🔥 2. FILTRO INYECTADO PARA LAS BANCAS
+            let queryBancas = supabase.from('bancas').select('*');
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+                queryBancas = queryBancas.eq('inquilino_id', inquilinoId);
+            }
+            const { data: bancasDirectas } = await queryBancas;
+            
             bancasCache = bancasDirectas || [];
             window._bancasCache = bancasCache; 
         }
@@ -534,6 +548,8 @@ async function cargarResumenOperacionesHoy() {
                 totalGanadores++;
             }
         });
+
+        // (El resto del código hacia abajo sigue igual, calculando la ganancia neta y actualizando el DOM)
 
         const gananciaNeta = ventaTotal - comisionesTotal - premiosTotal;
         const totalVentasFmt = `$${ventaTotal.toFixed(2)}`;

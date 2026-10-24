@@ -75,8 +75,15 @@ export async function cargarUbicacionesEnVivo() {
     }
 
     try {
-        // 1. Obtener datos de bancas (estáticos: comisiones, limites)
-        const { data: bancasData, error: errBancas } = await supabase.from('bancas').select('id, estatus, comision, limite_credito');
+        // 🔥 1. OBTENER DATOS DE BANCAS CON FILTRO INQUILINO INYECTADO
+        let queryBancas = supabase.from('bancas').select('id, estatus, comision, limite_credito');
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            queryBancas = queryBancas.eq('inquilino_id', inquilinoId);
+        }
+
+        const { data: bancasData, error: errBancas } = await queryBancas;
         if (errBancas) throw errBancas;
         const bancasMap = new Map((bancasData || []).map(b => [String(b.id), b]));
 

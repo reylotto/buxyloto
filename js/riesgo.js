@@ -77,17 +77,15 @@ export async function cargarSelectorBancasRiesgo() {
     if (!supabase) return;
 
     try {
-        const { data: bancas, error } = await supabase.from('bancas').select('*').order('id', { ascending: false });
-        if (error) throw error;
-
-        let opcionesHTML = `<option value="">-- Seleccione una Banca / Vendedor --</option>`;
-        
-        // 🚀 NUEVO: Agregamos la opción GLOBAL al inicio
-        opcionesHTML += `<option value="GLOBAL" class="font-bold text-emerald-400">🌍 APLICAR RESTRICCIÓN GLOBAL (Todas las bancas)</option>`;
-
-        if (bancas && bancas.length > 0) {
-            opcionesHTML += bancas.map(b => `<option value="${b.id}">${b.nombre_banca || b.nombre || `Banca #${b.id}`}</option>`).join('');
+        // 🔥 FILTRO MULTI-TENANT INYECTADO
+        let queryBancas = supabase.from('bancas').select('*').order('id', { ascending: false });
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            queryBancas = queryBancas.eq('inquilino_id', inquilinoId);
         }
+
+        const { data: bancas, error } = await queryBancas;
+        if (error) throw error;
 
         selectBanca.innerHTML = opcionesHTML;
     } catch (err) {

@@ -22,7 +22,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (loginWrapper) loginWrapper.classList.add('hidden');
                 if (mainContainer) mainContainer.classList.remove('hidden');
 
-                // Asegurar vista por defecto si no hay hash
                 if (!window.location.hash || window.location.hash === '#') {
                     window.location.hash = '#dashboard';
                 }
@@ -54,37 +53,37 @@ if (loginForm) {
         try {
             let cuentaUsuario = null;
 
+            // 1. Validar por correo
             if (userInput.includes('@')) {
-    const { data: authData, error: authError } = await window.supabase.auth.signInWithPassword({
-        email: userInput,
-        password: passwordInput
-    });
-    
-    if (!authError && authData.user) {
-        // 🔥 BUSCAR EL PERFIL REAL DEL INQUILINO EN LA BD
-        const { data: perfilReal } = await window.supabase
-            .from('usuarios')
-            .select('*')
-            .eq('email', userInput)
-            .maybeSingle();
+                const { data: authData, error: authError } = await window.supabase.auth.signInWithPassword({
+                    email: userInput,
+                    password: passwordInput
+                });
+                
+                if (!authError && authData.user) {
+                    const { data: perfilReal } = await window.supabase
+                        .from('usuarios')
+                        .select('*')
+                        .eq('email', userInput)
+                        .maybeSingle();
 
-        if (perfilReal) {
-            cuentaUsuario = perfilReal; // Toma los datos reales de Carlos (incluyendo su inquilino_id)
-        } else {
-            // Si no existe en la tabla, asume que eres la cuenta maestra original
-            cuentaUsuario = {
-                id: authData.user.id,
-                nombre: 'Administrador Maestro',
-                username: 'admin',
-                rol: 'admin',
-                email: authData.user.email,
-                estatus: 'activo',
-                zona: 'Zona General'
-            };
-        }
-    }
-}
+                    if (perfilReal) {
+                        cuentaUsuario = perfilReal; 
+                    } else {
+                        cuentaUsuario = {
+                            id: authData.user.id,
+                            nombre: 'Administrador Maestro',
+                            username: 'admin',
+                            rol: 'admin',
+                            email: authData.user.email,
+                            estatus: 'activo',
+                            zona: 'Zona General'
+                        };
+                    }
+                }
+            }
 
+            // 2. Validar por nombre de usuario
             if (!cuentaUsuario) {
                 const { data: usuarioData, error: errUsu } = await window.supabase
                     .from('usuarios')
@@ -93,11 +92,10 @@ if (loginForm) {
                     .eq('password', passwordInput)
                     .maybeSingle();
 
-                if (!errUsu && usuarioData) {
-                    cuentaUsuario = usuarioData;
-                }
+                if (!errUsu && usuarioData) cuentaUsuario = usuarioData;
             }
 
+            // 3. Validar si es una Banca/Caja
             if (!cuentaUsuario) {
                 const { data: bancaData, error: errBanca } = await window.supabase
                     .from('bancas')
@@ -128,49 +126,31 @@ if (loginForm) {
                 return;
             }
 
-            window.currentUserProfile = cuentaUsuario;
-            localStorage.setItem('usuario_sesion', JSON.stringify(cuentaUsuario));
-
-            // 🔥 GUARDADO DEL INQUILINO PARA EL FILTRO DE AISLAMIENTO
+            // 🔥 ORDEN ESTRICTO MULTI-TENANT PARA EVITAR EL F5
+            
+            // Paso A: Guardar el ID de la empresa en la memoria
             if (cuentaUsuario.inquilino_id) {
                 localStorage.setItem('inquilino_id', cuentaUsuario.inquilino_id);
             } else {
-                localStorage.removeItem('inquilino_id'); // Eres tú (SuperAdmin), limpiamos la memoria
+                localStorage.removeItem('inquilino_id');
             }
 
-            const loginWrapper = document.getElementById('auth-login-wrapper');
-            const mainContainer = document.getElementById('main-app-container');
-            if (loginWrapper) loginWrapper.classList.add('hidden');
-            if (mainContainer) mainContainer.classList.remove('hidden');
+            // Paso B: Guardar los datos del usuario
+            window.currentUserProfile = cuentaUsuario;
+            localStorage.setItem('usuario_sesion', JSON.stringify(cuentaUsuario));
 
-            // 🟢 REDIRECCIÓN INTELIGENTE SEGÚN ROL
+            // Paso C: Determinar la ruta de destino
             const rolActual = String(cuentaUsuario.rol || 'caja').toLowerCase();
-            
-            // Refrescar el escudo inmediatamente
-            if (typeof window.aplicarRolesSeguridad === 'function') {
-                window.aplicarRolesSeguridad();
-            }
-
             if (rolActual.includes('caja') || rolActual.includes('vendedor') || rolActual.includes('banca')) {
                 window.location.hash = '#pos';
-                if (typeof cambiarSeccion === 'function') cambiarSeccion('section-pos');
             } else {
                 window.location.hash = '#dashboard';
-                if (typeof cambiarSeccion === 'function') cambiarSeccion('section-dashboard');
             }
 
-            if (typeof iniciarAplicacionPrincipal === 'function') {
-                iniciarAplicacionPrincipal();
-            } else {
-                // Pequeño timeout para evitar parpadeos visuales al cambiar de sección
-                setTimeout(() => window.location.reload(), 100);
-            }
+            // Paso D: 🚀 FORZAR RECARGA INMEDIATA 
+            // Destruye toda la RAM previa e inicia todo el sistema sabiendo quién es el usuario
+            window.location.reload();
 
-            if (typeof iniciarAplicacionPrincipal === 'function') {
-                iniciarAplicacionPrincipal();
-            } else {
-                window.location.reload();
-            }
         } catch (err) {
             console.error('Error en login:', err);
             alert('Error inesperado al iniciar sesión.');

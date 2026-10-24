@@ -507,50 +507,9 @@ export async function anularTicketCancelado(identificadorTicket) {
 window.anularTicketCancelado = anularTicketCancelado;
 
 // ==========================================================
-// MÓDULO ACTIVO DE PERSONALIZACIÓN DE TICKET
-// ==========================================================
-
-window.cargarPersonalizacionTicket = function() {
-    const iTitulo = document.getElementById('cfg-ticket-title');
-    const iIcono = document.getElementById('cfg-ticket-icon');
-    const iTelefono = document.getElementById('cfg-ticket-phone');
-    const tPie = document.getElementById('cfg-ticket-footer');
-
-    if (iTitulo) iTitulo.value = localStorage.getItem('buxy_ticket_titulo') || 'BUXYLOTO POS';
-    if (iIcono) iIcono.value = localStorage.getItem('buxy_ticket_icono') || 'fa-clover';
-    if (iTelefono) iTelefono.value = localStorage.getItem('buxy_ticket_telefono') || '';
-    if (tPie) tPie.value = localStorage.getItem('buxy_ticket_pie') || 'REVISE SU TICKET\nSIN TICKET NO SE PAGA\nLNP 1ER 2500-2DO 700-3ER 300\nPALE 1000-1000-200\nTRIPLETA 10000X1 2Num 100x1\nNO SE PAGA EL PALE DOBLE';
-};
-
-// Escuchar automáticamente la carga y el botón Guardar del formulario
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(window.cargarPersonalizacionTicket, 1000);
-
-    const formPersonalizacion = document.getElementById('form-ticket-custom');
-    if (formPersonalizacion) {
-        formPersonalizacion.addEventListener('submit', function(e) {
-            e.preventDefault(); // Evita que la página se recargue al dar clic en Guardar
-
-            const iTitulo = document.getElementById('cfg-ticket-title');
-            const iIcono = document.getElementById('cfg-ticket-icon');
-            const iTelefono = document.getElementById('cfg-ticket-phone');
-            const tPie = document.getElementById('cfg-ticket-footer');
-
-            if (iTitulo) localStorage.setItem('buxy_ticket_titulo', iTitulo.value);
-            if (iIcono) localStorage.setItem('buxy_ticket_icono', iIcono.value);
-            if (iTelefono) localStorage.setItem('buxy_ticket_telefono', iTelefono.value);
-            if (tPie) localStorage.setItem('buxy_ticket_pie', tPie.value);
-
-            alert("✅ ¡Personalización Guardada Exitosamente!\nTodos los tickets impresos a partir de ahora tendrán este diseño.");
-        });
-    }
-});
-// ==========================================================
 // MOTOR DE REIMPRESIÓN DIAGNOSTICADO Y ASEGURADO
 // ==========================================================
 window.reimprimirTicketUnificado = async function(ticketId) {
-    alert("🔍 Clic detectado en ticket ID: " + ticketId); // Alerta de prueba para verificar ejecución
-
     try {
         const supabase = window.supabaseClient || window.supabase;
         if (!supabase) {

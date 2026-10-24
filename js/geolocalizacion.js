@@ -77,8 +77,9 @@ export async function cargarUbicacionesEnVivo() {
    try {
         // 🔥 ESCUDO MULTI-TENANT INYECTADO
         let queryBancas = supabase.from('bancas').select('id, estatus, comision, limite_credito');
-        const inquilinoId = localStorage.getItem('inquilino_id');
         
+        // 🔥 ESCUDO MULTI-TENANT: MAPA DE GEOLOCALIZACIÓN
+        const inquilinoId = localStorage.getItem('inquilino_id');
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
             queryBancas = queryBancas.eq('inquilino_id', inquilinoId);
         }

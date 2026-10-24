@@ -80,7 +80,7 @@ export async function cargarSelectorBancasRiesgo() {
     try {
         let queryBancas = supabase.from('bancas').select('*').order('id', { ascending: false });
         
-        // 🔥 ESCUDO MULTI-TENANT
+        // 🔥 ESCUDO MULTI-TENANT: CONTROL DE RIESGO
         const inquilinoId = localStorage.getItem('inquilino_id');
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
             queryBancas = queryBancas.eq('inquilino_id', inquilinoId);

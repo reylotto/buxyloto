@@ -125,14 +125,13 @@ export async function cargarListaVendedores() {
 
         let query = supabase.from('bancas').select('*').eq('estatus', 'activo');
 
-        // 🔥 INYECTAR ESCUDO MULTI-TENANT PARA VENTA DELEGADA
+        // 🔥 ESCUDO MULTI-TENANT: VENTA DELEGADA AISLADA
         const inquilinoId = localStorage.getItem('inquilino_id');
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
             query = query.eq('inquilino_id', inquilinoId);
         }
 
         const { data: bancasActivas, error } = await query;
-
         if (error) throw error;
 
         if (bancasActivas && bancasActivas.length > 0) {
@@ -148,6 +147,8 @@ export async function cargarListaVendedores() {
                 selectVendedor.appendChild(option);
             });
             return true;
+        } else {
+            selectVendedor.innerHTML = '<option value="">-- Registrar a mi nombre (Administrador) --</option>';
         }
     } catch (err) {
         console.error("❌ Error cargando bancas activas:", err.message);

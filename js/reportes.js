@@ -31,14 +31,14 @@ async function asegurarBancasCache() {
         if (supabase) {
             try {
                 let queryBancas = supabase.from('bancas').select('*');
-                
-                // 🔥 ESCUDO MULTI-TENANT INYECTADO
+        
+                // 🔥 ESCUDO MULTI-TENANT: BALANCES Y CUADRES
                 const inquilinoId = localStorage.getItem('inquilino_id');
                 if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
                     queryBancas = queryBancas.eq('inquilino_id', inquilinoId);
                 }
                 
-                const { data: bancas } = await queryBancas;
+                const { data: bancas, error } = await queryBancas;
                 if (bancas && bancas.length > 0) {
                     bancasData = bancas;
                 }

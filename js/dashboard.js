@@ -430,18 +430,15 @@ async function cargarResumenOperacionesHoy() {
         const finDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59, 999);
 
         // 🔥 1. FILTRO INYECTADO PARA LOS TICKETS
-        let queryTickets = supabase
-            .from('tickets')
-            .select('*')
-            .gte('created_at', inicioDia.toISOString())
-            .lte('created_at', finDia.toISOString());
-
+        let queryTickets = supabase.from('tickets').select('*').gte('created_at', startOfDay).lte('created_at', endOfDay);
+        
+        // 🔥 ESCUDO MULTI-TENANT: MÉTRICAS DEL DASHBOARD
         const inquilinoId = localStorage.getItem('inquilino_id');
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
             queryTickets = queryTickets.eq('inquilino_id', inquilinoId);
         }
 
-        const { data: ticketsHoy, error: errTickets } = await queryTickets;
+        const { data: ticketsHoy, error } = await queryTickets;
 
         if (errTickets) return;
 

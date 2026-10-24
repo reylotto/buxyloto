@@ -38,26 +38,28 @@ async function cargarHistorialResultados() {
     const tbody = document.getElementById('tabla-historial-resultados');
 
     if (!tbody) return;
-
     const supabase = getSupabaseInstance();
     if (!supabase) return;
 
     try {
-        let { data, error } = await supabase
+        let queryResultados = supabase
             .from('resultados')
             .select('*, sorteos(nombre)')
             .eq('fecha', filtroFecha)
             .order('created_at', { ascending: false });
 
+        // 🔥 ESCUDO MULTI-TENANT
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            queryResultados = queryResultados.eq('inquilino_id', inquilinoId);
+        }
+
+        let { data, error } = await queryResultados;
+
         if (error) throw error;
 
         if (!data || data.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="6" class="text-center p-4 text-slate-500 font-medium">
-                        No hay sorteos escrutados para la fecha ${filtroFecha}.
-                    </td>
-                </tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-slate-500 font-medium">No hay sorteos escrutados para la fecha ${filtroFecha}.</td></tr>`;
             return;
         }
 
@@ -76,19 +78,12 @@ async function cargarHistorialResultados() {
                     <td class="p-3 text-cyan-400 font-bold font-mono text-sm">${num2}</td>
                     <td class="p-3 text-amber-400 font-bold font-mono text-sm">${num3}</td>
                     <td class="p-3 text-center flex items-center justify-center gap-2">
-                        <button type="button" onclick="cargarResultadoEnFormulario(${jsonStr})" 
-                            class="admin-only text-xs bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-slate-950 px-2.5 py-1 rounded-lg font-bold transition">
-                            ✏️ Editar
-                        </button>
-                        <button type="button" onclick="eliminarResultado('${res.id}')" 
-                            class="admin-only text-xs bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white px-2.5 py-1 rounded-lg font-bold transition">
-                            🗑️ Eliminar
-                        </button>
+                        <button type="button" onclick="cargarResultadoEnFormulario(${jsonStr})" class="admin-only text-xs bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-slate-950 px-2.5 py-1 rounded-lg font-bold transition">✏️ Editar</button>
+                        <button type="button" onclick="eliminarResultado('${res.id}')" class="admin-only text-xs bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white px-2.5 py-1 rounded-lg font-bold transition">🗑️ Eliminar</button>
                     </td>
                 </tr>
             `;
         }).join('');
-
     } catch (err) {
         console.error("Error al cargar historial:", err);
         tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-rose-400">Error: ${err.message}</td></tr>`;
@@ -171,7 +166,7 @@ function inicializarFormularioResultados() {
         if (!supabase) return;
 
         try {
-            const sorteoIdNum = parseInt(sorteo_id, 10);
+            const inquilinoId = localStorage.getItem('inquilino_id');
 
             // 1. Guardar en la tabla 'resultados'
             const payloadResultados = {
@@ -183,6 +178,7 @@ function inicializarFormularioResultados() {
                 primero: primero,
                 segundo: segundo,
                 tercero: tercero,
+                inquilino_id: inquilinoId, // 🔥 BLINDAJE DE SEGURIDAD
                 updated_at: new Date().toISOString()
             };
 

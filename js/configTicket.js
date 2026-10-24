@@ -1,5 +1,5 @@
 // ==========================================================================
-// 🎟️ MÓDULO DE PERSONALIZACIÓN DE TICKET (ADMIN)
+// 🎟️ MÓDULO DE PERSONALIZACIÓN DE TICKET (ADMIN) MULTI-TENANT
 // ==========================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -19,23 +19,42 @@ document.addEventListener('DOMContentLoaded', () => {
             const icono = document.getElementById('cfg-ticket-icon').value;
             const telefono = document.getElementById('cfg-ticket-phone').value;
             const piePagina = document.getElementById('cfg-ticket-footer').value;
+            
+            // 🔥 OBTENEMOS EL INQUILINO
+            const inquilinoId = localStorage.getItem('inquilino_id');
 
             try {
                 const supabase = window.supabaseClient || window.supabase;
-                // Actualizamos la fila con ID 1 (siempre usaremos esa única fila)
-                const { error } = await supabase
-                    .from('configuracion_ticket')
-                    .update({ 
-                        titulo_empresa: titulo, 
-                        icono: icono, 
-                        telefono: telefono, 
-                        pie_pagina: piePagina 
-                    })
-                    .eq('id', 1);
-
-                if (error) throw error;
                 
-                alert('¡Configuración del ticket actualizada correctamente para todas las bancas!');
+                const payload = {
+                    titulo_empresa: titulo, 
+                    icono: icono, 
+                    telefono: telefono, 
+                    pie_pagina: piePagina,
+                    inquilino_id: inquilinoId // VINCULACIÓN AL TENANT
+                };
+
+                // 1. Verificamos si este inquilino ya tiene una configuración guardada
+                let queryCheck = supabase.from('configuracion_ticket').select('id');
+                if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+                    queryCheck = queryCheck.eq('inquilino_id', inquilinoId);
+                }
+                const { data: existente } = await queryCheck.maybeSingle();
+
+                let resError = null;
+
+                // 2. Si ya existe, actualizamos su fila. Si no, creamos una nueva.
+                if (existente && existente.id) {
+                    const { error } = await supabase.from('configuracion_ticket').update(payload).eq('id', existente.id);
+                    resError = error;
+                } else {
+                    const { error } = await supabase.from('configuracion_ticket').insert([payload]);
+                    resError = error;
+                }
+
+                if (resError) throw resError;
+                
+                alert('¡Configuración del ticket actualizada correctamente para tu empresa!');
                 
             } catch (err) {
                 console.error('Error al guardar config de ticket:', err);
@@ -51,11 +70,17 @@ document.addEventListener('DOMContentLoaded', () => {
 async function cargarConfiguracionTicket() {
     try {
         const supabase = window.supabaseClient || window.supabase;
-        const { data, error } = await supabase
-            .from('configuracion_ticket')
-            .select('*')
-            .eq('id', 1)
-            .single();
+        
+        let queryConfig = supabase.from('configuracion_ticket').select('*');
+        
+        // 🔥 ESCUDO MULTI-TENANT: CONFIGURACIÓN DE TICKET
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            queryConfig = queryConfig.eq('inquilino_id', inquilinoId);
+        }
+
+        // Usamos maybeSingle() para evitar error si la empresa nueva aún no guarda su primer diseño
+        const { data, error } = await queryConfig.maybeSingle();
 
         if (error) throw error;
 

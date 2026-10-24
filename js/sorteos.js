@@ -77,15 +77,19 @@ export async function cargarSorteosSistema() {
                   document.getElementById('sorteos-list-body');
 
     if (!tbody) return;
-
     const supabase = getSupabase();
     if (!supabase) return;
 
     try {
-        const { data: sorteos, error } = await supabase
-            .from('sorteos')
-            .select('*')
-            .order('id', { ascending: true });
+        let querySorteos = supabase.from('sorteos').select('*').order('id', { ascending: true });
+        
+        // 🔥 ESCUDO MULTI-TENANT: SOLO MOSTRAR SORTEOS DEL INQUILINO
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            querySorteos = querySorteos.eq('inquilino_id', inquilinoId);
+        }
+
+        const { data: sorteos, error } = await querySorteos;
 
         if (error) throw error;
         window._sorteosCache = sorteos || [];
@@ -99,7 +103,6 @@ export async function cargarSorteosSistema() {
             const estatusInfo = calcularEstatusVisualSorteo(s);
             const estatusRealDB = String(s.estatus || s.estado || 'ACTIVO').toUpperCase();
             const esPausado = ['PAUSADO', 'INACTIVO'].includes(estatusRealDB);
-
             const horaApertura = s.hora_apertura || s.horario_apertura || '06:00';
             const horaCierre = s.hora_cierre || s.horario_cierre || '--';
             const diasJuego = s.dias_juego || s.dias || 'Dom, Lun, Mar, Mié, Jue, Vie, Sáb';
@@ -112,9 +115,7 @@ export async function cargarSorteosSistema() {
                     <td class="p-3 text-slate-400 text-[11px]">${diasJuego}</td>
                     <td class="p-3 text-slate-400 font-mono">x60</td>
                     <td class="p-3 text-center">
-                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${estatusInfo.clase}">
-                            ${estatusInfo.texto}
-                        </span>
+                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${estatusInfo.clase}">${estatusInfo.texto}</span>
                     </td>
                     <td class="p-3 text-center">
                         <div class="flex items-center justify-center gap-1.5">
@@ -134,6 +135,56 @@ export async function cargarSorteosSistema() {
     }
 }
 window.cargarSorteosSistema = cargarSorteosSistema;
+
+export async function guardarSorteoSistema(e) {
+    if (e) e.preventDefault();
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const id = (document.getElementById('edit-sorteo-id') || document.getElementById('sorteo-id'))?.value;
+    const nombre = (document.getElementById('sorteo-nombre') || document.querySelector('input[name="sorteo-nombre"]'))?.value.trim();
+    const horaApertura = (document.getElementById('sorteo-apertura') || document.querySelector('input[name="sorteo-apertura"]'))?.value || '06:00';
+    const horaCierre = (document.getElementById('sorteo-cierre') || document.querySelector('input[name="sorteo-cierre"]'))?.value;
+    const diasJuego = (document.getElementById('sorteo-dias') || document.querySelector('input[name="sorteo-dias"]'))?.value || 'Dom, Lun, Mar, Mié, Jue, Vie, Sáb';
+
+    if (!nombre || !horaCierre) {
+        alert("⚠️ Ingrese el nombre del sorteo y su hora de cierre.");
+        return;
+    }
+
+    const inquilinoId = localStorage.getItem('inquilino_id');
+
+    const payload = {
+        nombre: nombre,
+        hora_apertura: horaApertura,
+        hora_cierre: horaCierre,
+        dias_juego: diasJuego,
+        inquilino_id: inquilinoId // 🔥 ASIGNACIÓN DIRECTA AL INQUILINO
+    };
+
+    try {
+        if (id) {
+            const { error } = await supabase.from('sorteos').update(payload).eq('id', id);
+            if (error) throw error;
+            alert("✅ Sorteo actualizado con éxito.");
+        } else {
+            payload.estatus = 'ACTIVO';
+            payload.estado = 'ACTIVO';
+            const { error } = await supabase.from('sorteos').insert([payload]);
+            if (error) throw error;
+            alert("✅ Nuevo sorteo registrado con éxito.");
+        }
+
+        cerrarModalSorteo();
+        await cargarSorteosSistema();
+        if (typeof window.cargarSorteosPOS === 'function') {
+            await window.cargarSorteosPOS();
+        }
+    } catch (err) {
+        alert("❌ Error al guardar sorteo: " + (err.message || err));
+    }
+}
+window.guardarSorteoSistema = guardarSorteoSistema;
 
 // ----------------------------------------------------------
 // 3. APERTURA Y EDICIÓN VÍA MODAL

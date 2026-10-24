@@ -31,14 +31,19 @@ window.cargarHistorialResultados = async function() {
 
         const fechaFiltro = document.getElementById('filtro-fecha-resultados')?.value || getFechaPanamaEscrutinio();
 
-        const { data, error } = await supabase
+        let queryHistorial = supabase
             .from('resultados')
-            .select(`
-                *,
-                sorteos (nombre, hora_cierre)
-            `)
+            .select('*, sorteos (nombre, hora_cierre)')
             .eq('fecha', fechaFiltro)
             .order('created_at', { ascending: false });
+
+        // 🔥 ESCUDO MULTI-TENANT
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            queryHistorial = queryHistorial.eq('inquilino_id', inquilinoId);
+        }
+
+        const { data, error } = await queryHistorial;
 
         if (error) throw error;
 
@@ -63,12 +68,8 @@ window.cargarHistorialResultados = async function() {
                     <td class="p-3"><span class="bg-amber-500/20 text-amber-400 px-3 py-1 rounded font-black tracking-widest border border-amber-500/30">${p3}</span></td>
                     <td class="p-3">
                         <div class="flex gap-2">
-                            <button onclick="window.editarResultadoSorteo('${r.sorteo_id}', '${p1}', '${p2}', '${p3}')" class="bg-amber-600/20 text-amber-400 hover:bg-amber-500 hover:text-white px-3 py-1.5 rounded text-xs transition border border-amber-600/30" title="Editar">
-                                <i class="fa-solid fa-pen"></i> Editar
-                            </button>
-                            <button onclick="window.eliminarResultadoSorteo('${r.sorteo_id}')" class="bg-rose-600/20 text-rose-400 hover:bg-rose-500 hover:text-white px-3 py-1.5 rounded text-xs transition border border-rose-600/30" title="Eliminar">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
+                            <button onclick="window.editarResultadoSorteo('${r.sorteo_id}', '${p1}', '${p2}', '${p3}')" class="bg-amber-600/20 text-amber-400 hover:bg-amber-500 hover:text-white px-3 py-1.5 rounded text-xs transition border border-amber-600/30" title="Editar"><i class="fa-solid fa-pen"></i> Editar</button>
+                            <button onclick="window.eliminarResultadoSorteo('${r.sorteo_id}')" class="bg-rose-600/20 text-rose-400 hover:bg-rose-500 hover:text-white px-3 py-1.5 rounded text-xs transition border border-rose-600/30" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
                         </div>
                     </td>
                 </tr>
@@ -258,10 +259,18 @@ async function cargarSorteosEscrutinio() {
         const supabase = getSupabaseClient();
         if (!supabase) return;
 
-        let { data, error } = await supabase
+        let querySorteos = supabase
             .from('sorteos')
             .select('*')
             .order('created_at', { ascending: false });
+
+        // 🔥 ESCUDO MULTI-TENANT: DESPLEGABLES DE SORTEOS AISLADOS
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            querySorteos = querySorteos.eq('inquilino_id', inquilinoId);
+        }
+
+        let { data, error } = await querySorteos;
 
         if (error || !data || data.length === 0) return;
 

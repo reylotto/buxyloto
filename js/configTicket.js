@@ -3,7 +3,6 @@
 // ==========================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Retraso ligero para asegurar que Supabase esté conectado
     setTimeout(cargarConfiguracionTicket, 1000);
 
     const formTicket = document.getElementById('form-ticket-custom');
@@ -20,8 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const telefono = document.getElementById('cfg-ticket-phone').value;
             const piePagina = document.getElementById('cfg-ticket-footer').value;
             
-            // 🔥 OBTENEMOS EL INQUILINO
             const inquilinoId = localStorage.getItem('inquilino_id');
+            const esInquilino = (inquilinoId && inquilinoId !== 'null' && String(inquilinoId).trim() !== '');
 
             try {
                 const supabase = window.supabaseClient || window.supabase;
@@ -30,34 +29,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     titulo_empresa: titulo, 
                     icono: icono, 
                     telefono: telefono, 
-                    pie_pagina: piePagina,
-                    inquilino_id: inquilinoId // VINCULACIÓN AL TENANT
+                    pie_pagina: piePagina
                 };
 
-                // 1. Verificamos si este inquilino ya tiene una configuración guardada
+                if (esInquilino) payload.inquilino_id = inquilinoId;
+
                 let queryCheck = supabase.from('configuracion_ticket').select('id');
-                if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+                if (esInquilino) {
                     queryCheck = queryCheck.eq('inquilino_id', inquilinoId);
+                } else {
+                    queryCheck = queryCheck.is('inquilino_id', null);
                 }
+                
                 const { data: existente } = await queryCheck.maybeSingle();
 
-                let resError = null;
-
-                // 2. Si ya existe, actualizamos su fila. Si no, creamos una nueva.
                 if (existente && existente.id) {
                     const { error } = await supabase.from('configuracion_ticket').update(payload).eq('id', existente.id);
-                    resError = error;
+                    if (error) throw error;
                 } else {
                     const { error } = await supabase.from('configuracion_ticket').insert([payload]);
-                    resError = error;
+                    if (error) throw error;
                 }
-
-                if (resError) throw resError;
                 
-                alert('¡Configuración del ticket actualizada correctamente para tu empresa!');
+                alert('¡Configuración del ticket actualizada en la Nube (Supabase)!');
                 
             } catch (err) {
-                console.error('Error al guardar config de ticket:', err);
+                console.error('Error:', err);
                 alert('Error al guardar: ' + err.message);
             } finally {
                 btnSubmit.innerHTML = 'Guardar Personalización del Ticket';
@@ -70,22 +67,18 @@ document.addEventListener('DOMContentLoaded', () => {
 async function cargarConfiguracionTicket() {
     try {
         const supabase = window.supabaseClient || window.supabase;
-        
         let queryConfig = supabase.from('configuracion_ticket').select('*');
         
-        // 🔥 ESCUDO MULTI-TENANT: CONFIGURACIÓN DE TICKET
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        if (inquilinoId && inquilinoId !== 'null' && String(inquilinoId).trim() !== '') {
             queryConfig = queryConfig.eq('inquilino_id', inquilinoId);
+        } else {
+            queryConfig = queryConfig.is('inquilino_id', null);
         }
 
-        // Usamos maybeSingle() para evitar error si la empresa nueva aún no guarda su primer diseño
         const { data, error } = await queryConfig.maybeSingle();
 
-        if (error) throw error;
-
         if (data) {
-            // Llenar el formulario del admin
             const inputTitulo = document.getElementById('cfg-ticket-title');
             const inputIcono = document.getElementById('cfg-ticket-icon');
             const inputTel = document.getElementById('cfg-ticket-phone');
@@ -97,6 +90,7 @@ async function cargarConfiguracionTicket() {
             if (inputPie) inputPie.value = data.pie_pagina || '';
         }
     } catch (err) {
-        console.error("Error cargando la configuración del ticket:", err);
+        console.error("Error cargando ticket:", err);
     }
 }
+window.cargarConfiguracionTicket = cargarConfiguracionTicket;

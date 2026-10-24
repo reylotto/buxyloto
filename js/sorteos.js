@@ -143,7 +143,7 @@ window.cargarSorteosSistema = cargarSorteosSistema;
 
 export async function guardarSorteoSistema(e) {
     if (e) e.preventDefault();
-    const supabase = getSupabase();
+    const supabase = window.supabaseClient || window.supabase;
     if (!supabase) return;
 
     const id = (document.getElementById('edit-sorteo-id') || document.getElementById('sorteo-id'))?.value;
@@ -157,15 +157,20 @@ export async function guardarSorteoSistema(e) {
         return;
     }
 
-    const inquilinoId = localStorage.getItem('inquilino_id');
+    const rawInquilino = localStorage.getItem('inquilino_id');
+    const esInquilino = (rawInquilino && rawInquilino !== 'null' && rawInquilino !== 'undefined' && String(rawInquilino).trim() !== '');
 
     const payload = {
         nombre: nombre,
         hora_apertura: horaApertura,
         hora_cierre: horaCierre,
-        dias_juego: diasJuego,
-        inquilino_id: inquilinoId // 🔥 ASIGNACIÓN DIRECTA AL INQUILINO
+        dias_juego: diasJuego
     };
+
+    // 🔥 ASIGNACIÓN SEGURA: Solo inyecta la columna si el inquilino es válido
+    if (esInquilino) {
+        payload.inquilino_id = rawInquilino;
+    }
 
     try {
         if (id) {
@@ -180,11 +185,9 @@ export async function guardarSorteoSistema(e) {
             alert("✅ Nuevo sorteo registrado con éxito.");
         }
 
-        cerrarModalSorteo();
-        await cargarSorteosSistema();
-        if (typeof window.cargarSorteosPOS === 'function') {
-            await window.cargarSorteosPOS();
-        }
+        if (typeof cerrarModalSorteo === 'function') cerrarModalSorteo();
+        if (typeof cargarSorteosSistema === 'function') await cargarSorteosSistema();
+        if (typeof window.cargarSorteosPOS === 'function') await window.cargarSorteosPOS();
     } catch (err) {
         alert("❌ Error al guardar sorteo: " + (err.message || err));
     }

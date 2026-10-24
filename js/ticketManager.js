@@ -510,6 +510,8 @@ window.anularTicketCancelado = anularTicketCancelado;
 // MOTOR DE REIMPRESIÓN DIAGNOSTICADO Y ASEGURADO
 // ==========================================================
 window.reimprimirTicketUnificado = async function(ticketId) {
+    alert("🔍 Clic detectado en ticket ID: " + ticketId);
+
     try {
         const supabase = window.supabaseClient || window.supabase;
         if (!supabase) {
@@ -517,7 +519,6 @@ window.reimprimirTicketUnificado = async function(ticketId) {
             return;
         }
 
-        // 1. Obtener ticket principal
         const { data: ticket, error: errTicket } = await supabase
             .from('tickets')
             .select('*, bancas(nombre)')
@@ -533,7 +534,6 @@ window.reimprimirTicketUnificado = async function(ticketId) {
             return;
         }
 
-        // 2. Obtener las jugadas
         const { data: jugadas, error: errJugadas } = await supabase
             .from('jugadas')
             .select('*')
@@ -543,7 +543,6 @@ window.reimprimirTicketUnificado = async function(ticketId) {
             alert("❌ Error al buscar jugadas: " + errJugadas.message);
         }
 
-        // 3. Formatear datos para el motor de 2 columnas
         const ticketData = {
             ...ticket,
             codigo_ticket: ticket.codigo_ticket || ticket.folio || ticket.codigo || 'BX-000000',
@@ -553,7 +552,6 @@ window.reimprimirTicketUnificado = async function(ticketId) {
             jugadas: jugadas || []
         };
 
-        // 4. Lanzar el menú de exportación
         if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
             window.mostrarOpcionesExportacionTicket(ticketData);
         } else {

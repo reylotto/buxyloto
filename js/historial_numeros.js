@@ -71,7 +71,16 @@ window.cargarHistorialNumeros = async function() {
     tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-cyan-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Procesando números vendidos...</td></tr>`;
 
     try {
-        const { data: reglas } = await supabase.from('restricciones_vendedor').select('*');
+        // 🔥 1. CAPTURAR EL INQUILINO ACTUAL
+        const inquilinoId = localStorage.getItem('inquilino_id');
+
+        // 🔥 2. BLINDAR CONSULTA DE REGLAS/RESTRICCIONES
+        let queryReglas = supabase.from('restricciones_vendedor').select('*');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            queryReglas = queryReglas.eq('inquilino_id', inquilinoId);
+        }
+        const { data: reglas } = await queryReglas;
+
         const mapaTopes = {};
         const topeGlobalDefault = 20.00;
         
@@ -89,16 +98,35 @@ window.cargarHistorialNumeros = async function() {
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
         
+        // 🔥 3. BLINDAR CONSULTA PRINCIPAL DE TICKETS
         let queryTickets = supabase.from('tickets').select('id').gte('created_at', startOfDay).lte('created_at', endOfDay);
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            queryTickets = queryTickets.eq('inquilino_id', inquilinoId);
+        }
 
         if (rol.includes('supervisor')) {
             const zonaSup = String(sesion.zona || '').trim().toLowerCase();
-            const { data: bData } = await supabase.from('bancas').select('id, zona');
+            
+            // 🔥 BLINDAR SUB-CONSULTA DE BANCAS (SUPERVISOR)
+            let queryBancasSup = supabase.from('bancas').select('id, zona');
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+                queryBancasSup = queryBancasSup.eq('inquilino_id', inquilinoId);
+            }
+            const { data: bData } = await queryBancasSup;
+
             const idsPermitidos = (bData || []).filter(b => String(b.zona || '').trim().toLowerCase() === zonaSup).map(b => String(b.id));
             queryTickets = queryTickets.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
+            
         } else if (!rol.includes('admin') && !rol.includes('supervisor')) {
             const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
-            const { data: bData } = await supabase.from('bancas').select('id').or(`nombre_banca.eq.${nombreUsuario},vendedor_nombre.eq.${nombreUsuario}`);
+            
+            // 🔥 BLINDAR SUB-CONSULTA DE BANCAS (CAJERO)
+            let queryBancasCaj = supabase.from('bancas').select('id').or(`nombre_banca.eq.${nombreUsuario},vendedor_nombre.eq.${nombreUsuario}`);
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+                queryBancasCaj = queryBancasCaj.eq('inquilino_id', inquilinoId);
+            }
+            const { data: bData } = await queryBancasCaj;
+
             const idsPermitidos = (bData || []).map(b => String(b.id));
             queryTickets = queryTickets.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
         }
@@ -149,6 +177,8 @@ window.cargarHistorialNumeros = async function() {
             tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400">No hay números vendidos con los filtros seleccionados.</td></tr>`;
             return;
         }
+        
+        // ... (El bloque `tbody.innerHTML = listaResultados.map(...)` queda idéntico aquí abajo)
 
         tbody.innerHTML = listaResultados.map(item => {
             const topeMax = mapaTopes[`${item.loteria}_${item.tipo}_${item.numero}`] || 

@@ -87,6 +87,12 @@ window.guardarUsuarioSistema = async function(e) {
 
     const payload = { nombre, username, rol, estatus, zona };
 
+    // 🔥 INYECCIÓN DE CREACIÓN MULTI-TENANT
+    const inquilinoId = localStorage.getItem('inquilino_id');
+    if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        payload.inquilino_id = inquilinoId;
+    }
+
     try {
         if (id) {
             const { error } = await supabase.from('usuarios').update(payload).eq('id', id);
@@ -129,7 +135,15 @@ export async function cargarUsuariosSistema() {
     if (!supabase) return;
 
     try {
-        const { data: usuarios, error } = await supabase.from('usuarios').select('*').order('created_at', { ascending: false });
+        let query = supabase.from('usuarios').select('*').order('created_at', { ascending: false });
+        
+        // 🔥 ESCUDO LECTURA MULTI-TENANT
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            query = query.eq('inquilino_id', inquilinoId);
+        }
+
+        const { data: usuarios, error } = await query;
         if (error) throw error;
         window._usuariosCache = usuarios || [];
 

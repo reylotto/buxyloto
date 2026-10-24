@@ -446,9 +446,16 @@ export async function generarReporte() {
         let query = supabase ? supabase.from('tickets').select('*') : null;
         let resultados = [];
 
-        if (query) {
+       if (query) {
             if (fechaDesde) query = query.gte('created_at', `${fechaDesde}T00:00:00`);
             if (fechaHasta) query = query.lte('created_at', `${fechaHasta}T23:59:59`);
+
+            // 🔥 ESCUDO DE AUDITORÍA MULTI-TENANT
+            const inquilinoId = localStorage.getItem('inquilino_id');
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+                query = query.eq('inquilino_id', inquilinoId);
+            }
+            
 
             // 🚨 FILTRO ESTRICTO DE BASE DE DATOS (BLINDAJE DE ZONAS)
             const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');

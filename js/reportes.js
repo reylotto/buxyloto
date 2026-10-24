@@ -448,15 +448,11 @@ export async function generarReporte() {
             if (fechaDesde) query = query.gte('created_at', `${fechaDesde}T00:00:00`);
             if (fechaHasta) query = query.lte('created_at', `${fechaHasta}T23:59:59`);
 
-            let queryVendedores = supabase.from('bancas').select('id, nombre_banca, operador').eq('estatus', 'activo');
-        
-        // 🔥 ESCUDO MULTI-TENANT: DESPLEGABLE DE CUADRE
-             const inquilinoId = localStorage.getItem('inquilino_id');
+            // 🔥 ESCUDO MULTI-TENANT: AUDITORÍA GENERAL AISLADA
+            const inquilinoId = localStorage.getItem('inquilino_id');
             if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
-            queryVendedores = queryVendedores.eq('inquilino_id', inquilinoId);
-        }
-
-        const { data: vendedores, error: errVend } = await queryVendedores;
+                query = query.eq('inquilino_id', inquilinoId);
+            }
 
             // 🚨 FILTRO ESTRICTO DE BASE DE DATOS (BLINDAJE DE ZONAS)
             const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
@@ -464,12 +460,20 @@ export async function generarReporte() {
             
             if (rol.includes('supervisor')) {
                 const zonaSup = String(sesion.zona || '').trim().toLowerCase();
-                const { data: bData } = await supabase.from('bancas').select('id, zona');
+                let queryBancasSup = supabase.from('bancas').select('id, zona');
+                if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+                    queryBancasSup = queryBancasSup.eq('inquilino_id', inquilinoId);
+                }
+                const { data: bData } = await queryBancasSup;
                 const idsPermitidos = (bData || []).filter(b => String(b.zona || '').trim().toLowerCase() === zonaSup).map(b => String(b.id));
                 query = query.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
             } else if (!rol.includes('admin') && !rol.includes('supervisor')) {
                 const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
-                const { data: bData } = await supabase.from('bancas').select('id').or(`nombre_banca.eq.${nombreUsuario},vendedor_nombre.eq.${nombreUsuario}`);
+                let queryBancasCaj = supabase.from('bancas').select('id').or(`nombre_banca.eq.${nombreUsuario},vendedor_nombre.eq.${nombreUsuario}`);
+                if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+                    queryBancasCaj = queryBancasCaj.eq('inquilino_id', inquilinoId);
+                }
+                const { data: bData } = await queryBancasCaj;
                 const idsPermitidos = (bData || []).map(b => String(b.id));
                 query = query.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
             }

@@ -22,7 +22,15 @@ window.initBalancesCuadresModule = initBalancesCuadresModule;
 
 async function cargarListaVendedores() {
     try {
-        const { data: bancas } = await window.supabase.from('bancas').select('*');
+        let query = window.supabase.from('bancas').select('*');
+        
+        // 🔥 ESCUDO MULTI-TENANT: DESPLEGABLE DE CUADRE
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            query = query.eq('inquilino_id', inquilinoId);
+        }
+
+        const { data: bancas } = await query;
         let bancasData = bancas || [];
 
         // --- 🚨 INICIO DE FILTRO DE SEGURIDAD POR ROL 🚨 ---
@@ -111,13 +119,9 @@ window.cargarResumenBalances = async function() {
 
         const { data: ticketsData } = await queryTickets;
 
-        // 🔥 ESCUDO MULTI-TENANT: PAGOS DE BANCAS
-        let queryPagos = window.supabase.from('pagos_bancas').select('*');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
-            queryPagos = queryPagos.eq('inquilino_id', inquilinoId);
-        }
-        const { data: pagosBD } = await queryPagos;
-
+        // 🔥 SE RETIRA EL ESCUDO DE PAGOS_BANCAS PARA EVITAR EL ERROR 400
+        const { data: pagosBD } = await window.supabase.from('pagos_bancas').select('*');
+        
         estadoBalances.pagosLocales = pagosBD || [];
 
         let tickets = ticketsData || [];

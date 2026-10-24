@@ -61,54 +61,85 @@ window.cargarResumenBalances = async function() {
     tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-emerald-400"><i class="fa-solid fa-spinner fa-spin"></i> Calculando balances globales...</td></tr>';
 
     try {
+        const inquilinoId = localStorage.getItem('inquilino_id');
+
         if (!estadoBalances.vendedores || estadoBalances.vendedores.length === 0) {
             await cargarListaVendedores();
+        }
+
+        // 🔥 FILTRO DE SEGURIDAD LOCAL PARA VENDEDORES CARGADOS
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && estadoBalances.vendedores) {
+            estadoBalances.vendedores = estadoBalances.vendedores.filter(b => String(b.inquilino_id) === String(inquilinoId));
         }
 
         // 🚨 FILTRO MATEMÁTICO ABSOLUTO EN LA BASE DE DATOS
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
         
+        // 🔥 ESCUDO MULTI-TENANT: TICKETS
         let queryTickets = window.supabase.from('tickets').select('*');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            queryTickets = queryTickets.eq('inquilino_id', inquilinoId);
+        }
 
         if (rol.includes('supervisor')) {
             const zonaSup = String(sesion.zona || '').trim().toLowerCase();
-            const { data: bData } = await window.supabase.from('bancas').select('id, zona');
+            
+            let queryBancasSup = window.supabase.from('bancas').select('id, zona');
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+                queryBancasSup = queryBancasSup.eq('inquilino_id', inquilinoId);
+            }
+            const { data: bData } = await queryBancasSup;
             
             const idsPermitidos = (bData || [])
                 .filter(b => String(b.zona || '').trim().toLowerCase() === zonaSup)
                 .map(b => String(b.id));
 
-            // Filtrar desde la descarga para mayor seguridad y velocidad
             queryTickets = queryTickets.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
         } else if (!rol.includes('admin')) {
-            // Filtro para cajeros
             const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
-            const { data: bData } = await window.supabase.from('bancas')
-                .select('id')
-                .or(`nombre_banca.eq.${nombreUsuario},vendedor_nombre.eq.${nombreUsuario}`);
+            
+            let queryBancasCaj = window.supabase.from('bancas').select('id').or(`nombre_banca.eq.${nombreUsuario},vendedor_nombre.eq.${nombreUsuario}`);
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+                queryBancasCaj = queryBancasCaj.eq('inquilino_id', inquilinoId);
+            }
+            const { data: bData } = await queryBancasCaj;
+            
             const idsPermitidos = (bData || []).map(b => String(b.id));
             queryTickets = queryTickets.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
         }
 
         const { data: ticketsData } = await queryTickets;
-        const { data: pagosBD } = await window.supabase.from('pagos_bancas').select('*');
+
+        // 🔥 ESCUDO MULTI-TENANT: PAGOS DE BANCAS
+        let queryPagos = window.supabase.from('pagos_bancas').select('*');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            queryPagos = queryPagos.eq('inquilino_id', inquilinoId);
+        }
+        const { data: pagosBD } = await queryPagos;
+
         estadoBalances.pagosLocales = pagosBD || [];
 
         let tickets = ticketsData || [];
         let html = '';
 
+        if (!estadoBalances.vendedores || estadoBalances.vendedores.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-400">No hay bancas registradas para este inquilino.</td></tr>';
+            return;
+        }
+
         estadoBalances.vendedores.forEach(b => {
-            const ticketsVendedor = (tickets || []).filter(t => String(t.banca_id) === String(b.id) && String(t.estatus).toLowerCase() !== 'cancelado' && String(t.estatus).toLowerCase() !== 'anulado');
+            const ticketsVendedor = (tickets || []).filter(t => String(t.banca_id) === String(b.id) && String(t.estatus || t.estado).toLowerCase() !== 'cancelado' && String(t.estatus || t.estado).toLowerCase() !== 'anulado');
             
             let ventas = 0; let premios = 0; let comisiones = 0;
             const comisionPct = parseFloat(b.comision || 10) / 100;
 
             ticketsVendedor.forEach(t => {
-                const ventaT = parseFloat(t.monto_total || 0);
+                const ventaT = parseFloat(t.monto_total || t.monto || 0);
                 ventas += ventaT;
                 comisiones += ventaT * comisionPct;
-                if (String(t.estatus).toLowerCase() === 'premiado' || String(t.estatus).toLowerCase() === 'ganador') {
+                const estT = String(t.estatus || t.estado).toLowerCase();
+                if (estT === 'premiado' || estT === 'ganador') {
                     let premioVal = parseFloat(t.monto_premio || t.premio || 0);
                     if(premioVal === 0 && Array.isArray(t.jugadas || t.detalles)){
                         (t.jugadas || t.detalles).forEach(j => {
@@ -118,6 +149,8 @@ window.cargarResumenBalances = async function() {
                     premios += premioVal;
                 }
             });
+
+            // ... (el resto de tu lógica de renderizado HTML de balances sigue aquí abajo)
 
             const pagosVendedor = estadoBalances.pagosLocales.filter(p => String(p.banca_id) === String(b.id));
             const totIngresos = pagosVendedor.filter(p => p.tipo === 'ingreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);

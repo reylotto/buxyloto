@@ -196,31 +196,34 @@ async function cargarMetricasSeguras() {
         const supabase = window.getSupabaseClient();
         if (!supabase) return;
 
-        // 1. SELECT CORREGIDO: Sin columnas inexistentes para evitar Error 400
-        const { data: ticketsData, error } = await supabase
-            .from('tickets')
-            .select('monto, monto_total, total, premio, monto_premio, estatus, estado, banca_id, usuario_id');
+        const inquilinoId = localStorage.getItem('inquilino_id');
 
+        // 🔥 1. SELECT CORREGIDO Y BLINDADO (Solo tickets del inquilino)
+        let queryTickets = supabase.from('tickets').select('monto, monto_total, total, premio, monto_premio, estatus, estado, banca_id, usuario_id');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            queryTickets = queryTickets.eq('inquilino_id', inquilinoId);
+        }
+        const { data: ticketsData, error } = await queryTickets;
         if (error) return;
 
-        // 2. OBTENER BANCAS PARA FILTRAR POR ZONA LOCALMENTE
+        // 🔥 2. BANCAS BLINDADAS (Evita envenenar el caché global para el POS)
         if (!window._bancasCache || window._bancasCache.length === 0) {
-            const { data: bData } = await supabase.from('bancas').select('*');
+            let queryBancas = supabase.from('bancas').select('*');
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+                queryBancas = queryBancas.eq('inquilino_id', inquilinoId);
+            }
+            const { data: bData } = await queryBancas;
             window._bancasCache = bData || [];
         }
+        
         const bancasCache = window._bancasCache || [];
-
-        // 3. FILTRO DE SUPERVISOR (Cajeros ya están bloqueados por URL)
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
         
         let listaTickets = ticketsData || [];
 
-        // Filtro corregido para Historial y Resumen:
         if (rol.includes('supervisor')) {
-            const bancasCache = window._bancasCache || [];
             const idsBancasZona = bancasCache.filter(b => b.zona === sesion.zona).map(b => String(b.id));
-            // 👇 AQUÍ ESTÁ LA CORRECCIÓN: "tickets" ahora es "listaTickets" 👇
             listaTickets = listaTickets.filter(t => idsBancasZona.includes(String(t.banca_id || t.usuario_id)));
         }
 
@@ -264,36 +267,48 @@ async function cargarHistorialTickets() {
 
         const hoy = new Date();
         const fechaHoyStr = hoy.toISOString().split('T')[0];
+        const inquilinoId = localStorage.getItem('inquilino_id');
 
         const { data: sorteosData } = await supabase.from('sorteos').select('*');
         const sorteosCache = sorteosData || [];
 
-        // 1. DESCARGAMOS LOS TICKETS DE HOY
-        const { data: ticketsData, error } = await supabase
-            .from('tickets')
+        // 🔥 1. DESCARGAMOS LOS TICKETS BLINDADOS
+        let queryTickets = supabase.from('tickets')
             .select('*')
             .gte('created_at', `${fechaHoyStr}T00:00:00.000Z`)
             .lte('created_at', `${fechaHoyStr}T23:59:59.999Z`)
             .order('id', { ascending: false });
+            
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            queryTickets = queryTickets.eq('inquilino_id', inquilinoId);
+        }
 
+        const { data: ticketsData, error } = await queryTickets;
         if (error) throw error;
         let tickets = ticketsData || [];
 
-        // 🚨 FILTRO MATEMÁTICO ABSOLUTO DE SUPERVISOR
+        // 🔥 FILTRO MATEMÁTICO ABSOLUTO DE SUPERVISOR
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
 
         if (rol.includes('supervisor')) {
             const zonaSup = String(sesion.zona || '').trim().toLowerCase();
             
-            // Forzamos la consulta a la base de datos (sin usar caché)
-            const { data: bData } = await supabase.from('bancas').select('id, zona');
+            // 🔥 BANCAS BLINDADAS PARA EL SUPERVISOR
+            let queryBancasSup = supabase.from('bancas').select('id, zona');
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+                queryBancasSup = queryBancasSup.eq('inquilino_id', inquilinoId);
+            }
+            const { data: bData } = await queryBancasSup;
+
             const idsPermitidos = (bData || [])
                 .filter(b => String(b.zona || '').trim().toLowerCase() === zonaSup)
                 .map(b => String(b.id));
 
             tickets = tickets.filter(t => idsPermitidos.includes(String(t.banca_id || t.usuario_id)));
         }
+        
+        // ... (De aquí en adelante el código de tbody.innerHTML = '' queda igual)
 
         tbody.innerHTML = '';
         // ... (A partir de aquí continúa el código normal para dibujar la tabla `tickets.forEach(t => ...`)

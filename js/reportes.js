@@ -448,12 +448,15 @@ export async function generarReporte() {
             if (fechaDesde) query = query.gte('created_at', `${fechaDesde}T00:00:00`);
             if (fechaHasta) query = query.lte('created_at', `${fechaHasta}T23:59:59`);
 
-            // 🔥 ESCUDO DE AUDITORÍA MULTI-TENANT
-            // Inyecta esto antes de tu "await query"
-            const inquilinoId = localStorage.getItem('inquilino_id');
+            let queryVendedores = supabase.from('bancas').select('id, nombre_banca, operador').eq('estatus', 'activo');
+        
+        // 🔥 ESCUDO MULTI-TENANT: DESPLEGABLE DE CUADRE
+             const inquilinoId = localStorage.getItem('inquilino_id');
             if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
-                query = query.eq('inquilino_id', inquilinoId);
+            queryVendedores = queryVendedores.eq('inquilino_id', inquilinoId);
         }
+
+        const { data: vendedores, error: errVend } = await queryVendedores;
 
             // 🚨 FILTRO ESTRICTO DE BASE DE DATOS (BLINDAJE DE ZONAS)
             const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');

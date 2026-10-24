@@ -425,11 +425,11 @@ async function cargarResumenOperacionesHoy() {
         const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
         if (!supabase) return;
 
-        const hoy = new Date();
-        const inicioDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0);
-        const finDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59, 999);
+        // 🔥 DEFINIR FECHAS PRIMERO PARA EVITAR EL ERROR
+        const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+        const startOfDay = `${hoy}T00:00:00`;
+        const endOfDay = `${hoy}T23:59:59`;
 
-        // 🔥 1. FILTRO INYECTADO PARA LOS TICKETS
         let queryTickets = supabase.from('tickets').select('*').gte('created_at', startOfDay).lte('created_at', endOfDay);
         
         // 🔥 ESCUDO MULTI-TENANT: MÉTRICAS DEL DASHBOARD

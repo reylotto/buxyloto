@@ -31,14 +31,11 @@ async function asegurarBancasCache() {
         if (supabase) {
             try {
                 let queryBancas = supabase.from('bancas').select('*');
-        
-                // 🔥 ESCUDO MULTI-TENANT: BALANCES Y CUADRES
                 const inquilinoId = localStorage.getItem('inquilino_id');
                 if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
                     queryBancas = queryBancas.eq('inquilino_id', inquilinoId);
                 }
-                
-                const { data: bancas, error } = await queryBancas;
+                const { data: bancas } = await queryBancas;
                 if (bancas && bancas.length > 0) {
                     bancasData = bancas;
                 }
@@ -452,11 +449,11 @@ export async function generarReporte() {
             if (fechaHasta) query = query.lte('created_at', `${fechaHasta}T23:59:59`);
 
             // 🔥 ESCUDO DE AUDITORÍA MULTI-TENANT
+            // Inyecta esto antes de tu "await query"
             const inquilinoId = localStorage.getItem('inquilino_id');
             if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
                 query = query.eq('inquilino_id', inquilinoId);
-            }
-            
+        }
 
             // 🚨 FILTRO ESTRICTO DE BASE DE DATOS (BLINDAJE DE ZONAS)
             const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');

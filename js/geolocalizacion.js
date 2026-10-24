@@ -104,6 +104,9 @@ export async function cargarUbicacionesEnVivo() {
         const ahora = new Date();
 
         ubicaciones.forEach(ub => {
+            // 🔥 ESCUDO ESTRICTO: Si la banca no es de este inquilino, NO DIBUJAR EL PIN
+            if (!bancasMap.has(String(ub.banca_id))) return;
+
             const lat = parseFloat(ub.latitud);
             const lng = parseFloat(ub.longitud);
             if (isNaN(lat) || isNaN(lng)) return;

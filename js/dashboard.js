@@ -425,22 +425,26 @@ async function cargarResumenOperacionesHoy() {
         const supabase = window.getSupabaseClient ? window.getSupabaseClient() : window.supabase;
         if (!supabase) return;
 
-        // 🔥 DEFINIR FECHAS PRIMERO PARA EVITAR EL ERROR
+        // 🔥 DEFINIR FECHAS
         const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
         const startOfDay = `${hoy}T00:00:00`;
         const endOfDay = `${hoy}T23:59:59`;
 
         let queryTickets = supabase.from('tickets').select('*').gte('created_at', startOfDay).lte('created_at', endOfDay);
         
-        // 🔥 ESCUDO MULTI-TENANT: MÉTRICAS DEL DASHBOARD
+        // 🔥 ESCUDO MULTI-TENANT
         const inquilinoId = localStorage.getItem('inquilino_id');
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
             queryTickets = queryTickets.eq('inquilino_id', inquilinoId);
         }
 
-        const { data: ticketsHoy, error } = await queryTickets;
+        // 🚨 SOLUCIÓN AL ERROR: Declarar explícitamente "error: errTickets"
+        const { data: ticketsHoy, error: errTickets } = await queryTickets;
 
-        if (errTickets) return;
+        if (errTickets) {
+            console.error("Error cargando tickets:", errTickets);
+            return;
+        }
 
         // --- 🚨 INICIO DE FILTRO DE SEGURIDAD POR ROL 🚨 ---
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');

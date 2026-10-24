@@ -292,6 +292,12 @@ window.guardarBancaSistema = async function(e) {
         zona: zonaVal
     };
 
+    // 🔥 INYECCIÓN DE SEGURIDAD MULTI-TENANT PARA BANCAS
+    const inquilinoId = localStorage.getItem('inquilino_id');
+    if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        payload.inquilino_id = inquilinoId;
+    }
+
     try {
         if (id) {
             const { error } = await supabase.from('bancas').update(payload).eq('id', id);
@@ -303,12 +309,12 @@ window.guardarBancaSistema = async function(e) {
             if (error) throw error;
             alert("✅ Nueva banca/vendedor registrada con éxito.");
         }
-       window.cerrarTodosLosModales();
+        window.cerrarTodosLosModales();
 
-// Le damos 1.5 segundos a Supabase para que enlace el nombre correctamente
-setTimeout(() => {
-    cargarBancasSistema();
-}, 1500);
+        // Le damos 1.5 segundos a Supabase para que enlace el nombre correctamente
+        setTimeout(() => {
+            cargarBancasSistema();
+        }, 1500);
     } catch(err) {
         alert("Error al guardar banca: " + err.message);
     }

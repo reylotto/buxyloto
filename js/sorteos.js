@@ -237,56 +237,6 @@ export function cerrarModalSorteo() {
 }
 window.cerrarModalSorteo = cerrarModalSorteo;
 
-// ----------------------------------------------------------
-// 4. GUARDAR CAMBIOS Y CAMBIAR ESTATUS
-// ----------------------------------------------------------
-export async function guardarSorteoSistema(e) {
-    if (e) e.preventDefault();
-    const supabase = getSupabase();
-    if (!supabase) return;
-
-    const id = (document.getElementById('edit-sorteo-id') || document.getElementById('sorteo-id'))?.value;
-    const nombre = (document.getElementById('sorteo-nombre') || document.querySelector('input[name="sorteo-nombre"]'))?.value.trim();
-    const horaApertura = (document.getElementById('sorteo-apertura') || document.querySelector('input[name="sorteo-apertura"]'))?.value || '06:00';
-    const horaCierre = (document.getElementById('sorteo-cierre') || document.querySelector('input[name="sorteo-cierre"]'))?.value;
-    const diasJuego = (document.getElementById('sorteo-dias') || document.querySelector('input[name="sorteo-dias"]'))?.value || 'Dom, Lun, Mar, Mié, Jue, Vie, Sáb';
-
-    if (!nombre || !horaCierre) {
-        alert("⚠️ Ingrese el nombre del sorteo y su hora de cierre.");
-        return;
-    }
-
-    // Payload limpio enviando únicamente las columnas existentes en Supabase
-    const payload = {
-        nombre: nombre,
-        hora_apertura: horaApertura,
-        hora_cierre: horaCierre,
-        dias_juego: diasJuego
-    };
-
-    try {
-        if (id) {
-            const { error } = await supabase.from('sorteos').update(payload).eq('id', id);
-            if (error) throw error;
-            alert("✅ Sorteo actualizado con éxito.");
-        } else {
-            payload.estatus = 'ACTIVO';
-            payload.estado = 'ACTIVO';
-            const { error } = await supabase.from('sorteos').insert([payload]);
-            if (error) throw error;
-            alert("✅ Nuevo sorteo registrado con éxito.");
-        }
-
-        cerrarModalSorteo();
-        await cargarSorteosSistema();
-        if (typeof window.cargarSorteosPOS === 'function') {
-            await window.cargarSorteosPOS();
-        }
-    } catch (err) {
-        alert("❌ Error al guardar sorteo: " + (err.message || err));
-    }
-}
-window.guardarSorteoSistema = guardarSorteoSistema;
 
 export async function cambiarEstatusSorteo(id, estatusActual) {
     const esPausado = ['PAUSADO', 'INACTIVO'].includes(String(estatusActual).toUpperCase());

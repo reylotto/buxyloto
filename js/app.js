@@ -546,8 +546,9 @@ document.addEventListener('DOMContentLoaded', () => {
 async function cerrarSesion() {
     console.log("🔒 Cerrando sesión...");
     try {
-        const loginWrapper = document.getElementById('auth-login-wrapper');
-        const mainContainer = document.getElementById('main-app-container');
+        const loginWrapper = document.getElementById("auth-login-wrapper");
+        const mainContainer = document.getElementById("main-app-container");
+        
         if (mainContainer) mainContainer.classList.add('hidden');
         if (loginWrapper) loginWrapper.classList.remove('hidden');
 
@@ -556,9 +557,11 @@ async function cerrarSesion() {
     } catch (err) {
         console.warn("Aviso durante el cierre de sesión:", err);
     } finally {
+        // 🔥 LIMPIEZA ABSOLUTA DE MEMORIA PARA MULTI-TENANT
         localStorage.clear();
         sessionStorage.clear();
-        window.location.href = './';
+        window.location.hash = ''; // Resetea la URL
+        window.location.reload(true); // Fuerza recarga desde el servidor, ignorando caché
     }
 }
 window.cerrarSesion = cerrarSesion;

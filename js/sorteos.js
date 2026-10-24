@@ -83,10 +83,15 @@ export async function cargarSorteosSistema() {
     try {
         let querySorteos = supabase.from('sorteos').select('*').order('id', { ascending: true });
         
-        // 🔥 ESCUDO MULTI-TENANT: SOLO MOSTRAR SORTEOS DEL INQUILINO
+        // 🔥 CANDADO ESTRICTO MULTI-TENANT
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
+            // El Inquilino solo ve los suyos
             querySorteos = querySorteos.eq('inquilino_id', inquilinoId);
+        } else {
+            // Tú (Admin Global) solo ves los que NO tienen inquilino
+            querySorteos = querySorteos.is('inquilino_id', null);
         }
 
         const { data: sorteos, error } = await querySorteos;

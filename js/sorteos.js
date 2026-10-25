@@ -291,3 +291,12 @@ function activarEventosSorteo() {
         };
     }
 }
+// 🔥 CAÑÓN FORZADO: Sobrescribe cualquier otra carga y aplica el escudo después de 1.5 segundos
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        if (typeof window.cargarSorteosSistema === 'function') {
+            console.log("Forzando recarga limpia de sorteos...");
+            window.cargarSorteosSistema();
+        }
+    }, 1500);
+});

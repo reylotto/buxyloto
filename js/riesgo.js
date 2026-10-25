@@ -78,15 +78,18 @@ export async function cargarSelectorBancasRiesgo() {
     if (!supabase) return;
 
     try {
-        let queryBancas = supabase.from('bancas').select('*').order('id', { ascending: false });
-        
-        // 🔥 ESCUDO MULTI-TENANT: CONTROL DE RIESGO
+        // BUSCA ESTA CONSULTA EN TU ARCHIVO DE RIESGOS Y REEMPLÁZALA:
+        let query = supabase.from('sorteos').select('id, nombre').eq('estatus', 'ACTIVO');
+
+        // 🔥 CANDADO MULTI-TENANT PARA EL DESPLEGABLE DE RIESGOS
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
-            queryBancas = queryBancas.eq('inquilino_id', inquilinoId);
+        if (inquilinoId && inquilinoId !== 'null' && String(inquilinoId).trim() !== '') {
+            query = query.eq('inquilino_id', inquilinoId);
+        } else {
+            query = query.is('inquilino_id', null);
         }
 
-        const { data: bancas, error } = await queryBancas;
+        const { data: sorteos, error } = await query;
         if (error) throw error;
 
         let opcionesHTML = `<option value="">-- Seleccione una Banca / Vendedor --</option>`;

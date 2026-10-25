@@ -26,14 +26,25 @@ window.guardarConfiguracionTicket = async function(e) {
         if (esInquilino) payload.inquilino_id = inquilinoId;
 
         let queryCheck = supabase.from('configuracion_ticket').select('id');
-        queryCheck = esInquilino ? queryCheck.eq('inquilino_id', inquilinoId) : queryCheck.is('inquilino_id', null);
+        if (esInquilino) {
+            queryCheck = queryCheck.eq('inquilino_id', inquilinoId);
+        } else {
+            queryCheck = queryCheck.is('inquilino_id', null);
+        }
         
         const { data: existente } = await queryCheck.maybeSingle();
 
         if (existente && existente.id) {
+            // Si ya tiene uno, lo actualiza
             const { error } = await supabase.from('configuracion_ticket').update(payload).eq('id', existente.id);
             if (error) throw error;
         } else {
+            // 🔥 SOLUCIÓN AL ERROR "DUPLICATE KEY": Calcular el próximo ID manualmente
+            const { data: maxIdData } = await supabase.from('configuracion_ticket').select('id').order('id', { ascending: false }).limit(1).maybeSingle();
+            const nextId = (maxIdData && maxIdData.id) ? parseInt(maxIdData.id) + 1 : 1;
+            
+            payload.id = nextId; // Asignamos el ID seguro
+            
             const { error } = await supabase.from('configuracion_ticket').insert([payload]);
             if (error) throw error;
         }
@@ -56,9 +67,11 @@ window.cargarConfiguracionTicket = async function() {
         let queryConfig = supabase.from('configuracion_ticket').select('*');
         const inquilinoId = localStorage.getItem('inquilino_id');
         
-        queryConfig = (inquilinoId && inquilinoId !== 'null' && String(inquilinoId).trim() !== '') 
-            ? queryConfig.eq('inquilino_id', inquilinoId) 
-            : queryConfig.is('inquilino_id', null);
+        if (inquilinoId && inquilinoId !== 'null' && String(inquilinoId).trim() !== '') {
+            queryConfig = queryConfig.eq('inquilino_id', inquilinoId);
+        } else {
+            queryConfig = queryConfig.is('inquilino_id', null);
+        }
 
         const { data } = await queryConfig.maybeSingle();
 

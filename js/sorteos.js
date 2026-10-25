@@ -77,27 +77,34 @@ export async function cargarSorteosSistema() {
                   document.getElementById('sorteos-list-body');
 
     if (!tbody) return;
-    const supabase = getSupabase();
+    const supabase = window.supabaseClient || window.supabase;
     if (!supabase) return;
 
     try {
         let querySorteos = supabase.from('sorteos').select('*').order('id', { ascending: true });
         
-        // 🔥 CANDADO ESTRICTO MULTI-TENANT
         const inquilinoId = localStorage.getItem('inquilino_id');
-        
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
-            // El Inquilino solo ve los suyos
+        const esInquilino = (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '');
+
+        if (esInquilino) {
             querySorteos = querySorteos.eq('inquilino_id', inquilinoId);
         } else {
-            // Tú (Admin Global) solo ves los que NO tienen inquilino
             querySorteos = querySorteos.is('inquilino_id', null);
         }
 
-        const { data: sorteos, error } = await querySorteos;
-
+        const { data: sorteosRaw, error } = await querySorteos;
         if (error) throw error;
-        window._sorteosCache = sorteos || [];
+
+        // 🔥 DOBLE ESCUDO JAVASCRIPT: Corta cualquier fuga de datos rebelde de Supabase
+        const sorteos = (sorteosRaw || []).filter(s => {
+            if (esInquilino) {
+                return String(s.inquilino_id) === String(inquilinoId);
+            } else {
+                return !s.inquilino_id || s.inquilino_id === null || s.inquilino_id === 'null';
+            }
+        });
+
+        window._sorteosCache = sorteos;
 
         if (!sorteos || sorteos.length === 0) {
             tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400 text-xs">No hay sorteos configurados.</td></tr>`;

@@ -300,3 +300,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 1500);
 });
+// 🔥 CÓDIGO ASESINO: Destruye el código falso del index.html y fuerza el uso de Supabase
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        console.log("💣 Destruyendo memoria falsa de loterías...");
+        
+        // 1. Borrar el caché falso del HTML
+        localStorage.removeItem('buxyloto_app_state');
+        
+        // 2. Sobrescribir las funciones estáticas del HTML a la fuerza
+        if (typeof window.cargarSorteosSistema === 'function') {
+            window.renderLoteriasTable = window.cargarSorteosSistema;
+        }
+        
+        // 3. Redirigir los botones de editar/pausar del HTML a las funciones reales de Supabase
+        window.editLoteria = function(id) {
+            if (typeof window.abrirModalSorteo === 'function') window.abrirModalSorteo(id);
+        };
+        
+        window.toggleLoteriaStatus = async function(id) {
+            const { data } = await window.supabase.from('sorteos').select('estatus').eq('id', id).single();
+            if (data && typeof window.cambiarEstatusSorteo === 'function') {
+                window.cambiarEstatusSorteo(id, data.estatus);
+            }
+        };
+
+        // 4. Disparar la carga real
+        if (typeof window.cargarSorteosSistema === 'function') {
+            window.cargarSorteosSistema();
+        }
+    }, 1500);
+});

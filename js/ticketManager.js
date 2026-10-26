@@ -88,12 +88,36 @@ export async function renderizarPlantillaTicket(ticketData) {
     ticketElem.style.boxSizing = 'border-box';
     ticketElem.style.zIndex = '-9999';
 
-    // 🌟 APLICAR PERSONALIZACIÓN (Lectura directa de localStorage)
-    const configTitulo = localStorage.getItem('buxy_ticket_titulo') || ticketData.titulo_empresa || 'BUXYLOTO POS';
-    // CORRECCIÓN: Usamos el nombre exacto configIcono
-    const configIcono = localStorage.getItem('buxy_ticket_icono') || '☘️';
-    
-    // 🌟 LOGO CON FALLBACK A TU PNG ORIGINAL (img/logo.png)
+    // 🌟 APLICAR PERSONALIZACIÓN DIRECTO DESDE SUPABASE POR INQUILINO
+    let configTitulo = ticketData.titulo_empresa || 'BUXYLOTO POS';
+    let configIcono = '☘️';
+    let configTelefono = '';
+    let configPieRaw = 'REVISE SU TICKET\nSIN TICKET NO SE PAGA\nLNP 1ER 2500-2DO 700-3ER 300\nPALE 1000-1000-200\nTRIPLETA 10000X1 2Num 100x1\nNO SE PAGA EL PALE DOBLE';
+
+    try {
+        const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+        if (supabase) {
+            const inqId = localStorage.getItem('inquilino_id');
+            let queryConfig = supabase.from('configuracion_ticket').select('*');
+            
+            if (inqId && inqId !== 'null' && String(inqId).trim() !== '') {
+                queryConfig = queryConfig.eq('inquilino_id', inqId);
+            } else {
+                queryConfig = queryConfig.is('inquilino_id', null);
+            }
+            
+            const { data: cfgData } = await queryConfig.maybeSingle();
+            if (cfgData) {
+                configTitulo = cfgData.titulo_empresa || configTitulo;
+                configIcono = cfgData.icono || configIcono;
+                configTelefono = cfgData.telefono || configTelefono;
+                configPieRaw = cfgData.pie_pagina || configPieRaw;
+            }
+        }
+    } catch (e) { 
+        console.warn("Aviso: Cargando ticket por defecto", e); 
+    }
+
     let logoSrc = 'img/logo.png'; // Tu logo original por defecto
 
     if (configIcono && (
@@ -104,8 +128,6 @@ export async function renderizarPlantillaTicket(ticketData) {
         logoSrc = configIcono;
     }
 
-    const configTelefono = localStorage.getItem('buxy_ticket_telefono') || '';
-    const configPieRaw = localStorage.getItem('buxy_ticket_pie') || 'REVISE SU TICKET\nSIN TICKET NO SE PAGA\nLNP 1ER 2500-2DO 700-3ER 300\nPALE 1000-1000-200\nTRIPLETA 10000X1 2Num 100x1\nNO SE PAGA EL PALE DOBLE';
     const configPieHTML = configPieRaw.split('\n').map(line => `<div>${line}</div>`).join('');
 
     // Datos principales

@@ -873,7 +873,17 @@ async function cargarGridSorteosEnVivo() {
         const grid = document.getElementById('dashboard-draws-grid');
         if (!supabase || !grid) return;
 
-        const { data: sorteos, error } = await supabase.from('sorteos').select('*').order('id', { ascending: true });
+        // Filtro estandarizado para cargar sorteos
+        let querySorteos = window.supabase.from('sorteos').select('*').order('id', { ascending: true });
+        const inqId = localStorage.getItem('inquilino_id');
+
+        if (inqId && inqId !== 'null' && inqId !== 'undefined' && String(inqId).trim() !== '') {
+            querySorteos = querySorteos.eq('inquilino_id', inqId);
+        } else {
+            querySorteos = querySorteos.is('inquilino_id', null);
+        }
+
+        const { data: sorteos, error } = await querySorteos;
 
         if (error || !sorteos || sorteos.length === 0) {
             grid.innerHTML = `<div class="col-span-full text-center text-slate-400 py-4 text-xs">No hay sorteos registrados hoy.</div>`;

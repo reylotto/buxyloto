@@ -167,6 +167,7 @@ function inicializarFormularioResultados() {
 
         try {
             const inquilinoId = localStorage.getItem('inquilino_id');
+            const sorteoIdNum = parseInt(sorteo_id); // 🔥 SOLUCIÓN: Definimos la variable numérica aquí
 
             // 1. Guardar en la tabla 'resultados'
             const payloadResultados = {

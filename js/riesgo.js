@@ -111,7 +111,17 @@ export async function cargarSelectorLoteriasRiesgo() {
 
     try {
         // Consultar la tabla de sorteos, asegurándonos de que traiga los datos correctamente
-        const { data: sorteos, error } = await supabase.from('sorteos').select('*').order('id', { ascending: true });
+        // Filtro estandarizado para cargar sorteos
+        let querySorteos = window.supabase.from('sorteos').select('*').order('id', { ascending: true });
+        const inqId = localStorage.getItem('inquilino_id');
+
+        if (inqId && inqId !== 'null' && inqId !== 'undefined' && String(inqId).trim() !== '') {
+            querySorteos = querySorteos.eq('inquilino_id', inqId);
+        } else {
+            querySorteos = querySorteos.is('inquilino_id', null);
+        }
+
+        const { data: sorteos, error } = await querySorteos;
         if (error) throw error;
 
         let opcionesHTML = `<option value="TODAS">-- Todas las Loterías --</option>`;

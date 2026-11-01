@@ -200,9 +200,15 @@ async function cargarMetricasSeguras() {
 
         // 🔥 1. SELECT CORREGIDO Y BLINDADO (Solo tickets del inquilino)
         let queryTickets = supabase.from('tickets').select('monto, monto_total, total, premio, monto_premio, estatus, estado, banca_id, usuario_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        
+        // 🔥 AISLAMIENTO ESTRICTO DE INQUILINOS (MÉTRICAS)
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             queryTickets = queryTickets.eq('inquilino_id', inquilinoId);
+        } else {
+            // Si es el Administrador Maestro (inquilino_id vacío), SOLO ve tickets sin inquilino asignado
+            queryTickets = queryTickets.is('inquilino_id', null);
         }
+        
         const { data: ticketsData, error } = await queryTickets;
         if (error) return;
 
@@ -447,10 +453,13 @@ async function cargarResumenOperacionesHoy() {
 
         let queryTickets = supabase.from('tickets').select('*').gte('created_at', startOfDay).lte('created_at', endOfDay);
         
-        // 🔥 ESCUDO MULTI-TENANT
+       // 🔥 ESCUDO MULTI-TENANT ESTRICTO (RESUMEN OPERACIONES)
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             queryTickets = queryTickets.eq('inquilino_id', inquilinoId);
+        } else {
+            // Si es Administrador Maestro (BuxyLoto), excluye las ventas de los inquilinos
+            queryTickets = queryTickets.is('inquilino_id', null);
         }
 
         // 🚨 SOLUCIÓN AL ERROR: Declarar explícitamente "error: errTickets"

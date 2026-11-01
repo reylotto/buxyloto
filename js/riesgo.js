@@ -42,8 +42,18 @@ export async function cargarConfiguracionGlobalRiesgo() {
     if (!supabase) return;
 
     try {
-        const { data, error } = await supabase.from('configuracion_riesgo_global').select('*').eq('id', 1).maybeSingle();
-        if (error) throw error;
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        let query = supabase.from('configuracion_riesgo_global').select('*');
+        
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
+            query = query.eq('inquilino_id', inquilinoId);
+        } else {
+            query = query.is('inquilino_id', null);
+        }
+
+        const { data, error } = await query.maybeSingle();
+        
+        // Ignoramos error si no encuentra fila (puede que el inquilino aún no haya configurado un tope)
         if (data && data.limite_venta_global) inputTopeGlobal.value = data.limite_venta_global;
         else inputTopeGlobal.value = '';
     } catch (err) {
@@ -61,8 +71,33 @@ async function guardarTopeGlobalRiesgo() {
     if (!supabase) return;
 
     try {
-        const { error } = await supabase.from('configuracion_riesgo_global').upsert({ id: 1, limite_venta_global: valor, updated_at: new Date() });
-        if (error) throw error;
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        let payload = { limite_venta_global: valor, updated_at: new Date() };
+
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
+            payload.inquilino_id = inquilinoId;
+        }
+
+        // Buscar si ya existe una configuración para este inquilino (o maestro)
+        let queryCheck = supabase.from('configuracion_riesgo_global').select('id');
+        if (payload.inquilino_id) {
+            queryCheck = queryCheck.eq('inquilino_id', payload.inquilino_id);
+        } else {
+            queryCheck = queryCheck.is('inquilino_id', null);
+        }
+        
+        const { data: configExistente } = await queryCheck.maybeSingle();
+
+        if (configExistente && configExistente.id) {
+            // Actualizar existente
+            const { error } = await supabase.from('configuracion_riesgo_global').update(payload).eq('id', configExistente.id);
+            if (error) throw error;
+        } else {
+            // Insertar nuevo registro para el inquilino
+            const { error } = await supabase.from('configuracion_riesgo_global').insert([payload]);
+            if (error) throw error;
+        }
+
         alert("✅ Tope de riesgo global actualizado correctamente.");
     } catch (err) {
         alert("❌ Error al guardar tope global: " + err.message);

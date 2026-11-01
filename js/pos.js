@@ -549,6 +549,10 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             } catch (e) {}
         }
 
+        // 🔥 OBTENER EL INQUILINO
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        const esInquilino = (inquilinoId && inquilinoId !== 'null' && String(inquilinoId).trim() !== '');
+
         const payloadTicket = {
             codigo_ticket: codigoTicket,
             sorteo_id: sorteosIdsUnicos.length === 1 ? sorteosIdsUnicos[0] : null,
@@ -565,6 +569,9 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             vendedor: nombreBanca,
             banca_nombre: nombreBanca
         };
+        
+        // 🔥 INYECTAR INQUILINO AL TICKET
+        if (esInquilino) payloadTicket.inquilino_id = inquilinoId;
 
         const { data: ticketData, error: ticketError } = await supabase
             .from('tickets')
@@ -578,14 +585,19 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             throw new Error("No se obtuvo el ID del ticket generado.");
         }
 
-        const registrosJugadas = listaJugadas.map(j => ({
-            ticket_id: ticketCreado.id,
-            numero: String(j.numero).trim(),
-            monto: parseFloat(j.monto) || 0,
-            tipo: String(j.tipo || 'directo').toLowerCase(),
-            sorteo_id: j.sorteo_id || ticketCreado.sorteo_id || null,
-            denominacion: j.denominacion || j.monto
-        }));
+        const registrosJugadas = listaJugadas.map(j => {
+            const jugadaObj = {
+                ticket_id: ticketCreado.id,
+                numero: String(j.numero).trim(),
+                monto: parseFloat(j.monto) || 0,
+                tipo: String(j.tipo || 'directo').toLowerCase(),
+                sorteo_id: j.sorteo_id || ticketCreado.sorteo_id || null,
+                denominacion: j.denominacion || j.monto
+            };
+            // 🔥 INYECTAR INQUILINO A LA JUGADA
+            if (esInquilino) jugadaObj.inquilino_id = inquilinoId;
+            return jugadaObj;
+        });
 
         const { error: jugadasError } = await supabase
             .from('jugadas')

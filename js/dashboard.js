@@ -285,8 +285,10 @@ async function cargarHistorialTickets() {
             .lte('created_at', `${fechaHoyStr}T23:59:59.999Z`)
             .order('id', { ascending: false });
             
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             queryTickets = queryTickets.eq('inquilino_id', inquilinoId);
+        } else {
+            queryTickets = queryTickets.is('inquilino_id', null);
         }
 
         const { data: ticketsData, error } = await queryTickets;

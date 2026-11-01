@@ -78,7 +78,6 @@ async function guardarTopeGlobalRiesgo() {
             payload.inquilino_id = inquilinoId;
         }
 
-        // Buscar si ya existe una configuración para este inquilino (o maestro)
         let queryCheck = supabase.from('configuracion_riesgo_global').select('id');
         if (payload.inquilino_id) {
             queryCheck = queryCheck.eq('inquilino_id', payload.inquilino_id);
@@ -89,11 +88,11 @@ async function guardarTopeGlobalRiesgo() {
         const { data: configExistente } = await queryCheck.maybeSingle();
 
         if (configExistente && configExistente.id) {
-            // Actualizar existente
             const { error } = await supabase.from('configuracion_riesgo_global').update(payload).eq('id', configExistente.id);
             if (error) throw error;
         } else {
-            // Insertar nuevo registro para el inquilino
+            // 🔥 GENERADOR DE ID ÚNICO PARA EVITAR EL ERROR DE LLAVE DUPLICADA
+            payload.id = Date.now(); 
             const { error } = await supabase.from('configuracion_riesgo_global').insert([payload]);
             if (error) throw error;
         }
@@ -235,14 +234,22 @@ async function guardarRestriccionIndividualRiesgo() {
     if (!supabase) return;
 
     try {
-        const { error } = await supabase.from('restricciones_vendedor').insert([{
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        let restriccionPayload = {
             banca_id: String(bancaId),
             loteria: loteria,
             tipo_jugada: tipoJugada,
             numero_especifico: numeroEspecifico,
             monto_maximo: montoMaximo,
             estado: 'activo'
-        }]);
+        };
+
+        // 🔥 INYECCIÓN BLINDADA DEL INQUILINO
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
+            restriccionPayload.inquilino_id = inquilinoId;
+        }
+
+        const { error } = await supabase.from('restricciones_vendedor').insert([restriccionPayload]);
 
         if (error) throw error;
         alert("✅ Restricción individual guardada con éxito.");

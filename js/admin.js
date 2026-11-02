@@ -2,6 +2,17 @@
 // MÓDULO ADMINISTRACIÓN DE USUARIOS, BANCAS Y ZONAS (js/admin.js)
 // ==========================================================
 
+// 🔥 ESCUDO ANTI-SESIÓN FANTASMA: Limpiar caché si es Admin Maestro
+document.addEventListener('DOMContentLoaded', () => {
+    const sesionUsuario = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+    const rolActual = String(sesionUsuario.rol || '').toLowerCase();
+    
+    // Si el usuario logueado es el administrador de la plataforma (Maestro) sin inquilino asignado:
+    if ((rolActual === 'admin' || rolActual === 'admin_maestro' || rolActual === 'administrador') && !sesionUsuario.inquilino_id) {
+        localStorage.removeItem('inquilino_id'); // Destruye el rastro del inquilino anterior
+    }
+});
+
 export function initAdminModule() {
     console.log("🚀 Módulo Admin Inicializado.");
     ejecutarCargaSeguraAdmin();

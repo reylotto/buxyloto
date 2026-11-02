@@ -91,8 +91,8 @@ async function guardarTopeGlobalRiesgo() {
             const { error } = await supabase.from('configuracion_riesgo_global').update(payload).eq('id', configExistente.id);
             if (error) throw error;
         } else {
-            // 🔥 GENERADOR DE ID ÚNICO PARA EVITAR EL ERROR DE LLAVE DUPLICADA
-            payload.id = Date.now(); 
+            // 🔥 GENERADOR DE ID CORREGIDO (Menor a 2,147,483,647 para que la base de datos lo acepte)
+            payload.id = Math.floor(Math.random() * 900000) + 1000; 
             const { error } = await supabase.from('configuracion_riesgo_global').insert([payload]);
             if (error) throw error;
         }
@@ -188,7 +188,16 @@ export async function cargarRestriccionesBancaRiesgo(bancaId) {
     if (!supabase) return;
 
     try {
-        const { data, error } = await supabase.from('restricciones_vendedor').select('*').eq('banca_id', String(bancaId)).order('id', { ascending: false });
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        let queryRestricciones = supabase.from('restricciones_vendedor').select('*').eq('banca_id', String(bancaId)).order('id', { ascending: false });
+        
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
+            queryRestricciones = queryRestricciones.eq('inquilino_id', inquilinoId);
+        } else {
+            queryRestricciones = queryRestricciones.is('inquilino_id', null);
+        }
+        
+        const { data, error } = await queryRestricciones;
         if (error) throw error;
 
         if (!data || data.length === 0) {

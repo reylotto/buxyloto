@@ -89,6 +89,7 @@ export async function cargarSorteosSistema() {
         if (esInquilino) {
             querySorteos = querySorteos.eq('inquilino_id', inquilinoId);
         } else {
+            // Aseguramos que solo traiga los que realmente no tienen inquilino asignado en la BD
             querySorteos = querySorteos.is('inquilino_id', null);
         }
 

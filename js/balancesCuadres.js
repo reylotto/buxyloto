@@ -24,10 +24,12 @@ async function cargarListaVendedores() {
     try {
         let query = window.supabase.from('bancas').select('*');
         
-        // 🔥 ESCUDO MULTI-TENANT: DESPLEGABLE DE CUADRE
+        // 🔥 ESCUDO MULTI-TENANT ESTRICTO: BANCAS EN BALANCES
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             query = query.eq('inquilino_id', inquilinoId);
+        } else {
+            query = query.is('inquilino_id', null);
         }
 
         const { data: bancas } = await query;
@@ -84,10 +86,12 @@ window.cargarResumenBalances = async function() {
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
         
-        // 🔥 ESCUDO MULTI-TENANT: TICKETS
+        // 🔥 ESCUDO MULTI-TENANT ESTRICTO: TICKETS EN BALANCES
         let queryTickets = window.supabase.from('tickets').select('*');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             queryTickets = queryTickets.eq('inquilino_id', inquilinoId);
+        } else {
+            queryTickets = queryTickets.is('inquilino_id', null);
         }
 
         if (rol.includes('supervisor')) {

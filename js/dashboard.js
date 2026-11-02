@@ -16,6 +16,14 @@ if (typeof window.getSupabaseClientDashboard !== 'function') {
 
 export function initDashboardModule() {
     console.log("Módulo Dashboard inicializado.");
+    
+    // 🔥 DESTRUCTOR DE SESIÓN FANTASMA (ADMIN MAESTRO)
+    const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+    const rol = String(sesion.rol || '').toLowerCase();
+    if ((rol.includes('admin') || rol === 'administrador' || rol === 'admin_maestro') && !sesion.inquilino_id) {
+        localStorage.removeItem('inquilino_id'); // Purga la memoria del inquilino anterior
+    }
+
     initSystemClock();
     cargarMetricasSeguras();
     // NOTA: Se eliminaron las llamadas viejas a bancas para evitar conflictos con admin.js

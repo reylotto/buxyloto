@@ -74,8 +74,14 @@ window.cargarHistorialNumeros = async function() {
         // 🔥 1. CAPTURAR EL INQUILINO ACTUAL
         const inquilinoId = localStorage.getItem('inquilino_id');
 
-        // 🔥 2. SE RETIRA EL FILTRO INQUILINO AQUÍ PARA EVITAR EL ERROR 400
-        const { data: reglas } = await supabase.from('restricciones_vendedor').select('*');
+        // 🔥 2. ESCUDO MULTI-TENANT PARA REGLAS DE RESTRICCIÓN
+        let queryReglas = supabase.from('restricciones_vendedor').select('*');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
+            queryReglas = queryReglas.eq('inquilino_id', inquilinoId);
+        } else {
+            queryReglas = queryReglas.is('inquilino_id', null); // Aislar para el Administrador Maestro
+        }
+        const { data: reglas } = await queryReglas;
 
         const mapaTopes = {};
         const topeGlobalDefault = 20.00;

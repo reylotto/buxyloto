@@ -48,12 +48,13 @@ async function cargarHistorialResultados() {
             .eq('fecha', filtroFecha)
             .order('created_at', { ascending: false });
 
-        // 🔥 ESCUDO MULTI-TENANT
+        // 🔥 ESCUDO MULTI-TENANT ESTRICTO: HISTORIAL DE RESULTADOS (MAESTRO VS INQUILINO)
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
             queryResultados = queryResultados.eq('inquilino_id', inquilinoId);
+        } else {
+            queryResultados = queryResultados.is('inquilino_id', null);
         }
-
         let { data, error } = await queryResultados;
 
         if (error) throw error;
@@ -167,9 +168,10 @@ function inicializarFormularioResultados() {
 
         try {
             const inquilinoId = localStorage.getItem('inquilino_id');
-            const sorteoIdNum = parseInt(sorteo_id); // 🔥 SOLUCIÓN: Definimos la variable numérica aquí
+            const esInquilino = (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '');
+            const sorteoIdNum = parseInt(sorteo_id);
 
-            // 1. Guardar en la tabla 'resultados'
+            // 1. Guardar en la tabla 'resultados' con aislamiento estricto
             const payloadResultados = {
                 sorteo_id: sorteoIdNum,
                 fecha: fecha,
@@ -179,7 +181,7 @@ function inicializarFormularioResultados() {
                 primero: primero,
                 segundo: segundo,
                 tercero: tercero,
-                inquilino_id: inquilinoId, // 🔥 BLINDAJE DE SEGURIDAD
+                inquilino_id: esInquilino ? inquilinoId : null, // 🔥 BLINDAJE: Nulo para el Maestro
                 updated_at: new Date().toISOString()
             };
 

@@ -37,9 +37,9 @@ window.cargarHistorialResultados = async function() {
             .eq('fecha', fechaFiltro)
             .order('created_at', { ascending: false });
 
-        // 🔥 ESCUDO MULTI-TENANT ESTRICTO: HISTORIAL
+        // 🔥 ESCUDO MULTI-TENANT ESTRICTO: HISTORIAL DE RESULTADOS
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
             queryHistorial = queryHistorial.eq('inquilino_id', inquilinoId);
         } else {
             queryHistorial = queryHistorial.is('inquilino_id', null);

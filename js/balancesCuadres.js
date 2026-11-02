@@ -98,8 +98,10 @@ window.cargarResumenBalances = async function() {
             const zonaSup = String(sesion.zona || '').trim().toLowerCase();
             
             let queryBancasSup = window.supabase.from('bancas').select('id, zona');
-            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
                 queryBancasSup = queryBancasSup.eq('inquilino_id', inquilinoId);
+            } else {
+                queryBancasSup = queryBancasSup.is('inquilino_id', null);
             }
             const { data: bData } = await queryBancasSup;
             
@@ -112,8 +114,10 @@ window.cargarResumenBalances = async function() {
             const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
             
             let queryBancasCaj = window.supabase.from('bancas').select('id').or(`nombre_banca.eq.${nombreUsuario},vendedor_nombre.eq.${nombreUsuario}`);
-            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
                 queryBancasCaj = queryBancasCaj.eq('inquilino_id', inquilinoId);
+            } else {
+                queryBancasCaj = queryBancasCaj.is('inquilino_id', null);
             }
             const { data: bData } = await queryBancasCaj;
             

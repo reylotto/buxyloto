@@ -114,10 +114,12 @@ export async function cargarSelectorBancasRiesgo() {
     try {
         let queryBancas = supabase.from('bancas').select('*').order('id', { ascending: false });
         
-        // 🔥 ESCUDO MULTI-TENANT: CONTROL DE RIESGO
+        // 🔥 ESCUDO MULTI-TENANT ESTRICTO: CONTROL DE RIESGO
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             queryBancas = queryBancas.eq('inquilino_id', inquilinoId);
+        } else {
+            queryBancas = queryBancas.is('inquilino_id', null);
         }
 
         const { data: bancas, error } = await queryBancas;

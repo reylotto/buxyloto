@@ -37,10 +37,12 @@ window.cargarHistorialResultados = async function() {
             .eq('fecha', fechaFiltro)
             .order('created_at', { ascending: false });
 
-        // 🔥 ESCUDO MULTI-TENANT
+        // 🔥 ESCUDO MULTI-TENANT ESTRICTO: HISTORIAL
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             queryHistorial = queryHistorial.eq('inquilino_id', inquilinoId);
+        } else {
+            queryHistorial = queryHistorial.is('inquilino_id', null);
         }
 
         const { data, error } = await queryHistorial;
@@ -264,10 +266,12 @@ async function cargarSorteosEscrutinio() {
             .select('*')
             .order('created_at', { ascending: false });
 
-        // 🔥 ESCUDO MULTI-TENANT: DESPLEGABLES DE SORTEOS AISLADOS
+        // 🔥 ESCUDO MULTI-TENANT ESTRICTO: DESPLEGABLES DE SORTEOS AISLADOS
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             querySorteos = querySorteos.eq('inquilino_id', inquilinoId);
+        } else {
+            querySorteos = querySorteos.is('inquilino_id', null);
         }
 
         let { data, error } = await querySorteos;

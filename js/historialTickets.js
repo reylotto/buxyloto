@@ -25,10 +25,12 @@ export async function cargarHistorialTicketsCentral() {
         let query = supabase.from('tickets').select('*, sorteos(nombre)')
             .gte('created_at', `${fechaHoyStr}T00:00:00.000Z`)
             .lte('created_at', `${fechaHoyStr}T23:59:59.999Z`);
-            // 🔥 FILTRO MAESTRO DE INQUILINOS (MULTI-TENANT)
+            // 🔥 FILTRO MAESTRO DE INQUILINOS ESTRICTO (MULTI-TENANT)
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             query = query.eq('inquilino_id', inquilinoId);
+        } else {
+            query = query.is('inquilino_id', null);
         }
 
         if (rol.includes('supervisor')) {
@@ -186,6 +188,23 @@ if (typeof window !== 'undefined') {
         if (!confirm(`¿Está seguro de que desea CANCELAR el ticket "${ticketRef}"?`)) return;
         try {
             const supabase = window.supabaseClient || window.supabase;
+            
+            // 🛑 CANDADO DE TIEMPO DASHBOARD
+            let queryVal = supabase.from('tickets').select('sorteo_id');
+            if (/^\d+$/.test(ticketRef)) queryVal = queryVal.eq('id', parseInt(ticketRef));
+            else queryVal = queryVal.eq('codigo_ticket', String(ticketRef).trim());
+            
+            const { data: tData } = await queryVal.maybeSingle();
+            if (tData && tData.sorteo_id) {
+                const { data: sData } = await supabase.from('sorteos').select('hora_cierre, estatus, estado').eq('id', tData.sorteo_id).single();
+                if (sData) {
+                    const estatus = String(sData.estatus || sData.estado || 'ACTIVO').toUpperCase();
+                    if (estatus !== 'ACTIVO' && estatus !== 'ABIERTO') throw new Error("El sorteo ya no está activo.");
+                    const ahoraStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Panama', hour12: false });
+                    if (ahoraStr >= (sData.hora_cierre || '23:59:00')) throw new Error("Hora de cierre superada. Prohibido anular.");
+                }
+            }
+
             const { data, error } = await supabase.rpc('cancelar_ticket_universal', { p_referencia: String(ticketRef) });
             if (error) throw error;
             if (data && data.success) {

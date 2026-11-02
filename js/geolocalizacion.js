@@ -78,10 +78,12 @@ export async function cargarUbicacionesEnVivo() {
         // 🔥 ESCUDO MULTI-TENANT INYECTADO
         let queryBancas = supabase.from('bancas').select('id, estatus, comision, limite_credito');
         
-        // 🔥 ESCUDO MULTI-TENANT: MAPA DE GEOLOCALIZACIÓN
+        // 🔥 ESCUDO MULTI-TENANT ESTRICTO: MAPA DE GEOLOCALIZACIÓN
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             queryBancas = queryBancas.eq('inquilino_id', inquilinoId);
+        } else {
+            queryBancas = queryBancas.is('inquilino_id', null);
         }
 
         const { data: bancasData, error: errBancas } = await queryBancas;

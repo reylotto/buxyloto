@@ -94,19 +94,23 @@ window.cargarHistorialNumeros = async function() {
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
         
-        // 🔥 3. BLINDAR CONSULTA PRINCIPAL DE TICKETS
+        // 🔥 3. BLINDAR CONSULTA PRINCIPAL DE TICKETS ESTRICTO
         let queryTickets = supabase.from('tickets').select('id').gte('created_at', startOfDay).lte('created_at', endOfDay);
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             queryTickets = queryTickets.eq('inquilino_id', inquilinoId);
+        } else {
+            queryTickets = queryTickets.is('inquilino_id', null);
         }
 
         if (rol.includes('supervisor')) {
             const zonaSup = String(sesion.zona || '').trim().toLowerCase();
             
-            // 🔥 BLINDAR SUB-CONSULTA DE BANCAS (SUPERVISOR)
+            // 🔥 BLINDAR SUB-CONSULTA DE BANCAS ESTRICTO (SUPERVISOR)
             let queryBancasSup = supabase.from('bancas').select('id, zona');
-            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
                 queryBancasSup = queryBancasSup.eq('inquilino_id', inquilinoId);
+            } else {
+                queryBancasSup = queryBancasSup.is('inquilino_id', null);
             }
             const { data: bData } = await queryBancasSup;
 
@@ -116,10 +120,12 @@ window.cargarHistorialNumeros = async function() {
         } else if (!rol.includes('admin') && !rol.includes('supervisor')) {
             const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
             
-            // 🔥 BLINDAR SUB-CONSULTA DE BANCAS (CAJERO)
+            // 🔥 BLINDAR SUB-CONSULTA DE BANCAS ESTRICTO (CAJERO)
             let queryBancasCaj = supabase.from('bancas').select('id').or(`nombre_banca.eq.${nombreUsuario},vendedor_nombre.eq.${nombreUsuario}`);
-            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
                 queryBancasCaj = queryBancasCaj.eq('inquilino_id', inquilinoId);
+            } else {
+                queryBancasCaj = queryBancasCaj.is('inquilino_id', null);
             }
             const { data: bData } = await queryBancasCaj;
 

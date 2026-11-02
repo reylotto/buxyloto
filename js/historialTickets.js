@@ -25,9 +25,9 @@ export async function cargarHistorialTicketsCentral() {
         let query = supabase.from('tickets').select('*, sorteos(nombre)')
             .gte('created_at', `${fechaHoyStr}T00:00:00.000Z`)
             .lte('created_at', `${fechaHoyStr}T23:59:59.999Z`);
-            // 🔥 FILTRO MAESTRO DE INQUILINOS ESTRICTO (MULTI-TENANT)
+            // 🔥 FILTRO MAESTRO DE INQUILINOS ESTRICTO (MULTI-TENANT - HISTORIAL)
         const inquilinoId = localStorage.getItem('inquilino_id');
-        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
             query = query.eq('inquilino_id', inquilinoId);
         } else {
             query = query.is('inquilino_id', null);

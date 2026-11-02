@@ -448,10 +448,12 @@ export async function generarReporte() {
             if (fechaDesde) query = query.gte('created_at', `${fechaDesde}T00:00:00`);
             if (fechaHasta) query = query.lte('created_at', `${fechaHasta}T23:59:59`);
 
-            // 🔥 ESCUDO MULTI-TENANT: AUDITORÍA GENERAL AISLADA
+            // 🔥 ESCUDO MULTI-TENANT ESTRICTO: AUDITORÍA GENERAL AISLADA
             const inquilinoId = localStorage.getItem('inquilino_id');
-            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
                 query = query.eq('inquilino_id', inquilinoId);
+            } else {
+                query = query.is('inquilino_id', null);
             }
 
             // 🚨 FILTRO ESTRICTO DE BASE DE DATOS (BLINDAJE DE ZONAS)
@@ -678,10 +680,12 @@ export async function cargarHistorialTickets() {
                 .select('*')
                 .gte('created_at', `${dateFromVal}T00:00:00`)
                 .lte('created_at', `${dateToVal}T23:59:59`);
-            // 🔥 FILTRO MAESTRO DE INQUILINOS (MULTI-TENANT)
+            // 🔥 FILTRO ESTRICTO DE INQUILINOS (MULTI-TENANT - HISTORIAL TICKETS)
             const inquilinoId = localStorage.getItem('inquilino_id');
-            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
                 query = query.eq('inquilino_id', inquilinoId);
+            } else {
+                query = query.is('inquilino_id', null);
             }
 
             // 2. 🚨 APLICAMOS EL BLINDAJE DE ZONAS DIRECTO EN LA BASE DE DATOS 🚨

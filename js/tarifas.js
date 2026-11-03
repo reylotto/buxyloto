@@ -43,30 +43,46 @@ window.cargarTarifasInquilino = async function() {
         form.classList.add('hidden');
         return;
     }
-
     form.classList.remove('hidden');
     
     try {
         const supabase = window.supabaseClient || window.supabase;
         const { data } = await supabase.from('inquilinos').select('config_premios').eq('id', inquilinoId).single();
-        
         const config = data?.config_premios || {};
 
-        document.getElementById('t-directo').value = config.directo || '';
-        document.getElementById('t-pale').value = config.pale || '';
-        document.getElementById('t-tripleta').value = config.tripleta || '';
+        // Extranjeras
+        document.getElementById('t-dir-1').value = config.dir1 || '';
+        document.getElementById('t-dir-2').value = config.dir2 || '';
+        document.getElementById('t-dir-3').value = config.dir3 || '';
+        document.getElementById('t-pale-1').value = config.pale1 || '';
+        document.getElementById('t-pale-2').value = config.pale2 || '';
+        document.getElementById('t-trip-3').value = config.trip3 || '';
+        document.getElementById('t-trip-2').value = config.trip2 || '';
         
+        // LNB Básicos
         document.getElementById('t-b1').value = config.b1 || '';
         document.getElementById('t-b2').value = config.b2 || '';
         document.getElementById('t-b3').value = config.b3 || '';
-        
         document.getElementById('t-c1').value = config.c1 || '';
         document.getElementById('t-c2').value = config.c2 || '';
         document.getElementById('t-c3').value = config.c3 || '';
-        
-        document.getElementById('t-2pri').value = config.dos_primeras || '';
-        document.getElementById('t-2ult').value = config.dos_ultimas || '';
-        document.getElementById('t-letras').value = config.letras || '';
+
+        // LNB Tres Cifras
+        document.getElementById('t-3p1').value = config.tp1 || '';
+        document.getElementById('t-3p2').value = config.tp2 || '';
+        document.getElementById('t-3p3').value = config.tp3 || '';
+        document.getElementById('t-3u1').value = config.tu1 || '';
+        document.getElementById('t-3u2').value = config.tu2 || '';
+        document.getElementById('t-3u3').value = config.tu3 || '';
+
+        // LNB Dos Cifras
+        document.getElementById('t-2p1').value = config.dp1 || '';
+        document.getElementById('t-2p2').value = config.dp2 || '';
+        document.getElementById('t-2p3').value = config.dp3 || '';
+        document.getElementById('t-2u1').value = config.du1 || '';
+        document.getElementById('t-2u2').value = config.du2 || '';
+        document.getElementById('t-2u3').value = config.du3 || '';
+
     } catch (e) {
         console.error("Error al leer tarifas:", e);
     }
@@ -77,18 +93,31 @@ window.guardarTarifasInquilino = async function() {
     if (!inquilinoId) return alert("Seleccione un inquilino primero.");
 
     const config = {
-        directo: document.getElementById('t-directo').value,
-        pale: document.getElementById('t-pale').value,
-        tripleta: document.getElementById('t-tripleta').value,
+        dir1: document.getElementById('t-dir-1').value,
+        dir2: document.getElementById('t-dir-2').value,
+        dir3: document.getElementById('t-dir-3').value,
+        pale1: document.getElementById('t-pale-1').value,
+        pale2: document.getElementById('t-pale-2').value,
+        trip3: document.getElementById('t-trip-3').value,
+        trip2: document.getElementById('t-trip-2').value,
         b1: document.getElementById('t-b1').value,
         b2: document.getElementById('t-b2').value,
         b3: document.getElementById('t-b3').value,
         c1: document.getElementById('t-c1').value,
         c2: document.getElementById('t-c2').value,
         c3: document.getElementById('t-c3').value,
-        dos_primeras: document.getElementById('t-2pri').value,
-        dos_ultimas: document.getElementById('t-2ult').value,
-        letras: document.getElementById('t-letras').value
+        tp1: document.getElementById('t-3p1').value,
+        tp2: document.getElementById('t-3p2').value,
+        tp3: document.getElementById('t-3p3').value,
+        tu1: document.getElementById('t-3u1').value,
+        tu2: document.getElementById('t-3u2').value,
+        tu3: document.getElementById('t-3u3').value,
+        dp1: document.getElementById('t-2p1').value,
+        dp2: document.getElementById('t-2p2').value,
+        dp3: document.getElementById('t-2p3').value,
+        du1: document.getElementById('t-2u1').value,
+        du2: document.getElementById('t-2u2').value,
+        du3: document.getElementById('t-2u3').value
     };
 
     try {

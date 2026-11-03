@@ -1683,36 +1683,75 @@
         </select>
 
         <div id="tarifas-formulario" class="hidden space-y-6">
-            <!-- Loterías Extranjeras -->
+            
+            <!-- LOTERÍAS EXTRANJERAS -->
             <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-700">
                 <h3 class="text-sm font-bold text-cyan-400 mb-3 border-b border-slate-700 pb-2">Loterías Extranjeras (Pago por $1)</h3>
-                <div class="grid grid-cols-3 gap-4">
-                    <div><label class="text-[10px] text-slate-400">Directo</label><input type="number" id="t-directo" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 70"></div>
-                    <div><label class="text-[10px] text-slate-400">Palé</label><input type="number" id="t-pale" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 1000"></div>
-                    <div><label class="text-[10px] text-slate-400">Tripleta</label><input type="number" id="t-tripleta" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 10000"></div>
+                
+                <h4 class="text-xs font-bold text-slate-300 mt-3 mb-2">Directo</h4>
+                <div class="grid grid-cols-3 gap-4 mb-4">
+                    <div><label class="text-[10px] text-slate-400">1er Premio</label><input type="number" id="t-dir-1" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 70"></div>
+                    <div><label class="text-[10px] text-slate-400">2do Premio</label><input type="number" id="t-dir-2" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 7"></div>
+                    <div><label class="text-[10px] text-slate-400">3er Premio</label><input type="number" id="t-dir-3" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 3"></div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-300 mb-2">Palé</h4>
+                        <div class="space-y-2">
+                            <div><label class="text-[10px] text-slate-400">1ro con 2do / 1ro con 3ro</label><input type="number" id="t-pale-1" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 1000"></div>
+                            <div><label class="text-[10px] text-slate-400">2do con 3ro</label><input type="number" id="t-pale-2" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 200"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-300 mb-2">Tripleta</h4>
+                        <div class="space-y-2">
+                            <div><label class="text-[10px] text-slate-400">Tripleta Completa (3 Números)</label><input type="number" id="t-trip-3" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 10000"></div>
+                            <div><label class="text-[10px] text-slate-400">Aproximación (2 Números)</label><input type="number" id="t-trip-2" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 200"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Lotería Nacional de Panamá -->
+            <!-- LOTERÍA NACIONAL DE PANAMÁ -->
             <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-700">
                 <h3 class="text-sm font-bold text-emerald-400 mb-3 border-b border-slate-700 pb-2">Lotería Nacional de Panamá (Pago por Billete/Fracción)</h3>
                 
+                <!-- Billetes y Chances -->
                 <div class="grid grid-cols-3 gap-4 mb-4">
-                    <div><label class="text-[10px] text-slate-400">Billete 1er Premio</label><input type="number" id="t-b1" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 2000"></div>
-                    <div><label class="text-[10px] text-slate-400">Billete 2do Premio</label><input type="number" id="t-b2" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 600"></div>
-                    <div><label class="text-[10px] text-slate-400">Billete 3er Premio</label><input type="number" id="t-b3" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 300"></div>
+                    <div><label class="text-[10px] text-slate-400 font-bold text-emerald-300">Billete 1er Premio</label><input type="number" id="t-b1" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 2000"></div>
+                    <div><label class="text-[10px] text-slate-400 font-bold text-emerald-300">Billete 2do Premio</label><input type="number" id="t-b2" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 600"></div>
+                    <div><label class="text-[10px] text-slate-400 font-bold text-emerald-300">Billete 3er Premio</label><input type="number" id="t-b3" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 300"></div>
                 </div>
-                
                 <div class="grid grid-cols-3 gap-4 mb-4">
-                    <div><label class="text-[10px] text-slate-400">Chance 1er Premio</label><input type="number" id="t-c1" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 14"></div>
-                    <div><label class="text-[10px] text-slate-400">Chance 2do Premio</label><input type="number" id="t-c2" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 3"></div>
-                    <div><label class="text-[10px] text-slate-400">Chance 3er Premio</label><input type="number" id="t-c3" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 2"></div>
+                    <div><label class="text-[10px] text-slate-400 font-bold text-emerald-300">Chance 1er Premio</label><input type="number" id="t-c1" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 14"></div>
+                    <div><label class="text-[10px] text-slate-400 font-bold text-emerald-300">Chance 2do Premio</label><input type="number" id="t-c2" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 3"></div>
+                    <div><label class="text-[10px] text-slate-400 font-bold text-emerald-300">Chance 3er Premio</label><input type="number" id="t-c3" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 2"></div>
                 </div>
 
-                <div class="grid grid-cols-3 gap-4">
-                    <div><label class="text-[10px] text-slate-400">2 Primeras (Billete)</label><input type="number" id="t-2pri" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 50"></div>
-                    <div><label class="text-[10px] text-slate-400">2 Últimas (Billete)</label><input type="number" id="t-2ult" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 14"></div>
-                    <div><label class="text-[10px] text-slate-400">Letras (Completo)</label><input type="number" id="t-letras" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg" placeholder="Ej: 4000"></div>
+                <div class="border-t border-slate-700/50 my-4"></div>
+
+                <!-- Tres y Dos Cifras -->
+                <div class="grid grid-cols-3 gap-x-4 gap-y-2 mb-4">
+                    <div><label class="text-[10px] text-slate-400">3 Primeras (1er Premio)</label><input type="number" id="t-3p1" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg"></div>
+                    <div><label class="text-[10px] text-slate-400">3 Primeras (2do Premio)</label><input type="number" id="t-3p2" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg"></div>
+                    <div><label class="text-[10px] text-slate-400">3 Primeras (3er Premio)</label><input type="number" id="t-3p3" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg"></div>
+                    
+                    <div><label class="text-[10px] text-slate-400">3 Últimas (1er Premio)</label><input type="number" id="t-3u1" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg"></div>
+                    <div><label class="text-[10px] text-slate-400">3 Últimas (2do Premio)</label><input type="number" id="t-3u2" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg"></div>
+                    <div><label class="text-[10px] text-slate-400">3 Últimas (3er Premio)</label><input type="number" id="t-3u3" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg"></div>
+                </div>
+
+                <div class="border-t border-slate-700/50 my-4"></div>
+
+                <div class="grid grid-cols-3 gap-x-4 gap-y-2">
+                    <div><label class="text-[10px] text-slate-400">2 Primeras (1er Premio)</label><input type="number" id="t-2p1" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg"></div>
+                    <div><label class="text-[10px] text-slate-400">2 Primeras (2do Premio)</label><input type="number" id="t-2p2" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg"></div>
+                    <div><label class="text-[10px] text-slate-400">2 Primeras (3er Premio)</label><input type="number" id="t-2p3" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg"></div>
+                    
+                    <div><label class="text-[10px] text-slate-400">2 Últimas (1er Premio)</label><input type="number" id="t-2u1" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg"></div>
+                    <div><label class="text-[10px] text-slate-400">2 Últimas (2do Premio)</label><input type="number" id="t-2u2" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg"></div>
+                    <div><label class="text-[10px] text-slate-400">2 Últimas (3er Premio)</label><input type="number" id="t-2u3" class="w-full bg-slate-800 border border-slate-600 text-white text-xs p-2 rounded-lg"></div>
                 </div>
             </div>
 
@@ -1722,7 +1761,6 @@
                 </button>
             </div>
         </div>
-    </div>
 </section>
 
 <!-- ================================================================= -->

@@ -2,6 +2,7 @@
 import { initPOSModule } from './pos.js';
 import { initDashboardModule } from './dashboard.js';
 import { initAdminModule } from './admin.js';
+import { cargarModuloVentas } from './ventas.js';
 import { initBalancesCuadresModule } from './balancesCuadres.js?v=10';
 import { initReportesModule, initTicketsHistoryModule } from './reportes.js'; // 👈 ¡AQUÍ CONECTAMOS EL MÓDULO DE REPORTES Y FILTROS!
 import { initLNBModule } from './loteriaNacionalPanama.js?v=1'; // 👈 ¡MÓDULO Lotería Nacional Pick 4 INTEGRADO!

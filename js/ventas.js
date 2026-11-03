@@ -25,13 +25,28 @@ export async function cargarModuloVentas() {
         }
         const { data: bancas } = await queryBancas;
 
-        // Poblar filtros si están vacíos
+        // Poblar filtros de zona combinando Bancas y Usuarios
         const selZona = document.getElementById('ventas-filtro-zona');
         const selVendedor = document.getElementById('ventas-filtro-vendedor');
+        
         if (selZona && selZona.options.length <= 1) {
             const zonas = new Set();
-            (bancas || []).forEach(b => { if (b.zona) zonas.add(b.zona.trim()); });
-            zonas.forEach(z => selZona.innerHTML += `<option value="${z}">${z}</option>`);
+            
+            // 1. Zonas de las bancas
+            (bancas || []).forEach(b => { 
+                if (b.zona && b.zona.trim() !== '') zonas.add(b.zona.trim()); 
+            });
+            
+            // 2. Zonas de los usuarios (Supervisores)
+            const { data: usuarios } = await supabase.from('usuarios').select('zona').not('zona', 'is', null);
+            (usuarios || []).forEach(u => { 
+                if (u.zona && u.zona.trim() !== '') zonas.add(u.zona.trim()); 
+            });
+            
+            // Ordenar alfabéticamente e inyectar
+            Array.from(zonas).sort().forEach(z => {
+                selZona.innerHTML += `<option value="${z}">${z}</option>`;
+            });
         }
         if (selVendedor && selVendedor.options.length <= 1) {
             (bancas || []).forEach(b => {

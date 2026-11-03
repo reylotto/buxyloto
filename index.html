@@ -1406,51 +1406,7 @@
             <button id="btn-tab-cuadre" onclick="window.mostrarTabFinanzas('nuevo-cuadre')" class="px-4 py-2 rounded-lg font-bold text-xs bg-slate-700 text-slate-400 hover:text-white transition-all">Nuevo Cuadre / Pagos</button>
         </div>
     </div>
-
-    <!-- ENLACE DEL MENÚ -->
-<li class="mb-1">
-    <a href="#" data-target="section-ventas" class="nav-link flex items-center px-4 py-2.5 text-slate-400 hover:bg-slate-800 hover:text-emerald-400 rounded-xl transition-all font-semibold text-sm">
-        <i class="fa-solid fa-chart-line w-5"></i> Historial de Ventas
-    </a>
-</li>
-
-<!-- SECCIÓN PRINCIPAL DEL MÓDULO (Dentro del contenedor principal) -->
-<section id="section-ventas" class="hidden content-section p-4 md:p-6 max-w-7xl mx-auto space-y-6">
-    <div class="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-lg">
-        <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fa-solid fa-chart-line text-emerald-400"></i> Desglose de Ventas y Rentabilidad</h2>
-        <div class="flex items-center gap-2">
-            <input type="date" id="ventas-fecha-desde" class="bg-slate-900 border border-slate-700 text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-emerald-500" style="color-scheme: dark;">
-            <input type="date" id="ventas-fecha-hasta" class="bg-slate-900 border border-slate-700 text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-emerald-500" style="color-scheme: dark;">
-            <button onclick="window.cargarModuloVentas()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition shadow-lg"><i class="fa-solid fa-magnifying-glass"></i> Consultar</button>
-        </div>
-    </div>
-
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-bold uppercase">Total Vendido</p><h4 id="kpi-ventas-total" class="text-xl font-black text-cyan-400 mt-1">$0.00</h4></div>
-        <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-bold uppercase">Comisiones Pagadas</p><h4 id="kpi-ventas-comision" class="text-xl font-black text-amber-400 mt-1">$0.00</h4></div>
-        <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-bold uppercase">Premios a Pagar</p><h4 id="kpi-ventas-premios" class="text-xl font-black text-rose-400 mt-1">$0.00</h4></div>
-        <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-bold uppercase">Rentabilidad (Neta)</p><h4 id="kpi-ventas-neta" class="text-xl font-black text-emerald-400 mt-1">$0.00</h4></div>
-    </div>
-
-    <div class="grid grid-cols-3 gap-4 mb-4">
-        <div class="bg-slate-800/50 border border-slate-700 p-3 rounded-xl text-center"><span class="block text-xs text-slate-400">Tickets Emitidos</span><span id="kpi-tickets-emitidos" class="text-lg font-bold text-white">0</span></div>
-        <div class="bg-slate-800/50 border border-emerald-700/30 p-3 rounded-xl text-center"><span class="block text-xs text-emerald-400">Tickets Ganadores</span><span id="kpi-tickets-ganadores" class="text-lg font-bold text-emerald-400">0</span></div>
-        <div class="bg-slate-800/50 border border-rose-700/30 p-3 rounded-xl text-center"><span class="block text-xs text-rose-400">Tickets Cancelados</span><span id="kpi-tickets-cancelados" class="text-lg font-bold text-rose-400">0</span></div>
-    </div>
-
-    <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-lg overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs text-slate-300">
-                <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-700">
-                    <tr><th class="p-4">Fecha</th><th class="p-4">Vendedor</th><th class="p-4 text-center">Tickets</th><th class="p-4 text-right">Ventas</th><th class="p-4 text-right">Comisión</th><th class="p-4 text-right">Premios</th><th class="p-4 text-right">Balance Neto</th></tr>
-                </thead>
-                <tbody id="tabla-ventas-body" class="divide-y divide-slate-700/60">
-                    <tr><td colspan="7" class="text-center py-8 text-slate-500">Seleccione un rango de fechas para consultar las ventas.</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</section>
+    
 
     <!-- ================================================= -->
     <!-- PESTAÑA 1: AUDITORÍA GENERAL Y KPIs               -->
@@ -1650,6 +1606,51 @@
             if(window.generarDetalleCuadre) window.generarDetalleCuadre();
         };
     </script>
+</section>
+
+<!-- ENLACE DEL MENÚ -->
+<li class="mb-1">
+    <a href="#" data-target="section-ventas" class="nav-link flex items-center px-4 py-2.5 text-slate-400 hover:bg-slate-800 hover:text-emerald-400 rounded-xl transition-all font-semibold text-sm">
+        <i class="fa-solid fa-chart-line w-5"></i> Historial de Ventas
+    </a>
+</li>
+
+<!-- SECCIÓN PRINCIPAL DEL MÓDULO (Dentro del contenedor principal) -->
+<section id="section-ventas" class="hidden content-section p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+    <div class="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-lg">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fa-solid fa-chart-line text-emerald-400"></i> Desglose de Ventas y Rentabilidad</h2>
+        <div class="flex items-center gap-2">
+            <input type="date" id="ventas-fecha-desde" class="bg-slate-900 border border-slate-700 text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-emerald-500" style="color-scheme: dark;">
+            <input type="date" id="ventas-fecha-hasta" class="bg-slate-900 border border-slate-700 text-white text-xs rounded-lg px-3 py-2 outline-none focus:border-emerald-500" style="color-scheme: dark;">
+            <button onclick="window.cargarModuloVentas()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition shadow-lg"><i class="fa-solid fa-magnifying-glass"></i> Consultar</button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-bold uppercase">Total Vendido</p><h4 id="kpi-ventas-total" class="text-xl font-black text-cyan-400 mt-1">$0.00</h4></div>
+        <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-bold uppercase">Comisiones Pagadas</p><h4 id="kpi-ventas-comision" class="text-xl font-black text-amber-400 mt-1">$0.00</h4></div>
+        <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-bold uppercase">Premios a Pagar</p><h4 id="kpi-ventas-premios" class="text-xl font-black text-rose-400 mt-1">$0.00</h4></div>
+        <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-bold uppercase">Rentabilidad (Neta)</p><h4 id="kpi-ventas-neta" class="text-xl font-black text-emerald-400 mt-1">$0.00</h4></div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-4 mb-4">
+        <div class="bg-slate-800/50 border border-slate-700 p-3 rounded-xl text-center"><span class="block text-xs text-slate-400">Tickets Emitidos</span><span id="kpi-tickets-emitidos" class="text-lg font-bold text-white">0</span></div>
+        <div class="bg-slate-800/50 border border-emerald-700/30 p-3 rounded-xl text-center"><span class="block text-xs text-emerald-400">Tickets Ganadores</span><span id="kpi-tickets-ganadores" class="text-lg font-bold text-emerald-400">0</span></div>
+        <div class="bg-slate-800/50 border border-rose-700/30 p-3 rounded-xl text-center"><span class="block text-xs text-rose-400">Tickets Cancelados</span><span id="kpi-tickets-cancelados" class="text-lg font-bold text-rose-400">0</span></div>
+    </div>
+
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-lg overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+                <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-700">
+                    <tr><th class="p-4">Fecha</th><th class="p-4">Vendedor</th><th class="p-4 text-center">Tickets</th><th class="p-4 text-right">Ventas</th><th class="p-4 text-right">Comisión</th><th class="p-4 text-right">Premios</th><th class="p-4 text-right">Balance Neto</th></tr>
+                </thead>
+                <tbody id="tabla-ventas-body" class="divide-y divide-slate-700/60">
+                    <tr><td colspan="7" class="text-center py-8 text-slate-500">Seleccione un rango de fechas para consultar las ventas.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </section>
 
 <!-- ================================================================= -->
@@ -3838,6 +3839,7 @@ if (btnProcessEl) {
 <script src="js/dashboard.js?v=8" type="module"></script>
 <script src="js/historial_numeros.js"></script>
 <script src="js/admin.js?v=8" type="module"></script>
+<script type="module" src="js/ventas.js"></script>
 <script src="js/escrutinio.js?v=8"></script>
 <script type="module" src="js/historialTickets.js?v=8"></script>
 <script src="js/app.js?v=8"></script>
@@ -3852,7 +3854,6 @@ if (btnProcessEl) {
 <script src="js/resultados.js?v=8"></script>
 <script src="js/dashboard-metrics.js?v=8"></script>
 <script type="module" src="js/balancesCuadres.js"></script>
-<script type="module" src="js/ventas.js"></script>
 <script src="js/configTicket.js" type="module"></script>
 
 

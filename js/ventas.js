@@ -25,22 +25,29 @@ export async function cargarModuloVentas() {
         }
         const { data: bancas } = await queryBancas;
 
-        // Poblar filtros de zona combinando Bancas y Usuarios
+        // Poblar filtros de zona combinando Bancas y Usuarios (CON ESCUDO MULTI-TENANT)
         const selZona = document.getElementById('ventas-filtro-zona');
         const selVendedor = document.getElementById('ventas-filtro-vendedor');
         
         if (selZona && selZona.options.length <= 1) {
             const zonas = new Set();
             
-            // 1. Zonas de las bancas
+            // 1. Zonas de las bancas (Bancas ya venía filtrado por inquilino arriba)
             (bancas || []).forEach(b => { 
-                if (b.zona && b.zona.trim() !== '') zonas.add(b.zona.trim()); 
+                if (b.zona && String(b.zona).trim() !== '') zonas.add(String(b.zona).trim()); 
             });
             
-            // 2. Zonas de los usuarios (Supervisores)
-            const { data: usuarios } = await supabase.from('usuarios').select('zona').not('zona', 'is', null);
+            // 2. Zonas de los usuarios (Supervisores) - 🔥 BLINDAJE INYECTADO AQUÍ
+            let queryUsuarios = supabase.from('usuarios').select('zona').not('zona', 'is', null);
+            if (inquilinoId && inquilinoId !== 'null' && String(inquilinoId).trim() !== '') {
+                queryUsuarios = queryUsuarios.eq('inquilino_id', inquilinoId);
+            } else {
+                queryUsuarios = queryUsuarios.is('inquilino_id', null);
+            }
+            const { data: usuarios } = await queryUsuarios;
+            
             (usuarios || []).forEach(u => { 
-                if (u.zona && u.zona.trim() !== '') zonas.add(u.zona.trim()); 
+                if (u.zona && String(u.zona).trim() !== '') zonas.add(String(u.zona).trim()); 
             });
             
             // Ordenar alfabéticamente e inyectar

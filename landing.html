@@ -23,8 +23,9 @@
             <nav class="hidden md:flex items-center space-x-8 text-sm font-semibold text-slate-300">
                 <a href="#caracteristicas" class="hover:text-emerald-400 transition-colors">Características</a>
                 <a href="#demo" class="hover:text-emerald-400 transition-colors">Sistema POS & Dashboard</a>
+                <a href="#calculadora" class="hover:text-emerald-400 transition-colors">Calculadora</a>
                 <a href="#precios" class="hover:text-emerald-400 transition-colors">Planes</a>
-                <a href="#contacto" class="hover:text-emerald-400 transition-colors">Contacto</a>
+                <a href="#faq" class="hover:text-emerald-400 transition-colors">FAQ</a>
             </nav>
             <div class="flex items-center space-x-4">
                 <a href="#precios" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-emerald-600/30">Solicitar Inquilino</a>
@@ -88,7 +89,7 @@
         </div>
     </section>
 
-    <!-- DEMO VISUAL: DASHBOARD Y POS MÓVIL -->
+    <!-- DEMO VISUAL: MONITOR Y POS MÓVIL -->
     <section id="demo" class="py-24 max-w-7xl mx-auto px-6">
         <div class="text-center max-w-2xl mx-auto mb-16">
             <span class="text-emerald-400 text-xs font-bold uppercase tracking-widest bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">Interfaz Real</span>
@@ -212,6 +213,36 @@
         </div>
     </section>
 
+    <!-- NUEVA SECCIÓN: CALCULADORA DE AHORRO E INTERACTIVA -->
+    <section id="calculadora" class="py-20 bg-slate-900/20 border-t border-slate-800">
+        <div class="max-w-4xl mx-auto px-6 text-center">
+            <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3">Simulador de Crecimiento</h2>
+            <h3 class="text-3xl font-bold text-white mb-6">Calcula el potencial operativo de tu red</h3>
+            <p class="text-slate-400 text-sm mb-12">Desliza para indicar cuántas bancas o vendedores activos manejas actualmente.</p>
+            
+            <div class="bg-slate-900 border border-slate-800 p-8 rounded-3xl shadow-2xl text-left space-y-6">
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="font-semibold text-slate-300 text-sm">Cantidad de Bancas / Vendedores:</label>
+                        <span id="valor-bancas" class="text-emerald-400 font-black text-xl">15 Bancas</span>
+                    </div>
+                    <input type="range" id="slider-bancas" min="1" max="100" value="15" oninput="calcularAhorro()" class="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-800 rounded-lg">
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-800 text-center">
+                    <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                        <span class="text-xs text-slate-400 block mb-1">Horas de Escrutinio Ahorradas al Mes</span>
+                        <span id="resultado-horas" class="text-2xl font-black text-cyan-400">45 Horas</span>
+                    </div>
+                    <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                        <span class="text-xs text-slate-400 block mb-1">Plan Recomendado para tu Red</span>
+                        <span id="resultado-plan" class="text-2xl font-black text-emerald-400">Plan Pro ($250)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- PLANES Y PRECIOS -->
     <section id="precios" class="py-24 bg-slate-900/40 border-t border-slate-800">
         <div class="max-w-7xl mx-auto px-6 text-center">
@@ -293,8 +324,30 @@
         </div>
     </section>
 
+    <!-- NUEVA SECCIÓN: PREGUNTAS FRECUENTES (FAQ) -->
+    <section id="faq" class="py-24 max-w-4xl mx-auto px-6">
+        <div class="text-center mb-16">
+            <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3">Dudas Comunes</h2>
+            <h3 class="text-3xl font-bold text-white">Preguntas Frecuentes</h3>
+        </div>
+        <div class="space-y-4 text-left">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+                <h4 class="font-bold text-white text-sm mb-2"><i class="fa-solid fa-circle-question text-emerald-400 mr-2"></i> ¿Cada inquilino tiene su propia configuración de premios?</h4>
+                <p class="text-xs text-slate-400 leading-relaxed">Sí. Cada empresa inquilina cuenta con un módulo exclusivo para definir sus propias tarifas y pagos en los sorteos sin interferir con el resto de la plataforma.</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+                <h4 class="font-bold text-white text-sm mb-2"><i class="fa-solid fa-circle-question text-emerald-400 mr-2"></i> ¿Cómo funciona el escrutinio automático?</h4>
+                <p class="text-xs text-slate-400 leading-relaxed">El sistema valida de forma instantánea y sin errores los números ganadores ingresados frente a todos los tickets emitidos, calculando premios y ganancia neta al instante.</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+                <h4 class="font-bold text-white text-sm mb-2"><i class="fa-solid fa-circle-question text-emerald-400 mr-2"></i> ¿Qué tan rápido se activa mi cuenta tras contratar?</h4>
+                <p class="text-xs text-slate-400 leading-relaxed">Una vez envíes tus datos a través del formulario, nos pondremos en contacto contigo de inmediato al correo y teléfono suministrados para entregarte tus accesos.</p>
+            </div>
+        </div>
+    </section>
+
     <!-- SECCIÓN DE CONTACTO -->
-    <section id="contacto" class="py-20 max-w-4xl mx-auto px-6 text-center">
+    <section id="contacto" class="py-20 max-w-4xl mx-auto px-6 text-center border-t border-slate-900">
         <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3">Atención Directa</h2>
         <h3 class="text-3xl font-bold text-white mb-6">¿Tienes dudas o necesitas un plan a la medida?</h3>
         <p class="text-slate-400 text-sm mb-8">Escríbenos directamente a nuestro correo oficial y nos pondremos en contacto contigo de inmediato.</p>
@@ -308,16 +361,14 @@
         <p>&copy; 2026 Buxy Loto. Todos los derechos reservados.</p>
     </footer>
 
-    <!-- MODAL DE SOLICITUD CON FORMSPREE (ENVÍO REAL Y DIRECTO A BUXYLOTO@GMAIL.COM) -->
+    <!-- MODAL DE SOLICITUD / CONTRATACIÓN -->
     <div id="modal-contratacion" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-800 max-w-md w-full p-6 rounded-3xl shadow-2xl relative text-left">
             <button onclick="cerrarModal()" class="absolute top-5 right-5 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             <h3 id="modal-titulo" class="text-lg font-bold text-white mb-2">Contratar Plan</h3>
-            <p class="text-xs text-slate-400 mb-6">Completa tus datos para activar la solicitud. Te responderemos al instante.</p>
+            <p class="text-xs text-slate-400 mb-6">Completa tus datos para activar la solicitud y te contactaremos de inmediato.</p>
             
-            <!-- Formulario conectado a Formspree apuntando al correo buxyloto@gmail.com -->
             <form action="https://formsubmit.co/buxyloto@gmail.com" method="POST" id="form-solicitud" class="space-y-4 text-xs">
-                <!-- Configuraciones para FormSubmit -->
                 <input type="hidden" name="_subject" id="input-asunto" value="Nueva Solicitud de Inquilino - Buxy Loto">
                 <input type="hidden" name="_captcha" value="false">
                 <input type="hidden" name="_template" value="table">
@@ -350,11 +401,10 @@
                 </button>
             </form>
 
-            <!-- Alerta interna de confirmación -->
             <div id="alerta-exito" class="hidden mt-4 p-5 bg-emerald-950/90 border border-emerald-500/50 rounded-2xl text-center">
                 <i class="fa-solid fa-circle-check text-emerald-400 text-3xl mb-2"></i>
                 <h4 class="text-sm font-bold text-white">¡Mensaje Enviado con Éxito!</h4>
-                <p class="text-[11px] text-slate-300 mt-1">La información ha sido enviada correctamente a <b>buxyloto@gmail.com</b>. Nos pondremos en contacto contigo de inmediato.</p>
+                <p class="text-[11px] text-slate-300 mt-1">La información ha sido enviada a <b>buxyloto@gmail.com</b>. Te contactaremos pronto.</p>
                 <button onclick="cerrarModal()" class="mt-4 bg-emerald-600 text-white px-5 py-2 rounded-xl text-xs font-bold">Cerrar</button>
             </div>
         </div>
@@ -362,6 +412,22 @@
 
     <!-- SCRIPT DE CONTROL -->
     <script>
+        function calcularAhorro() {
+            const bancas = document.getElementById('slider-bancas').value;
+            document.getElementById('valor-bancas').textContent = bancas + (bancas == 1 ? ' Banca' : ' Bancas');
+            
+            // Lógica de cálculo estimada
+            const horas = bancas * 3;
+            document.getElementById('resultado-horas').textContent = horas + ' Horas';
+
+            let plan = 'Plan Estándar ($150)';
+            if (bancas > 10 && bancas <= 15) plan = 'Plan Pro ($250)';
+            else if (bancas > 15 && bancas <= 50) plan = 'Plan Premium Pro ($500)';
+            else if (bancas > 50) plan = 'Plan Super Gold ($1,000)';
+            
+            document.getElementById('resultado-plan').textContent = plan;
+        }
+
         function abrirModalPlan(nombrePlan) {
             document.getElementById('modal-titulo').textContent = 'Solicitar: ' + nombrePlan;
             document.getElementById('campo-plan-display').value = nombrePlan;
@@ -379,7 +445,6 @@
             document.getElementById('modal-contratacion').classList.add('hidden');
         }
 
-        // Envío optimizado vía AJAX para mostrar el mensaje de éxito sin recargas raras
         document.getElementById('form-solicitud').addEventListener('submit', function(e) {
             e.preventDefault();
             const btn = document.getElementById('btn-enviar');

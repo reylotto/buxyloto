@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BuxyLoto - Plataforma Profesional de Control y Loterías para Inquilinos</title>
+    <title>Buxy Loto - Plataforma Profesional de Control y Loterías</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome Icons -->
@@ -12,22 +12,22 @@
 <body class="bg-slate-950 text-slate-100 font-sans antialiased selection:bg-emerald-500 selection:text-white">
 
     <!-- HEADER / NAVEGACIÓN -->
-    <header class="fixed top-0 left-0 right-0 z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
+    <header class="fixed top-0 left-0 right-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
         <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
             <div class="flex items-center space-x-3">
                 <div class="bg-emerald-600 p-2.5 rounded-xl text-white font-black text-xl tracking-wider shadow-lg shadow-emerald-900/40">
                     <i class="fa-solid fa-clover"></i>
                 </div>
-                <span class="text-xl font-bold tracking-tight text-white">By Jeypi® <span class="text-emerald-400">BuxyLoto</span></span>
+                <span class="text-xl font-bold tracking-tight text-white">Buxy <span class="text-emerald-400">Loto</span></span>
             </div>
             <nav class="hidden md:flex items-center space-x-8 text-sm font-semibold text-slate-300">
                 <a href="#caracteristicas" class="hover:text-emerald-400 transition-colors">Características</a>
-                <a href="#demo" class="hover:text-emerald-400 transition-colors">Sistema POS & Móvil</a>
+                <a href="#demo" class="hover:text-emerald-400 transition-colors">Sistema POS & Dashboard</a>
                 <a href="#precios" class="hover:text-emerald-400 transition-colors">Planes</a>
+                <a href="#contacto" class="hover:text-emerald-400 transition-colors">Contacto</a>
             </nav>
             <div class="flex items-center space-x-4">
-                <a href="login.html" class="text-xs font-bold text-slate-300 hover:text-white px-4 py-2.5">Iniciar Sesión</a>
-                <a href="#precios" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-emerald-600/30">Adquirir Plataforma</a>
+                <a href="#precios" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-emerald-600/30">Solicitar Inquilino</a>
             </div>
         </div>
     </header>
@@ -37,136 +37,274 @@
         <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-900/20 via-slate-950 to-slate-950 -z-10"></div>
         <div class="max-w-7xl mx-auto px-6 text-center">
             <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-6 animate-pulse">
-                <i class="fa-solid fa-rocket"></i> El Sistema Más Potente para Administración de Loterías
+                <i class="fa-solid fa-rocket"></i> Plataforma Líder en Gestión de Loterías y Bancas
             </div>
             <h1 class="text-4xl md:text-6xl font-black text-white tracking-tight max-w-4xl mx-auto leading-tight mb-6">
                 Control Total de Bancas, Ventas y Escrutinios <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Multi-Inquilino</span>
             </h1>
             <p class="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto mb-10">
-                Automatiza la emisión de tickets, personaliza los pagos de premios por empresa y visualiza analíticas financieras en tiempo real desde cualquier dispositivo.
+                Automatiza sorteos, personaliza tablas de premios por empresa, controla riesgos y supervisa analíticas financieras en tiempo real.
             </p>
             <div class="flex flex-col sm:flex-row justify-center gap-4">
                 <a href="#precios" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-8 py-4 rounded-2xl shadow-xl shadow-emerald-600/20 transition-all flex items-center justify-center gap-2">
                     <i class="fa-solid fa-store"></i> Solicitar mi Inquilino
                 </a>
                 <a href="#demo" class="bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold px-8 py-4 rounded-2xl transition-all flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-mobile-screen"></i> Ver Vista Móvil
+                    <i class="fa-solid fa-desktop"></i> Ver Sistema en Acción
                 </a>
             </div>
         </div>
     </section>
 
-    <!-- SECCIÓN DE CARACTERÍSTICAS -->
+    <!-- CARACTERÍSTICAS TÉCNICAS -->
     <section id="caracteristicas" class="py-20 bg-slate-900/40 border-y border-slate-800/80">
         <div class="max-w-7xl mx-auto px-6">
             <div class="text-center max-w-2xl mx-auto mb-16">
-                <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3">Tecnología de Punta</h2>
-                <h3 class="text-3xl font-bold text-white">Diseñado para Operar sin Errores</h3>
+                <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3">Tecnología Profesional</h2>
+                <h3 class="text-3xl font-bold text-white">Todo lo que necesitas para operar sin errores</h3>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <!-- Tarjeta 1 -->
-                <div class="bg-slate-900 border border-slate-800 p-8 rounded-3xl shadow-xl hover:border-emerald-500/50 transition-all">
-                    <div class="w-12 h-12 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center text-xl mb-6 font-bold">
-                        <i class="fa-solid fa-shield-halved"></i>
-                    </div>
-                    <h4 class="text-lg font-bold text-white mb-3">Aislamiento por Inquilino</h4>
-                    <p class="text-slate-400 text-sm leading-relaxed">
-                        Cada empresa opera con su propio ID independiente. Los supervisores y administradores solo visualizan datos y zonas autorizadas de su organización.
-                    </p>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl">
+                    <div class="w-12 h-12 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center text-xl mb-4 font-bold"><i class="fa-solid fa-shield-halved"></i></div>
+                    <h4 class="text-base font-bold text-white mb-2">Seguridad Certificada</h4>
+                    <p class="text-slate-400 text-xs leading-relaxed">Servidores seguros con aislamiento de datos estricto para cada inquilino y control por roles (Admin/Supervisor).</p>
                 </div>
-                <!-- Tarjeta 2 -->
-                <div class="bg-slate-900 border border-slate-800 p-8 rounded-3xl shadow-xl hover:border-cyan-500/50 transition-all">
-                    <div class="w-12 h-12 bg-cyan-500/10 text-cyan-400 rounded-2xl flex items-center justify-center text-xl mb-6 font-bold">
-                        <i class="fa-solid fa-sliders"></i>
-                    </div>
-                    <h4 class="text-lg font-bold text-white mb-3">Tarifas de Premios Dinámicas</h4>
-                    <p class="text-slate-400 text-sm leading-relaxed">
-                        Configura tablas de pagos personalizadas para la Lotería Nacional de Panamá y loterías extranjeras adaptadas a tus propias reglas de negocio[cite: 5, 8].
-                    </p>
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl">
+                    <div class="w-12 h-12 bg-cyan-500/10 text-cyan-400 rounded-2xl flex items-center justify-center text-xl mb-4 font-bold"><i class="fa-solid fa-trophy"></i></div>
+                    <h4 class="text-base font-bold text-white mb-2">Números Ganadores en Vivo</h4>
+                    <p class="text-slate-400 text-xs leading-relaxed">Publicación y escrutinio automático de resultados para Lotería Nacional de Panamá y sorteos internacionales.</p>
                 </div>
-                <!-- Tarjeta 3 -->
-                <div class="bg-slate-900 border border-slate-800 p-8 rounded-3xl shadow-xl hover:border-amber-500/50 transition-all">
-                    <div class="w-12 h-12 bg-amber-500/10 text-amber-400 rounded-2xl flex items-center justify-center text-xl mb-6 font-bold">
-                        <i class="fa-solid fa-chart-line"></i>
-                    </div>
-                    <h4 class="text-lg font-bold text-white mb-3">Historial y Rentabilidad Neta</h4>
-                    <p class="text-slate-400 text-sm leading-relaxed">
-                        Filtros avanzados por fecha, zona y vendedor con cálculo automático en vivo de ventas totales, comisiones y premios a pagar[cite: 3].
-                    </p>
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl">
+                    <div class="w-12 h-12 bg-amber-500/10 text-amber-400 rounded-2xl flex items-center justify-center text-xl mb-4 font-bold"><i class="fa-solid fa-sliders"></i></div>
+                    <h4 class="text-base font-bold text-white mb-2">Control de Riesgos</h4>
+                    <p class="text-slate-400 text-xs leading-relaxed">Limita jugadas y montos máximos por lotería, puntos de venta o de forma general para proteger tu capital.</p>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl">
+                    <div class="w-12 h-12 bg-rose-500/10 text-rose-400 rounded-2xl flex items-center justify-center text-xl mb-4 font-bold"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                    <h4 class="text-base font-bold text-white mb-2">Reportes y Cuadres</h4>
+                    <p class="text-slate-400 text-xs leading-relaxed">Historial de ventas detallado con filtros por zona, vendedor y cálculo neto de comisiones y premios en tiempo real.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- SECCIÓN DEMO MÓVIL Y POS -->
+    <!-- DEMO VISUAL: DASHBOARD Y POS MÓVIL -->
     <section id="demo" class="py-24 max-w-7xl mx-auto px-6">
+        <div class="text-center max-w-2xl mx-auto mb-16">
+            <span class="text-emerald-400 text-xs font-bold uppercase tracking-widest bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">Interfaz de Usuario</span>
+            <h3 class="text-3xl font-bold text-white mt-4">Visualización del Sistema</h3>
+        </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div>
-                <span class="text-emerald-400 text-xs font-bold uppercase tracking-widest bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">Optimizado para Móviles</span>
-                <h3 class="text-3xl font-bold text-white mt-4 mb-6">Punto de Venta (POS) Rápido y Adaptable</h3>
-                <p class="text-slate-400 mb-6 leading-relaxed">
-                    Tus vendedores podrán emitir tickets de forma instantánea desde cualquier teléfono móvil o tablet Android/iOS gracias a nuestra tecnología construida con Capacitor y Supabase.
-                </p>
-                <ul class="space-y-4 text-sm text-slate-300">
-                    <li class="flex items-center gap-3"><i class="fa-solid fa-check text-emerald-400"></i> Impresión térmica de tickets sin complicaciones.</li>
-                    <li class="flex items-center gap-3"><i class="fa-solid fa-check text-emerald-400"></i> Validación de riesgos y límites por terminal.</li>
-                    <li class="flex items-center gap-3"><i class="fa-solid fa-check text-emerald-400"></i> Sincronización automática de resultados y escrutinio en vivo.</li>
-                </ul>
+            <!-- Mockup Dashboard -->
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl relative">
+                <div class="flex items-center gap-2 mb-4">
+                    <div class="w-3 h-3 rounded-full bg-rose-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+                    <span class="text-[10px] text-slate-500 ml-2">buxyloto.vercel.app/dashboard</span>
+                </div>
+                <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+                    <div class="flex justify-between items-center text-xs font-bold text-white border-b border-slate-800 pb-2">
+                        <span>Dashboard Administrador Maestro</span>
+                        <span class="text-emerald-400">● Operativo</span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="bg-slate-900 p-3 rounded-xl"><span class="text-[9px] text-slate-400 block">Ventas Totales</span><span class="text-sm font-bold text-cyan-400">$3.25</span></div>
+                        <div class="bg-slate-900 p-3 rounded-xl"><span class="text-[9px] text-slate-400 block">Comisiones</span><span class="text-sm font-bold text-amber-400">$0.65</span></div>
+                        <div class="bg-slate-900 p-3 rounded-xl"><span class="text-[9px] text-slate-400 block">Premios Pagados</span><span class="text-sm font-bold text-rose-400">$1,164.00</span></div>
+                    </div>
+                    <div class="bg-slate-900 p-3 rounded-xl text-[10px] text-slate-300 flex justify-between items-center">
+                        <span>Estado de Sorteos (LNB / Tica)</span>
+                        <span class="bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded font-bold">CERRADO</span>
+                    </div>
+                </div>
             </div>
-            <div class="bg-gradient-to-br from-slate-900 to-slate-950 p-8 rounded-3xl border border-slate-800 text-center relative shadow-2xl">
-                <div class="mx-auto bg-slate-950 border-4 border-slate-800 rounded-[40px] max-w-[280px] p-4 shadow-2xl">
+
+            <!-- Mockup POS Móvil -->
+            <div class="flex justify-center">
+                <div class="bg-slate-950 border-4 border-slate-800 rounded-[40px] max-w-[280px] w-full p-4 shadow-2xl relative">
                     <div class="w-20 h-4 bg-slate-800 rounded-full mx-auto mb-4"></div>
-                    <div class="bg-slate-900 p-4 rounded-2xl text-left space-y-3">
-                        <div class="flex justify-between items-center text-[10px] text-slate-400"><span>BBS-POS 01</span><span class="text-emerald-400">● En Línea</span></div>
-                        <div class="bg-slate-800 p-2.5 rounded-xl"><span class="text-[10px] text-slate-400 block">Sorteo Activo</span><span class="text-xs font-bold text-white">LNB - Domingo de Sorteo</span></div>
-                        <div class="bg-emerald-600/20 border border-emerald-500/40 text-emerald-400 text-center py-2 rounded-xl text-xs font-bold">Emitir Ticket ($1.00)</div>
+                    <div class="bg-slate-900 p-3 rounded-2xl text-left space-y-3 text-xs">
+                        <div class="flex justify-between text-[10px] text-slate-400 border-b border-slate-800 pb-2">
+                            <span>Vender / POS Móvil</span>
+                            <span class="text-emerald-400">Activo</span>
+                        </div>
+                        <div class="bg-slate-800 p-2 rounded-xl text-[11px] text-white">
+                            <span>Banca: CARLOS01</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-1.5 text-center text-slate-200">
+                            <div class="bg-slate-800 py-2 rounded-lg font-bold">1</div>
+                            <div class="bg-slate-800 py-2 rounded-lg font-bold">2</div>
+                            <div class="bg-slate-800 py-2 rounded-lg font-bold">3</div>
+                            <div class="bg-slate-800 py-2 rounded-lg font-bold">4</div>
+                            <div class="bg-slate-800 py-2 rounded-lg font-bold">5</div>
+                            <div class="bg-slate-800 py-2 rounded-lg font-bold">6</div>
+                        </div>
+                        <div class="bg-emerald-600 text-white text-center py-2 rounded-xl font-bold">Emitir Ticket ($1.00)</div>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- PLANES / PRECIOS -->
+    <!-- PLANES Y PRECIOS -->
     <section id="precios" class="py-24 bg-slate-900/40 border-t border-slate-800">
         <div class="max-w-7xl mx-auto px-6 text-center">
-            <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3">Inversión Rentable</h2>
-            <h3 class="text-3xl font-bold text-white mb-16">Planes Adaptados a tu Crecimiento</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                <div class="bg-slate-900 border border-slate-800 p-8 rounded-3xl text-left flex flex-col justify-between">
+            <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3">Planes de Inquilinos</h2>
+            <h3 class="text-3xl font-bold text-white mb-16">Elige la capacidad ideal para tu red de lotería</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
+                
+                <!-- Plan Estándar -->
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl flex flex-col justify-between">
                     <div>
-                        <h4 class="text-lg font-bold text-white mb-2">Inquilino Estándar</h4>
-                        <p class="text-slate-400 text-xs mb-6">Ideal para redes de bancas medianas que buscan automatización completa.</p>
-                        <div class="text-3xl font-black text-white mb-6">$150 <span class="text-xs font-normal text-slate-400">/ mes</span></div>
-                        <ul class="space-y-3 text-xs text-slate-300 mb-8">
-                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Hasta 15 Bancas / Vendedores</li>
-                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Configuración de Tarifas Propias</li>
-                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Historial de Ventas y KPIs</li>
+                        <h4 class="text-base font-bold text-white mb-1">Estándar</h4>
+                        <p class="text-slate-400 text-[11px] mb-4">Para operaciones iniciales en crecimiento.</p>
+                        <div class="text-2xl font-black text-white mb-4">$150.00 <span class="text-[10px] text-slate-400 font-normal">/ mes</span></div>
+                        <ul class="space-y-2.5 text-xs text-slate-300 mb-6">
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> 1 Administrador</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> 10 Bancas / Vendedores</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Módulo de Ventas y Tickets</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Escrutinio Automático LNB</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Reportes Financieros Básicos</li>
                         </ul>
                     </div>
-                    <a href="#" class="w-full bg-slate-800 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl text-center text-xs transition-all">Contratar Plan</a>
+                    <button onclick="abrirModalPlan('Plan Estándar - $150.00')" class="w-full bg-slate-800 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-center text-xs transition-all">Contratar Plan</button>
                 </div>
-                <div class="bg-gradient-to-b from-emerald-950/40 to-slate-900 border border-emerald-500/50 p-8 rounded-3xl text-left flex flex-col justify-between relative shadow-2xl">
-                    <span class="absolute -top-3 right-8 bg-emerald-500 text-slate-950 font-black text-[10px] uppercase px-3 py-1 rounded-full">Más Popular</span>
+
+                <!-- Plan Pro -->
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl flex flex-col justify-between">
                     <div>
-                        <h4 class="text-lg font-bold text-white mb-2">Inquilino Ilimitado (Pro)</h4>
-                        <p class="text-slate-400 text-xs mb-6">Para corporaciones de lotería con múltiples zonas y terminales ilimitadas.</p>
-                        <div class="text-3xl font-black text-emerald-400 mb-6">$300 <span class="text-xs font-normal text-slate-400">/ mes</span></div>
-                        <ul class="space-y-3 text-xs text-slate-300 mb-8">
-                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Bancas y Vendedores Ilimitados</li>
-                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Módulo de Tarifas Avanzadas LNB</li>
-                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Soporte Prioritario 24/7</li>
+                        <h4 class="text-base font-bold text-white mb-1">Pro</h4>
+                        <p class="text-slate-400 text-[11px] mb-4">Control avanzado por zonas y supervisión.</p>
+                        <div class="text-2xl font-black text-cyan-400 mb-4">$250.00 <span class="text-[10px] text-slate-400 font-normal">/ mes</span></div>
+                        <ul class="space-y-2.5 text-xs text-slate-300 mb-6">
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> 1 Usuario Administrador</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> 1 Usuario Supervisor</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> 15 Bancas / Vendedores</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Control de Riesgo Avanzado</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Filtros por Zona y Vendedor</li>
                         </ul>
                     </div>
-                    <a href="#" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl text-center text-xs transition-all shadow-lg shadow-emerald-600/30">Contratar Plan Pro</a>
+                    <button onclick="abrirModalPlan('Plan Pro - $250.00')" class="w-full bg-slate-800 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-center text-xs transition-all">Contratar Plan</button>
                 </div>
+
+                <!-- Plan Premium Pro -->
+                <div class="bg-slate-900 border border-emerald-500/50 p-6 rounded-3xl flex flex-col justify-between relative shadow-xl">
+                    <span class="absolute -top-3 right-6 bg-emerald-500 text-slate-950 font-black text-[9px] uppercase px-2.5 py-0.5 rounded-full">Popular</span>
+                    <div>
+                        <h4 class="text-base font-bold text-white mb-1">Premium Pro</h4>
+                        <p class="text-slate-400 text-[11px] mb-4">Para redes consolidadas de alta demanda.</p>
+                        <div class="text-2xl font-black text-emerald-400 mb-4">$500.00 <span class="text-[10px] text-slate-400 font-normal">/ mes</span></div>
+                        <ul class="space-y-2.5 text-xs text-slate-300 mb-6">
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> 1 Administrador Principal</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> 3 Supervisores de Zona</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> 50 Bancas / Vendedores</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Tarifas de Premios Personalizadas</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Soporte Técnico Prioritario</li>
+                        </ul>
+                    </div>
+                    <button onclick="abrirModalPlan('Plan Premium Pro - $500.00')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-center text-xs transition-all shadow-lg shadow-emerald-600/30">Contratar Plan</button>
+                </div>
+
+                <!-- Plan Super Gold -->
+                <div class="bg-gradient-to-b from-emerald-950/40 to-slate-900 border border-cyan-500/50 p-6 rounded-3xl flex flex-col justify-between shadow-2xl">
+                    <div>
+                        <h4 class="text-base font-bold text-white mb-1">Super Gold</h4>
+                        <p class="text-slate-400 text-[11px] mb-4">Solución empresarial sin límites.</p>
+                        <div class="text-2xl font-black text-cyan-400 mb-4">$1,000.00 <span class="text-[10px] text-slate-400 font-normal">/ mes</span></div>
+                        <ul class="space-y-2.5 text-xs text-slate-300 mb-6">
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Hasta 5 Administradores</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Hasta 10 Supervisores de Zona</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> 300 Bancas / Vendedores</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Atención y Soporte en Línea 24/7</li>
+                            <li><i class="fa-solid fa-check text-emerald-400 mr-2"></i> Servidor Dedicado Prioritario</li>
+                        </ul>
+                    </div>
+                    <button onclick="abrirModalPlan('Plan Super Gold - $1,000.00')" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 rounded-xl text-center text-xs transition-all shadow-lg shadow-cyan-600/30">Contratar Plan</button>
+                </div>
+
             </div>
         </div>
+    </section>
+
+    <!-- SECCIÓN DE CONTACTO -->
+    <section id="contacto" class="py-20 max-w-4xl mx-auto px-6 text-center">
+        <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3">Atención Directa</h2>
+        <h3 class="text-3xl font-bold text-white mb-6">¿Tienes dudas o necesitas un plan a la medida?</h3>
+        <p class="text-slate-400 text-sm mb-8">Escríbenos directamente a nuestro correo oficial y nos pondremos en contacto contigo de inmediato.</p>
+        <a href="mailto:buxyloto@gmail.com" class="inline-flex items-center gap-3 bg-slate-900 border border-slate-800 hover:border-emerald-500 px-8 py-4 rounded-2xl text-white font-bold transition-all text-lg">
+            <i class="fa-solid fa-envelope text-emerald-400"></i> buxyloto@gmail.com
+        </a>
     </section>
 
     <!-- FOOTER -->
     <footer class="bg-slate-950 py-12 border-t border-slate-900 text-center text-xs text-slate-500">
-        <p>&copy; 2026 By Jeypi® BuxyLoto. Todos los derechos reservados.</p>
+        <p>&copy; 2026 Buxy Loto. Todos los derechos reservados.</p>
     </footer>
+
+    <!-- MODAL DE SOLICITUD / CONTRATACIÓN -->
+    <div id="modal-contratacion" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 max-w-md w-full p-6 rounded-3xl shadow-2xl relative">
+            <button onclick="cerrarModal()" class="absolute top-5 right-5 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            <h3 id="modal-titulo" class="text-lg font-bold text-white mb-2">Contratar Plan</h3>
+            <p class="text-xs text-slate-400 mb-6">Completa tus datos personales para activar tu cuenta y ponernos en contacto contigo.</p>
+            
+            <form onsubmit="enviarSolicitud(event)" class="space-y-4 text-xs text-left">
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Nombre Completo</label>
+                    <input type="text" id="campo-nombre" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. Carlos Pérez">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Correo Electrónico</label>
+                    <input type="email" id="campo-correo" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. correo@empresa.com">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">País</label>
+                        <input type="text" id="campo-pais" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. Panamá">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Teléfono</label>
+                        <input type="tel" id="campo-telefono" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. +507 ...">
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-emerald-600/30 mt-2">
+                    Enviar Solicitud
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- SCRIPT DE GESTIÓN DEL MODAL -->
+    <script>
+        let planSeleccionado = '';
+
+        function abrirModalPlan(nombrePlan) {
+            planSeleccionado = nombrePlan;
+            document.getElementById('modal-titulo').textContent = 'Solicitar: ' + nombrePlan;
+            document.getElementById('modal-contratacion').classList.remove('hidden');
+        }
+
+        function cerrarModal() {
+            document.getElementById('modal-contratacion').classList.add('hidden');
+        }
+
+        function enviarSolicitud(e) {
+            e.preventDefault();
+            const nombre = document.getElementById('campo-nombre').value;
+            const correo = document.getElementById('campo-correo').value;
+            const pais = document.getElementById('campo-pais').value;
+            const telefono = document.getElementById('campo-telefono').value;
+
+            // Enlace dinámico directo a tu correo con la información del cliente
+            const asunto = encodeURIComponent(`Nueva Solicitud de Inquilino - ${planSeleccionado}`);
+            const cuerpo = encodeURIComponent(`Hola Buxy Loto,\n\nQuiero contratar el siguiente plan: ${planSeleccionado}\n\nMis datos de contacto:\n- Nombre: ${nombre}\n- Correo: ${correo}\n- País: ${pais}\n- Teléfono: ${telefono}\n\nPor favor contáctenme para proceder.`);
+
+            window.location.href = `mailto:buxyloto@gmail.com?subject=${asunto}&body=${cuerpo}`;
+            cerrarModal();
+        }
+    </script>
 
 </body>
 </html>

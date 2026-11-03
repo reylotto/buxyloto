@@ -1,15 +1,34 @@
 export async function initTarifasModule() {
     const select = document.getElementById('tarifas-inquilino-select');
-    if (!select) return;
+    const form = document.getElementById('tarifas-formulario');
+    if (!select || !form) return;
 
     try {
         const supabase = window.supabaseClient || window.supabase;
-        const { data: inquilinos } = await supabase.from('inquilinos').select('id, nombre_empresa');
-        
-        select.innerHTML = '<option value="">-- Elija una empresa --</option>';
-        (inquilinos || []).forEach(inq => {
-            select.innerHTML += `<option value="${inq.id}">${inq.nombre_empresa}</option>`;
-        });
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        const esInquilino = (inquilinoId && inquilinoId !== 'null' && String(inquilinoId).trim() !== '');
+
+        if (esInquilino) {
+            // LÓGICA INQUILINO: Oculta el selector y carga su propio formulario directo
+            select.style.display = 'none';
+            if (select.previousElementSibling) select.previousElementSibling.style.display = 'none'; // Oculta el label
+            
+            select.innerHTML = `<option value="${inquilinoId}" selected>Mi Empresa</option>`;
+            await window.cargarTarifasInquilino();
+        } else {
+            // LÓGICA MAESTRO: Muestra el selector y busca todas las empresas
+            select.style.display = 'block';
+            if (select.previousElementSibling) select.previousElementSibling.style.display = 'block';
+            
+            const { data: inquilinos, error } = await supabase.from('inquilinos').select('id, nombre_empresa');
+            if (error) throw error;
+            
+            select.innerHTML = '<option value="">-- Elija una empresa --</option>';
+            (inquilinos || []).forEach(inq => {
+                select.innerHTML += `<option value="${inq.id}">${inq.nombre_empresa}</option>`;
+            });
+            form.classList.add('hidden');
+        }
     } catch (e) {
         console.error("Error al cargar inquilinos:", e);
     }
@@ -83,9 +102,9 @@ window.guardarTarifasInquilino = async function() {
     }
 };
 
-// Auto-inicializar
+// Auto-inicializar corrigiendo el selector data-target
 document.addEventListener('DOMContentLoaded', () => {
-    const navLinks = document.querySelectorAll('[data-section="section-tarifas"]');
+    const navLinks = document.querySelectorAll('[data-target="section-tarifas"], [data-section="section-tarifas"]');
     navLinks.forEach(link => {
         link.addEventListener('click', () => { setTimeout(() => window.initTarifasModule(), 200); });
     });

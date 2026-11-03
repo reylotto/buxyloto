@@ -73,6 +73,7 @@ export function iniciarAplicacionPrincipal() {
     initReportesModule();
     initTicketsHistoryModule();
     initHistorialNumerosModule(); // 👈 ¡ESTA ES LA LÍNEA NUEVA!
+    initTarifasModule();
 
     // 🏛️ ENCENDEMOS EL MÓDULO DE LA LNB PICK 4
     initLNBModule();

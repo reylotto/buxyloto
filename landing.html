@@ -308,24 +308,24 @@
         <p>&copy; 2026 Buxy Loto. Todos los derechos reservados.</p>
     </footer>
 
-    <!-- MODAL DE SOLICITUD CON ENVÍO REAL Y AUTOMÁTICO A BUXYLOTO@GMAIL.COM -->
+    <!-- MODAL DE SOLICITUD CON FORMSPREE (ENVÍO REAL Y DIRECTO A BUXYLOTO@GMAIL.COM) -->
     <div id="modal-contratacion" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-800 max-w-md w-full p-6 rounded-3xl shadow-2xl relative text-left">
             <button onclick="cerrarModal()" class="absolute top-5 right-5 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             <h3 id="modal-titulo" class="text-lg font-bold text-white mb-2">Contratar Plan</h3>
-            <p class="text-xs text-slate-400 mb-6">Completa tus datos para activar la solicitud y recibirás respuesta inmediata.</p>
+            <p class="text-xs text-slate-400 mb-6">Completa tus datos para activar la solicitud. Te responderemos al instante.</p>
             
-            <!-- Formulario conectado a Web3Forms (Envía los datos directo a buxyloto@gmail.com sin abrir apps externas) -->
-            <form action="https://api.web3forms.com/submit" method="POST" id="form-solicitud" class="space-y-4 text-xs">
-                <!-- Llave pública configurada exclusivamente para buxyloto@gmail.com -->
-                <input type="hidden" name="access_key" value="a8b75f24-9182-4424-9988-7576a91c7722">
-                <input type="hidden" name="subject" id="input-asunto" value="Nueva Solicitud de Inquilino - Buxy Loto">
-                <input type="hidden" name="from_name" value="Buxy Loto Web">
+            <!-- Formulario conectado a Formspree apuntando al correo buxyloto@gmail.com -->
+            <form action="https://formsubmit.co/buxyloto@gmail.com" method="POST" id="form-solicitud" class="space-y-4 text-xs">
+                <!-- Configuraciones para FormSubmit -->
+                <input type="hidden" name="_subject" id="input-asunto" value="Nueva Solicitud de Inquilino - Buxy Loto">
+                <input type="hidden" name="_captcha" value="false">
+                <input type="hidden" name="_template" value="table">
 
                 <div>
                     <label class="block font-semibold text-slate-300 mb-1">Plan Seleccionado</label>
                     <input type="text" id="campo-plan-display" readonly class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-emerald-400 font-bold">
-                    <input type="hidden" name="Plan" id="campo-plan-hidden">
+                    <input type="hidden" name="Plan_Elegido" id="campo-plan-hidden">
                 </div>
                 <div>
                     <label class="block font-semibold text-slate-300 mb-1">Nombre Completo</label>
@@ -333,7 +333,7 @@
                 </div>
                 <div>
                     <label class="block font-semibold text-slate-300 mb-1">Correo Electrónico</label>
-                    <input type="email" name="Correo" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. correo@empresa.com">
+                    <input type="email" name="email" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. correo@empresa.com">
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
@@ -354,7 +354,7 @@
             <div id="alerta-exito" class="hidden mt-4 p-5 bg-emerald-950/90 border border-emerald-500/50 rounded-2xl text-center">
                 <i class="fa-solid fa-circle-check text-emerald-400 text-3xl mb-2"></i>
                 <h4 class="text-sm font-bold text-white">¡Mensaje Enviado con Éxito!</h4>
-                <p class="text-[11px] text-slate-300 mt-1">La información ha sido enviada correctamente al correo oficial <b>buxyloto@gmail.com</b>. Nos pondremos en contacto contigo pronto.</p>
+                <p class="text-[11px] text-slate-300 mt-1">La información ha sido enviada correctamente a <b>buxyloto@gmail.com</b>. Nos pondremos en contacto contigo de inmediato.</p>
                 <button onclick="cerrarModal()" class="mt-4 bg-emerald-600 text-white px-5 py-2 rounded-xl text-xs font-bold">Cerrar</button>
             </div>
         </div>
@@ -379,7 +379,7 @@
             document.getElementById('modal-contratacion').classList.add('hidden');
         }
 
-        // Envío por AJAX sin recargar la página ni abrir aplicaciones externas
+        // Envío optimizado vía AJAX para mostrar el mensaje de éxito sin recargas raras
         document.getElementById('form-solicitud').addEventListener('submit', function(e) {
             e.preventDefault();
             const btn = document.getElementById('btn-enviar');
@@ -388,23 +388,17 @@
 
             const formData = new FormData(this);
 
-            fetch('https://api.web3forms.com/submit', {
+            fetch('https://formsubmit.co/ajax/buxyloto@gmail.com', {
                 method: 'POST',
                 body: formData
             })
-            .then(async (response) => {
-                let json = await response.json();
-                if (response.status == 200) {
-                    document.getElementById('form-solicitud').classList.add('hidden');
-                    document.getElementById('alerta-exito').classList.remove('hidden');
-                } else {
-                    alert(json.message);
-                    btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
-                    btn.disabled = false;
-                }
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('form-solicitud').classList.add('hidden');
+                document.getElementById('alerta-exito').classList.remove('hidden');
             })
             .catch(error => {
-                console.log(error);
+                console.error('Error:', error);
                 alert("Hubo un error al enviar el mensaje. Inténtalo de nuevo.");
                 btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
                 btn.disabled = false;

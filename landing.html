@@ -406,120 +406,123 @@
     </div>
 </div>
 
-  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-<script type="text/javascript">
-    (function() {
-        emailjs.init("Mn8SktbLHijh9rLip");
-    })();
-</script>
+ <!-- SDK de EmailJS -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script type="text/javascript">
+        (function() {
+            emailjs.init("Mn8SktbLHijh9rLip");
+        })();
+    </script>
 
-<script>
-    function calcularAhorro() {
-        const slider = document.getElementById('slider-bancas');
-        if (!slider) return;
-        const bancas = slider.value;
-        const valBancas = document.getElementById('valor-bancas');
-        if (valBancas) valBancas.textContent = bancas + (bancas == 1 ? ' Banca' : ' Bancas');
-        
-        const horas = bancas * 3;
-        const resHoras = document.getElementById('resultado-horas');
-        if (resHoras) resHoras.textContent = horas + ' Horas';
+    <!-- SCRIPT DE CONTROL DEFINITIVO -->
+    <script>
+        function calcularAhorro() {
+            const slider = document.getElementById('slider-bancas');
+            if (!slider) return;
+            const bancas = slider.value;
+            const valBancas = document.getElementById('valor-bancas');
+            if (valBancas) valBancas.textContent = bancas + (bancas == 1 ? ' Banca' : ' Bancas');
+            
+            const horas = bancas * 3;
+            const resHoras = document.getElementById('resultado-horas');
+            if (resHoras) resHoras.textContent = horas + ' Horas';
 
-        let plan = 'Plan Estándar ($150)';
-        if (bancas > 10 && bancas <= 15) plan = 'Plan Pro ($250)';
-        else if (bancas > 15 && bancas <= 50) plan = 'Plan Premium Pro ($500)';
-        else if (bancas > 50) plan = 'Plan Super Gold ($1,000)';
-        
-        const resPlan = document.getElementById('resultado-plan');
-        if (resPlan) resPlan.textContent = plan;
-    }
-
-    function abrirModalPlan(nombrePlan) {
-        const modalTitulo = document.getElementById('modal-titulo');
-        if (modalTitulo) modalTitulo.textContent = 'Solicitar: ' + nombrePlan;
-        
-        const form = document.getElementById('form-solicitud');
-        if (form) form.reset();
-
-        const campoDisplay = document.getElementById('campo-plan-display');
-        if (campoDisplay) campoDisplay.value = nombrePlan;
-
-        const campoHidden = document.getElementById('campo-plan-hidden');
-        if (campoHidden) campoHidden.value = nombrePlan;
-        
-        if (form) form.classList.remove('hidden');
-        
-        const alertaExito = document.getElementById('alerta-exito');
-        if (alertaExito) alertaExito.classList.add('hidden');
-        
-        const btn = document.getElementById('btn-enviar');
-        if (btn) {
-            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
-            btn.disabled = false;
+            let plan = 'Plan Estándار ($150)';
+            if (bancas > 10 && bancas <= 15) plan = 'Plan Pro ($250)';
+            else if (bancas > 15 && bancas <= 50) plan = 'Plan Premium Pro ($500)';
+            else if (bancas > 50) plan = 'Plan Super Gold ($1,000)';
+            
+            const resPlan = document.getElementById('resultado-plan');
+            if (resPlan) resPlan.textContent = plan;
         }
 
-        const modalContratacion = document.getElementById('modal-contratacion');
-        if (modalContratacion) modalContratacion.classList.remove('hidden');
-    }
+        function abrirModalPlan(nombrePlan) {
+            const modalTitulo = document.getElementById('modal-titulo');
+            if (modalTitulo) modalTitulo.textContent = 'Solicitar: ' + nombrePlan;
+            
+            const form = document.getElementById('form-solicitud');
+            if (form) form.reset();
 
-    function cerrarModal() {
-        const modalContratacion = document.getElementById('modal-contratacion');
-        if (modalContratacion) modalContratacion.classList.add('hidden');
-        
-        const form = document.getElementById('form-solicitud');
-        if (form) {
-            form.reset();
-            form.classList.remove('hidden');
-        }
-        
-        const alertaExito = document.getElementById('alerta-exito');
-        if (alertaExito) alertaExito.classList.add('hidden');
-        
-        const btn = document.getElementById('btn-enviar');
-        if (btn) {
-            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
-            btn.disabled = false;
-        }
-    }
-
-    const formSol = document.getElementById('form-solicitud');
-    if (formSol) {
-        formSol.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const btn = document.getElementById('btn-enviar');
-            if (btn) {
-                btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Enviando...';
-                btn.disabled = true;
-            }
+            const campoDisplay = document.getElementById('campo-plan-display');
+            if (campoDisplay) campoDisplay.value = nombrePlan;
 
             const campoHidden = document.getElementById('campo-plan-hidden');
-            const planElegido = campoHidden ? campoHidden.value : 'Plan General';
+            if (campoHidden) campoHidden.value = nombrePlan;
+            
+            if (form) form.classList.remove('hidden');
+            
+            const alertaExito = document.getElementById('alerta-exito');
+            if (alertaExito) alertaExito.classList.add('hidden');
+            
+            const btn = document.getElementById('btn-enviar');
+            if (btn) {
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
+                btn.disabled = false;
+            }
 
-            const templateParams = {
-                plan: planElegido,
-                Nombre: document.querySelector('input[name="Nombre"]') ? document.querySelector('input[name="Nombre"]').value : '',
-                email: document.querySelector('input[name="email"]') ? document.querySelector('input[name="email"]').value : '',
-                Pais: document.querySelector('input[name="Pais"]') ? document.querySelector('input[name="Pais"]').value : '',
-                Telefono: document.querySelector('input[name="Telefono"]') ? document.querySelector('input[name="Telefono"]').value : ''
-            };
+            const modalContratacion = document.getElementById('modal-contratacion');
+            if (modalContratacion) modalContratacion.classList.remove('hidden');
+        }
 
-            emailjs.send('service_jozgy2u', 'template_syo2syo', templateParams)
-                .then(function(response) {
-                    console.log('SUCCESS!', response.status, response.text);
-                    const form = document.getElementById('form-solicitud');
-                    if (form) form.classList.add('hidden');
-                    const alerta = document.getElementById('alerta-exito');
-                    if (alerta) alerta.classList.remove('hidden');
-                }, function(error) {
-                    console.log('FAILED...', error);
-                    alert("Hubo un error al enviar la solicitud. Inténtalo de nuevo.");
-                    if (btn) {
-                        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
-                        btn.disabled = false;
-                    }
-                });
-        });
-    }
-</script>
+        function cerrarModal() {
+            const modalContratacion = document.getElementById('modal-contratacion');
+            if (modalContratacion) modalContratacion.classList.add('hidden');
+            
+            const form = document.getElementById('form-solicitud');
+            if (form) {
+                form.reset();
+                form.classList.remove('hidden');
+            }
+            
+            const alertaExito = document.getElementById('alerta-exito');
+            if (alertaExito) alertaExito.classList.add('hidden');
+            
+            const btn = document.getElementById('btn-enviar');
+            if (btn) {
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
+                btn.disabled = false;
+            }
+        }
+
+        const formSol = document.getElementById('form-solicitud');
+        if (formSol) {
+            formSol.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const btn = document.getElementById('btn-enviar');
+                if (btn) {
+                    btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Enviando...';
+                    btn.disabled = true;
+                }
+
+                const campoHidden = document.getElementById('campo-plan-hidden');
+                const planElegido = campoHidden ? campoHidden.value : 'Plan General';
+
+                const templateParams = {
+                    plan: planElegido,
+                    name: document.querySelector('input[name="Nombre"]').value,
+                    email: document.querySelector('input[name="email"]').value,
+                    country: document.querySelector('input[name="Pais"]').value,
+                    phone: document.querySelector('input[name="Telefono"]').value
+                };
+
+                // Usando tu Service ID correcto y el nuevo Template ID 'nyat7g7'
+                emailjs.send('service_jozgy2u', 'nyat7g7', templateParams)
+                    .then(function(response) {
+                        console.log('SUCCESS!', response.status, response.text);
+                        const form = document.getElementById('form-solicitud');
+                        if (form) form.classList.add('hidden');
+                        const alerta = document.getElementById('alerta-exito');
+                        if (alerta) alerta.classList.remove('hidden');
+                    }, function(error) {
+                        console.log('FAILED...', error);
+                        alert("Hubo un error al enviar la solicitud. Inténtalo de nuevo.");
+                        if (btn) {
+                            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
+                            btn.disabled = false;
+                        }
+                    });
+            });
+        }
+    </script>
 </body>
 </html>

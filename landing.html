@@ -407,9 +407,16 @@
     </div>
 
     <!-- SCRIPT DE CONTROL -->
-    <script>
-        let planSeleccionadoGlobal = '';
+    <!-- SDK de EmailJS -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script type="text/javascript">
+        (function() {
+            emailjs.init("Mn8SktbLHijh9rLip");
+        })();
+    </script>
 
+    <!-- SCRIPT DE CONTROL DEFINITIVO -->
+    <script>
         function calcularAhorro() {
             const bancas = document.getElementById('slider-bancas').value;
             document.getElementById('valor-bancas').textContent = bancas + (bancas == 1 ? ' Banca' : ' Bancas');
@@ -423,10 +430,10 @@
         }
 
         function abrirModalPlan(nombrePlan) {
-            planSeleccionadoGlobal = nombrePlan;
             document.getElementById('modal-titulo').textContent = 'Solicitar: ' + nombrePlan;
             document.getElementById('form-solicitud').reset();
             document.getElementById('campo-plan-display').value = nombrePlan;
+            document.getElementById('campo-plan-hidden').value = nombrePlan;
             
             document.getElementById('form-solicitud').classList.remove('hidden');
             document.getElementById('alerta-exito').classList.add('hidden');
@@ -449,31 +456,32 @@
             btn.disabled = false;
         }
 
-        function enviarCorreoDirecto(e) {
+        document.getElementById('form-solicitud').addEventListener('submit', function(e) {
             e.preventDefault();
-            const nombre = document.getElementById('campo-nombre').value;
-            const correo = document.getElementById('campo-correo').value;
-            const pais = document.getElementById('campo-pais').value;
-            const telefono = document.getElementById('campo-telefono').value;
-
             const btn = document.getElementById('btn-enviar');
-            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Generando enlace...';
+            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Enviando...';
             btn.disabled = true;
 
-            setTimeout(() => {
-                document.getElementById('form-solicitud').classList.add('hidden');
-                document.getElementById('alerta-exito').classList.remove('hidden');
-                
-                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
-                btn.disabled = false;
+            const templateParams = {
+                plan: document.getElementById('campo-plan-hidden').value,
+                nombre: document.querySelector('input[name="Nombre"]').value,
+                correo: document.querySelector('input[name="email"]').value,
+                pais: document.querySelector('input[name="Pais"]').value,
+                telefono: document.querySelector('input[name="Telefono"]').value
+            };
 
-                // Redirección directa y segura alfanumérica para entrega inmediata en Gmail
-                const asunto = encodeURIComponent(`Nueva Solicitud de Inquilino: ${planSeleccionadoGlobal}`);
-                const cuerpo = encodeURIComponent(`Hola Buxy Loto,\n\nQuiero adquirir el siguiente plan:\n👉 ${planSeleccionadoGlobal}\n\nMis datos de contacto:\n- Nombre: ${nombre}\n- Correo: ${correo}\n- País: ${pais}\n- Teléfono: ${telefono}\n\nPor favor contáctenme lo antes posible.`);
-                
-                window.location.href = `mailto:buxyloto@gmail.com?subject=${asunto}&body=${cuerpo}`;
-            }, 500);
-        }
+            emailjs.send('service_jozgy2u', 'template_syo2syo', templateParams)
+                .then(function(response) {
+                    console.log('SUCCESS!', response.status, response.text);
+                    document.getElementById('form-solicitud').classList.add('hidden');
+                    document.getElementById('alerta-exito').classList.remove('hidden');
+                }, function(error) {
+                    console.log('FAILED...', error);
+                    alert("Hubo un error al enviar la solicitud. Inténtalo de nuevo.");
+                    btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
+                    btn.disabled = false;
+                });
+        });
     </script>
 </body>
 </html>

@@ -361,18 +361,15 @@
         <p>&copy; 2026 Buxy Loto. Todos los derechos reservados.</p>
     </footer>
 
-    <!-- MODAL DE SOLICITUD / CONTRATACIÓN -->
+    <!-- MODAL DE SOLICITUD / CONTRATACIÓN LIMPIO PARA FORMSPREE -->
     <div id="modal-contratacion" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-800 max-w-md w-full p-6 rounded-3xl shadow-2xl relative text-left">
             <button onclick="cerrarModal()" class="absolute top-5 right-5 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             <h3 id="modal-titulo" class="text-lg font-bold text-white mb-2">Contratar Plan</h3>
             <p class="text-xs text-slate-400 mb-6">Completa tus datos para activar la solicitud y te contactaremos de inmediato.</p>
             
-            <form action="https://formsubmit.co/buxyloto@gmail.com" method="POST" id="form-solicitud" class="space-y-4 text-xs">
-                <input type="hidden" name="_subject" id="input-asunto" value="Nueva Solicitud de Inquilino - Buxy Loto">
-                <input type="hidden" name="_captcha" value="false">
-                <input type="hidden" name="_template" value="table">
-
+            <!-- Acción apuntando directamente a tu endpoint real -->
+            <form action="https://formspree.io/f/xaeevlog" method="POST" id="form-solicitud" class="space-y-4 text-xs">
                 <div>
                     <label class="block font-semibold text-slate-300 mb-1">Plan Seleccionado</label>
                     <input type="text" id="campo-plan-display" readonly class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-emerald-400 font-bold">
@@ -410,33 +407,26 @@
         </div>
     </div>
 
- 
-   <!-- SCRIPT DE CONTROL ACTUALIZADO -->
+    <!-- SCRIPT DE CONTROL FINAL -->
     <script>
         function calcularAhorro() {
             const bancas = document.getElementById('slider-bancas').value;
             document.getElementById('valor-bancas').textContent = bancas + (bancas == 1 ? ' Banca' : ' Bancas');
-            
             const horas = bancas * 3;
             document.getElementById('resultado-horas').textContent = horas + ' Horas';
-
             let plan = 'Plan Estándar ($150)';
             if (bancas > 10 && bancas <= 15) plan = 'Plan Pro ($250)';
             else if (bancas > 15 && bancas <= 50) plan = 'Plan Premium Pro ($500)';
             else if (bancas > 50) plan = 'Plan Super Gold ($1,000)';
-            
             document.getElementById('resultado-plan').textContent = plan;
         }
 
         function abrirModalPlan(nombrePlan) {
             document.getElementById('modal-titulo').textContent = 'Solicitar: ' + nombrePlan;
+            document.getElementById('form-solicitud').reset();
             document.getElementById('campo-plan-display').value = nombrePlan;
             document.getElementById('campo-plan-hidden').value = nombrePlan;
-            document.getElementById('input-asunto').value = `Nueva Solicitud - ${nombrePlan}`;
             
-            // Restaura el estado del formulario al abrirlo
-            document.getElementById('form-solicitud').reset();
-            document.getElementById('campo-plan-display').value = nombrePlan; // Mantener el plan visual
             document.getElementById('form-solicitud').classList.remove('hidden');
             document.getElementById('alerta-exito').classList.add('hidden');
             
@@ -449,8 +439,6 @@
 
         function cerrarModal() {
             document.getElementById('modal-contratacion').classList.add('hidden');
-            
-            // Restaura completamente el formulario y el botón para un próximo envío
             document.getElementById('form-solicitud').reset();
             document.getElementById('form-solicitud').classList.remove('hidden');
             document.getElementById('alerta-exito').classList.add('hidden');
@@ -468,7 +456,6 @@
 
             const formData = new FormData(this);
 
-            // Endpoint exacto tomado de tu captura de Formspree
             fetch('https://formspree.io/f/xaeevlog', {
                 method: 'POST',
                 body: formData,
@@ -487,12 +474,10 @@
             .catch(error => {
                 console.error('Error:', error);
                 alert("Hubo un error al enviar el mensaje. Inténtalo de nuevo.");
-                // Restaura el botón si hay error para permitir reintentos
                 btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
                 btn.disabled = false;
             });
         });
     </script>
-
 </body>
 </html>

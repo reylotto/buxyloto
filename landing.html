@@ -411,86 +411,72 @@
     </div>
 
     <!-- SCRIPT DE CONTROL ACTUALIZADO CON PLAN B -->
-    <script>
-        function calcularAhorro() {
-            const bancas = document.getElementById('slider-bancas').value;
-            document.getElementById('valor-bancas').textContent = bancas + (bancas == 1 ? ' Banca' : ' Bancas');
-            
-            // Lógica de cálculo estimada
-            const horas = bancas * 3;
-            document.getElementById('resultado-horas').textContent = horas + ' Horas';
+   <script>
+    function calcularAhorro() {
+        const bancas = document.getElementById('slider-bancas').value;
+        document.getElementById('valor-bancas').textContent = bancas + (bancas == 1 ? ' Banca' : ' Bancas');
+        
+        const horas = bancas * 3;
+        document.getElementById('resultado-horas').textContent = horas + ' Horas';
 
-            let plan = 'Plan Estándar ($150)';
-            if (bancas > 10 && bancas <= 15) plan = 'Plan Pro ($250)';
-            else if (bancas > 15 && bancas <= 50) plan = 'Plan Premium Pro ($500)';
-            else if (bancas > 50) plan = 'Plan Super Gold ($1,000)';
-            
-            document.getElementById('resultado-plan').textContent = plan;
-        }
+        let plan = 'Plan Estándar ($150)';
+        if (bancas > 10 && bancas <= 15) plan = 'Plan Pro ($250)';
+        else if (bancas > 15 && bancas <= 50) plan = 'Plan Premium Pro ($500)';
+        else if (bancas > 50) plan = 'Plan Super Gold ($1,000)';
+        
+        document.getElementById('resultado-plan').textContent = plan;
+    }
 
-        function abrirModalPlan(nombrePlan) {
-            document.getElementById('modal-titulo').textContent = 'Solicitar: ' + nombrePlan;
-            document.getElementById('campo-plan-display').value = nombrePlan;
-            document.getElementById('campo-plan-hidden').value = nombrePlan;
-            document.getElementById('input-asunto').value = `Nueva Solicitud - ${nombrePlan}`;
-            
-            document.getElementById('form-solicitud').reset();
-            document.getElementById('campo-plan-display').value = nombrePlan;
-            document.getElementById('form-solicitud').classList.remove('hidden');
-            document.getElementById('alerta-exito').classList.add('hidden');
-            document.getElementById('modal-contratacion').classList.remove('hidden');
-        }
+    function abrirModalPlan(nombrePlan) {
+        document.getElementById('modal-titulo').textContent = 'Solicitar: ' + nombrePlan;
+        document.getElementById('campo-plan-display').value = nombrePlan;
+        document.getElementById('campo-plan-hidden').value = nombrePlan;
+        document.getElementById('input-asunto').value = `Nueva Solicitud - ${nombrePlan}`;
+        
+        document.getElementById('form-solicitud').reset();
+        document.getElementById('campo-plan-display').value = nombrePlan;
+        document.getElementById('form-solicitud').classList.remove('hidden');
+        document.getElementById('alerta-exito').classList.add('hidden');
+        document.getElementById('modal-contratacion').classList.remove('hidden');
+    }
 
-        function cerrarModal() {
-            document.getElementById('modal-contratacion').classList.add('hidden');
-        }
+    function cerrarModal() {
+        document.getElementById('modal-contratacion').classList.add('hidden');
+    }
 
-        document.getElementById('form-solicitud').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const btn = document.getElementById('btn-enviar');
-            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Procesando...';
-            btn.disabled = true;
+    document.getElementById('form-solicitud').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btn-enviar');
+        btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Procesando...';
+        btn.disabled = true;
 
-            const formData = new FormData(this);
+        const formData = new FormData(this);
 
-            fetch('https://formsubmit.co/ajax/buxyloto@gmail.com', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => {
-                if (!response.ok) throw new Error('Servidor de correo no responde');
-                return response.json();
-            })
-            .then(data => {
-                // Éxito con FormSubmit
-                document.getElementById('form-solicitud').classList.add('hidden');
-                document.getElementById('alerta-exito').classList.remove('hidden');
-            })
-            .catch(error => {
-                console.warn('FormSubmit falló. Activando Plan B (Mailto)...', error);
-                
-                // PLAN B: Respaldo automático si el servidor falla
-                const plan = document.getElementById('campo-plan-display').value;
-                const nombre = formData.get('Nombre');
-                const correo = formData.get('email');
-                const pais = formData.get('Pais');
-                const telefono = formData.get('Telefono');
-
-                const asunto = encodeURIComponent(`Nueva Solicitud de Inquilino: ${plan}`);
-                const cuerpo = encodeURIComponent(`Hola Buxy Loto,\n\nQuiero adquirir el siguiente plan:\n👉 ${plan}\n\nMis datos de contacto:\n- Nombre: ${nombre}\n- Correo: ${correo}\n- País: ${pais}\n- Teléfono: ${telefono}\n\nPor favor contáctenme lo antes posible.`);
-                
-                // Abre el cliente de correo pre-llenado
-                window.location.href = `mailto:buxyloto@gmail.com?subject=${asunto}&body=${cuerpo}`;
-                
-                // Muestra la alerta de éxito en la web para el cliente
-                document.getElementById('form-solicitud').classList.add('hidden');
-                document.getElementById('alerta-exito').classList.remove('hidden');
-                
-                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
-                btn.disabled = false;
-            });
+        // Reemplaza la URL de abajo con tu endpoint de Formspree
+        fetch('https://formspree.io/f/TU_ENDPOINT_DE_FORMSPREE_AQUI', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Error en la red');
+            return response.json();
+        })
+        .then(data => {
+            // Éxito: Oculta el formulario y muestra la alerta verde sin abrir ventanas extrañas
+            document.getElementById('form-solicitud').classList.add('hidden');
+            document.getElementById('alerta-exito').classList.remove('hidden');
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert("Hubo un problema de conexión temporal, por favor intenta de nuevo.");
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
+            btn.disabled = false;
         });
-    </script>
+    });
+</script>
 
 </body>
 </html>

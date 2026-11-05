@@ -410,6 +410,7 @@
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <script type="text/javascript">
         (function() {
+            // Tu Public Key de EmailJS
             emailjs.init("Mn8SktbLHijh9rLip");
         })();
     </script>
@@ -442,9 +443,6 @@
             
             const form = document.getElementById('form-solicitud');
             if (form) form.reset();
-
-            const campoDisplay = document.getElementById('campo-plan-display');
-            if (campoDisplay) campoDisplay.value = nombrePlan;
 
             const campoHidden = document.getElementById('campo-plan-hidden');
             if (campoHidden) campoHidden.value = nombrePlan;
@@ -497,14 +495,16 @@
                 const campoHidden = document.getElementById('campo-plan-hidden');
                 const planElegido = campoHidden ? campoHidden.value : 'Plan General';
 
+                // Nombres exactos mapeados a tu plantilla de EmailJS
                 const templateParams = {
                     plan: planElegido,
-                    nombre: document.querySelector('input[name="Nombre"]') ? document.querySelector('input[name="Nombre"]').value : '',
-                    correo: document.querySelector('input[name="email"]') ? document.querySelector('input[name="email"]').value : '',
-                    pais: document.querySelector('input[name="Pais"]') ? document.querySelector('input[name="Pais"]').value : '',
-                    telefono: document.querySelector('input[name="Telefono"]') ? document.querySelector('input[name="Telefono"]').value : ''
+                    Nombre: document.querySelector('input[name="Nombre"]') ? document.querySelector('input[name="Nombre"]').value : '',
+                    email: document.querySelector('input[name="email"]') ? document.querySelector('input[name="email"]').value : '',
+                    Pais: document.querySelector('input[name="Pais"]') ? document.querySelector('input[name="Pais"]').value : '',
+                    Telefono: document.querySelector('input[name="Telefono"]') ? document.querySelector('input[name="Telefono"]').value : ''
                 };
 
+                // Tus credenciales oficiales de EmailJS verificadas
                 emailjs.send('service_jozgy2u', 'template_syo2syo', templateParams)
                     .then(function(response) {
                         console.log('SUCCESS!', response.status, response.text);

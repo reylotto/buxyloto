@@ -361,36 +361,35 @@
         <p>&copy; 2026 Buxy Loto. Todos los derechos reservados.</p>
     </footer>
 
-    <!-- MODAL DE SOLICITUD / CONTRATACIÓN LIMPIO PARA FORMSPREE -->
+  <!-- MODAL DE SOLICITUD / CONTRATACIÓN -->
     <div id="modal-contratacion" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-800 max-w-md w-full p-6 rounded-3xl shadow-2xl relative text-left">
             <button onclick="cerrarModal()" class="absolute top-5 right-5 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             <h3 id="modal-titulo" class="text-lg font-bold text-white mb-2">Contratar Plan</h3>
             <p class="text-xs text-slate-400 mb-6">Completa tus datos para activar la solicitud y te contactaremos de inmediato.</p>
             
-            <!-- Acción apuntando directamente a tu endpoint real -->
-            <form action="https://formspree.io/f/xaeevlog" method="POST" id="form-solicitud" class="space-y-4 text-xs">
+            <!-- Formulario directo optimizado -->
+            <form id="form-solicitud" onsubmit="enviarCorreoDirecto(event)" class="space-y-4 text-xs">
                 <div>
                     <label class="block font-semibold text-slate-300 mb-1">Plan Seleccionado</label>
                     <input type="text" id="campo-plan-display" readonly class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-emerald-400 font-bold">
-                    <input type="hidden" name="Plan_Elegido" id="campo-plan-hidden">
                 </div>
                 <div>
                     <label class="block font-semibold text-slate-300 mb-1">Nombre Completo</label>
-                    <input type="text" name="Nombre" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. Carlos Pérez">
+                    <input type="text" id="campo-nombre" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. Carlos Pérez">
                 </div>
                 <div>
                     <label class="block font-semibold text-slate-300 mb-1">Correo Electrónico</label>
-                    <input type="email" name="email" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. correo@empresa.com">
+                    <input type="email" id="campo-correo" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. correo@empresa.com">
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block font-semibold text-slate-300 mb-1">País</label>
-                        <input type="text" name="Pais" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. Panamá">
+                        <input type="text" id="campo-pais" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. Panamá">
                     </div>
                     <div>
                         <label class="block font-semibold text-slate-300 mb-1">Teléfono</label>
-                        <input type="tel" name="Telefono" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. +507 ...">
+                        <input type="tel" id="campo-telefono" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. +507 ...">
                     </div>
                 </div>
                 <button type="submit" id="btn-enviar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-emerald-600/30 mt-2 flex items-center justify-center gap-2">
@@ -400,16 +399,17 @@
 
             <div id="alerta-exito" class="hidden mt-4 p-5 bg-emerald-950/90 border border-emerald-500/50 rounded-2xl text-center">
                 <i class="fa-solid fa-circle-check text-emerald-400 text-3xl mb-2"></i>
-                <h4 class="text-sm font-bold text-white">¡Mensaje Enviado con Éxito!</h4>
-                <p class="text-[11px] text-slate-300 mt-1">La información ha sido enviada a <b>buxyloto@gmail.com</b>. Te contactaremos pronto.</p>
+                <h4 class="text-sm font-bold text-white">¡Solicitud Lista para Enviar!</h4>
+                <p class="text-[11px] text-slate-300 mt-1">Se abrirá tu gestor de correo para completar el envío directo a <b>buxyloto@gmail.com</b>.</p>
                 <button onclick="cerrarModal()" class="mt-4 bg-emerald-600 text-white px-5 py-2 rounded-xl text-xs font-bold">Cerrar</button>
             </div>
         </div>
     </div>
 
-   
-    <!-- SCRIPT DE CONTROL FINAL CORREGIDO -->
+    <!-- SCRIPT DE CONTROL -->
     <script>
+        let planSeleccionadoGlobal = '';
+
         function calcularAhorro() {
             const bancas = document.getElementById('slider-bancas').value;
             document.getElementById('valor-bancas').textContent = bancas + (bancas == 1 ? ' Banca' : ' Bancas');
@@ -423,10 +423,10 @@
         }
 
         function abrirModalPlan(nombrePlan) {
+            planSeleccionadoGlobal = nombrePlan;
             document.getElementById('modal-titulo').textContent = 'Solicitar: ' + nombrePlan;
             document.getElementById('form-solicitud').reset();
             document.getElementById('campo-plan-display').value = nombrePlan;
-            document.getElementById('campo-plan-hidden').value = nombrePlan;
             
             document.getElementById('form-solicitud').classList.remove('hidden');
             document.getElementById('alerta-exito').classList.add('hidden');
@@ -440,7 +440,6 @@
 
         function cerrarModal() {
             document.getElementById('modal-contratacion').classList.add('hidden');
-            // IMPORTANTE: Esto limpia el formulario y lo vuelve a mostrar para el siguiente uso
             document.getElementById('form-solicitud').reset();
             document.getElementById('form-solicitud').classList.remove('hidden');
             document.getElementById('alerta-exito').classList.add('hidden');
@@ -450,36 +449,31 @@
             btn.disabled = false;
         }
 
-        document.getElementById('form-solicitud').addEventListener('submit', function(e) {
+        function enviarCorreoDirecto(e) {
             e.preventDefault();
+            const nombre = document.getElementById('campo-nombre').value;
+            const correo = document.getElementById('campo-correo').value;
+            const pais = document.getElementById('campo-pais').value;
+            const telefono = document.getElementById('campo-telefono').value;
+
             const btn = document.getElementById('btn-enviar');
-            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Procesando...';
+            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Generando enlace...';
             btn.disabled = true;
 
-            const formData = new FormData(this);
-
-            fetch('https://formspree.io/f/xaeevlog', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'Accept': 'application/json'
-                }
-            })
-            .then(response => {
-                if (!response.ok) throw new Error('Error en el envío');
-                return response.json();
-            })
-            .then(data => {
+            setTimeout(() => {
                 document.getElementById('form-solicitud').classList.add('hidden');
                 document.getElementById('alerta-exito').classList.remove('hidden');
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert("Hubo un error al enviar el mensaje. Inténtalo de nuevo.");
+                
                 btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
                 btn.disabled = false;
-            });
-        });
+
+                // Redirección directa y segura alfanumérica para entrega inmediata en Gmail
+                const asunto = encodeURIComponent(`Nueva Solicitud de Inquilino: ${planSeleccionadoGlobal}`);
+                const cuerpo = encodeURIComponent(`Hola Buxy Loto,\n\nQuiero adquirir el siguiente plan:\n👉 ${planSeleccionadoGlobal}\n\nMis datos de contacto:\n- Nombre: ${nombre}\n- Correo: ${correo}\n- País: ${pais}\n- Teléfono: ${telefono}\n\nPor favor contáctenme lo antes posible.`);
+                
+                window.location.href = `mailto:buxyloto@gmail.com?subject=${asunto}&body=${cuerpo}`;
+            }, 500);
+        }
     </script>
 </body>
 </html>

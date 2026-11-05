@@ -407,7 +407,8 @@
         </div>
     </div>
 
-    <!-- SCRIPT DE CONTROL FINAL -->
+   
+    <!-- SCRIPT DE CONTROL FINAL CORREGIDO -->
     <script>
         function calcularAhorro() {
             const bancas = document.getElementById('slider-bancas').value;
@@ -439,6 +440,7 @@
 
         function cerrarModal() {
             document.getElementById('modal-contratacion').classList.add('hidden');
+            // IMPORTANTE: Esto limpia el formulario y lo vuelve a mostrar para el siguiente uso
             document.getElementById('form-solicitud').reset();
             document.getElementById('form-solicitud').classList.remove('hidden');
             document.getElementById('alerta-exito').classList.add('hidden');

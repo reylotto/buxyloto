@@ -410,73 +410,89 @@
         </div>
     </div>
 
-    <!-- SCRIPT DE CONTROL ACTUALIZADO CON PLAN B -->
-   <script>
-    function calcularAhorro() {
-        const bancas = document.getElementById('slider-bancas').value;
-        document.getElementById('valor-bancas').textContent = bancas + (bancas == 1 ? ' Banca' : ' Bancas');
-        
-        const horas = bancas * 3;
-        document.getElementById('resultado-horas').textContent = horas + ' Horas';
+ 
+   <!-- SCRIPT DE CONTROL ACTUALIZADO -->
+    <script>
+        function calcularAhorro() {
+            const bancas = document.getElementById('slider-bancas').value;
+            document.getElementById('valor-bancas').textContent = bancas + (bancas == 1 ? ' Banca' : ' Bancas');
+            
+            const horas = bancas * 3;
+            document.getElementById('resultado-horas').textContent = horas + ' Horas';
 
-        let plan = 'Plan Estándar ($150)';
-        if (bancas > 10 && bancas <= 15) plan = 'Plan Pro ($250)';
-        else if (bancas > 15 && bancas <= 50) plan = 'Plan Premium Pro ($500)';
-        else if (bancas > 50) plan = 'Plan Super Gold ($1,000)';
-        
-        document.getElementById('resultado-plan').textContent = plan;
-    }
+            let plan = 'Plan Estándar ($150)';
+            if (bancas > 10 && bancas <= 15) plan = 'Plan Pro ($250)';
+            else if (bancas > 15 && bancas <= 50) plan = 'Plan Premium Pro ($500)';
+            else if (bancas > 50) plan = 'Plan Super Gold ($1,000)';
+            
+            document.getElementById('resultado-plan').textContent = plan;
+        }
 
-    function abrirModalPlan(nombrePlan) {
-        document.getElementById('modal-titulo').textContent = 'Solicitar: ' + nombrePlan;
-        document.getElementById('campo-plan-display').value = nombrePlan;
-        document.getElementById('campo-plan-hidden').value = nombrePlan;
-        document.getElementById('input-asunto').value = `Nueva Solicitud - ${nombrePlan}`;
-        
-        document.getElementById('form-solicitud').reset();
-        document.getElementById('campo-plan-display').value = nombrePlan;
-        document.getElementById('form-solicitud').classList.remove('hidden');
-        document.getElementById('alerta-exito').classList.add('hidden');
-        document.getElementById('modal-contratacion').classList.remove('hidden');
-    }
-
-    function cerrarModal() {
-        document.getElementById('modal-contratacion').classList.add('hidden');
-    }
-
-    document.getElementById('form-solicitud').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const btn = document.getElementById('btn-enviar');
-        btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Procesando...';
-        btn.disabled = true;
-
-        const formData = new FormData(this);
-
-        // Reemplaza la URL de abajo con tu endpoint de Formspree
-        fetch('https://formspree.io/f/xaeevlog', {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'Accept': 'application/json'
-            }
-        })
-        .then(response => {
-            if (!response.ok) throw new Error('Error en la red');
-            return response.json();
-        })
-        .then(data => {
-            // Éxito: Oculta el formulario y muestra la alerta verde sin abrir ventanas extrañas
-            document.getElementById('form-solicitud').classList.add('hidden');
-            document.getElementById('alerta-exito').classList.remove('hidden');
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert("Hubo un problema de conexión temporal, por favor intenta de nuevo.");
+        function abrirModalPlan(nombrePlan) {
+            document.getElementById('modal-titulo').textContent = 'Solicitar: ' + nombrePlan;
+            document.getElementById('campo-plan-display').value = nombrePlan;
+            document.getElementById('campo-plan-hidden').value = nombrePlan;
+            document.getElementById('input-asunto').value = `Nueva Solicitud - ${nombrePlan}`;
+            
+            // Restaura el estado del formulario al abrirlo
+            document.getElementById('form-solicitud').reset();
+            document.getElementById('campo-plan-display').value = nombrePlan; // Mantener el plan visual
+            document.getElementById('form-solicitud').classList.remove('hidden');
+            document.getElementById('alerta-exito').classList.add('hidden');
+            
+            const btn = document.getElementById('btn-enviar');
             btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
             btn.disabled = false;
+
+            document.getElementById('modal-contratacion').classList.remove('hidden');
+        }
+
+        function cerrarModal() {
+            document.getElementById('modal-contratacion').classList.add('hidden');
+            
+            // Restaura completamente el formulario y el botón para un próximo envío
+            document.getElementById('form-solicitud').reset();
+            document.getElementById('form-solicitud').classList.remove('hidden');
+            document.getElementById('alerta-exito').classList.add('hidden');
+            
+            const btn = document.getElementById('btn-enviar');
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
+            btn.disabled = false;
+        }
+
+        document.getElementById('form-solicitud').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-enviar');
+            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Procesando...';
+            btn.disabled = true;
+
+            const formData = new FormData(this);
+
+            // Endpoint exacto tomado de tu captura de Formspree
+            fetch('https://formspree.io/f/xaeevlog', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Error en el envío');
+                return response.json();
+            })
+            .then(data => {
+                document.getElementById('form-solicitud').classList.add('hidden');
+                document.getElementById('alerta-exito').classList.remove('hidden');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("Hubo un error al enviar el mensaje. Inténtalo de nuevo.");
+                // Restaura el botón si hay error para permitir reintentos
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
+                btn.disabled = false;
+            });
         });
-    });
-</script>
+    </script>
 
 </body>
 </html>

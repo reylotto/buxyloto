@@ -410,7 +410,7 @@
         </div>
     </div>
 
-    <!-- SCRIPT DE CONTROL -->
+    <!-- SCRIPT DE CONTROL ACTUALIZADO CON PLAN B -->
     <script>
         function calcularAhorro() {
             const bancas = document.getElementById('slider-bancas').value;
@@ -448,7 +448,7 @@
         document.getElementById('form-solicitud').addEventListener('submit', function(e) {
             e.preventDefault();
             const btn = document.getElementById('btn-enviar');
-            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Enviando...';
+            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Procesando...';
             btn.disabled = true;
 
             const formData = new FormData(this);
@@ -457,14 +457,35 @@
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) throw new Error('Servidor de correo no responde');
+                return response.json();
+            })
             .then(data => {
+                // Éxito con FormSubmit
                 document.getElementById('form-solicitud').classList.add('hidden');
                 document.getElementById('alerta-exito').classList.remove('hidden');
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert("Hubo un error al enviar el mensaje. Inténtalo de nuevo.");
+                console.warn('FormSubmit falló. Activando Plan B (Mailto)...', error);
+                
+                // PLAN B: Respaldo automático si el servidor falla
+                const plan = document.getElementById('campo-plan-display').value;
+                const nombre = formData.get('Nombre');
+                const correo = formData.get('email');
+                const pais = formData.get('Pais');
+                const telefono = formData.get('Telefono');
+
+                const asunto = encodeURIComponent(`Nueva Solicitud de Inquilino: ${plan}`);
+                const cuerpo = encodeURIComponent(`Hola Buxy Loto,\n\nQuiero adquirir el siguiente plan:\n👉 ${plan}\n\nMis datos de contacto:\n- Nombre: ${nombre}\n- Correo: ${correo}\n- País: ${pais}\n- Teléfono: ${telefono}\n\nPor favor contáctenme lo antes posible.`);
+                
+                // Abre el cliente de correo pre-llenado
+                window.location.href = `mailto:buxyloto@gmail.com?subject=${asunto}&body=${cuerpo}`;
+                
+                // Muestra la alerta de éxito en la web para el cliente
+                document.getElementById('form-solicitud').classList.add('hidden');
+                document.getElementById('alerta-exito').classList.remove('hidden');
+                
                 btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
                 btn.disabled = false;
             });

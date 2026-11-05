@@ -362,166 +362,164 @@
     </footer>
 
   <!-- MODAL DE SOLICITUD / CONTRATACIÓN -->
-    <div id="modal-contratacion" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 max-w-md w-full p-6 rounded-3xl shadow-2xl relative text-left">
-            <button onclick="cerrarModal()" class="absolute top-5 right-5 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
-            <h3 id="modal-titulo" class="text-lg font-bold text-white mb-2">Contratar Plan</h3>
-            <p class="text-xs text-slate-400 mb-6">Completa tus datos para activar la solicitud y te contactaremos de inmediato.</p>
-            
-            <!-- Formulario directo optimizado -->
-            <form id="form-solicitud" onsubmit="enviarCorreoDirecto(event)" class="space-y-4 text-xs">
-                <div>
-                    <label class="block font-semibold text-slate-300 mb-1">Plan Seleccionado</label>
-                    <input type="text" id="campo-plan-display" readonly class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-emerald-400 font-bold">
-                </div>
-                <div>
-                    <label class="block font-semibold text-slate-300 mb-1">Nombre Completo</label>
-                    <input type="text" id="campo-nombre" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. Carlos Pérez">
-                </div>
-                <div>
-                    <label class="block font-semibold text-slate-300 mb-1">Correo Electrónico</label>
-                    <input type="email" id="campo-correo" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. correo@empresa.com">
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block font-semibold text-slate-300 mb-1">País</label>
-                        <input type="text" id="campo-pais" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. Panamá">
-                    </div>
-                    <div>
-                        <label class="block font-semibold text-slate-300 mb-1">Teléfono</label>
-                        <input type="tel" id="campo-telefono" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. +507 ...">
-                    </div>
-                </div>
-                <button type="submit" id="btn-enviar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-emerald-600/30 mt-2 flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial
-                </button>
-            </form>
-
-            <div id="alerta-exito" class="hidden mt-4 p-5 bg-emerald-950/90 border border-emerald-500/50 rounded-2xl text-center">
-                <i class="fa-solid fa-circle-check text-emerald-400 text-3xl mb-2"></i>
-                <h4 class="text-sm font-bold text-white">¡Solicitud Lista para Enviar!</h4>
-                <p class="text-[11px] text-slate-300 mt-1">Se abrirá tu gestor de correo para completar el envío directo a <b>buxyloto@gmail.com</b>.</p>
-                <button onclick="cerrarModal()" class="mt-4 bg-emerald-600 text-white px-5 py-2 rounded-xl text-xs font-bold">Cerrar</button>
+<div id="modal-contratacion" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 max-w-md w-full p-6 rounded-3xl shadow-2xl relative text-left">
+        <button onclick="cerrarModal()" class="absolute top-5 right-5 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+        <h3 id="modal-titulo" class="text-lg font-bold text-white mb-2">Contratar Plan</h3>
+        <p class="text-xs text-slate-400 mb-6">Completa tus datos para activar la solicitud y te contactaremos de inmediato.</p>
+        
+        <form id="form-solicitud" class="space-y-4 text-xs">
+            <div>
+                <label class="block font-semibold text-slate-300 mb-1">Plan Seleccionado</label>
+                <input type="text" id="campo-plan-display" readonly class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-emerald-400 font-bold">
+                <input type="hidden" id="campo-plan-hidden">
             </div>
+            <div>
+                <label class="block font-semibold text-slate-300 mb-1">Nombre Completo</label>
+                <input type="text" name="Nombre" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. Carlos Pérez">
+            </div>
+            <div>
+                <label class="block font-semibold text-slate-300 mb-1">Correo Electrónico</label>
+                <input type="email" name="email" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. correo@empresa.com">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">País</label>
+                    <input type="text" name="Pais" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. Panamá">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Teléfono</label>
+                    <input type="tel" name="Telefono" required class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500" placeholder="Ej. +507 ...">
+                </div>
+            </div>
+            <button type="submit" id="btn-enviar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-emerald-600/30 mt-2 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial
+            </button>
+        </form>
+
+        <div id="alerta-exito" class="hidden mt-4 p-5 bg-emerald-950/90 border border-emerald-500/50 rounded-2xl text-center">
+            <i class="fa-solid fa-circle-check text-emerald-400 text-3xl mb-2"></i>
+            <h4 class="text-sm font-bold text-white">¡Mensaje Enviado con Éxito!</h4>
+            <p class="text-[11px] text-slate-300 mt-1">La información ha sido enviada a <b>buxyloto@gmail.com</b>. Te contactaremos pronto.</p>
+            <button onclick="cerrarModal()" class="mt-4 bg-emerald-600 text-white px-5 py-2 rounded-xl text-xs font-bold">Cerrar</button>
         </div>
     </div>
+</div>
 
-   <!-- SDK de EmailJS -->
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-    <script type="text/javascript">
-        (function() {
-            // Tu Public Key de EmailJS
-            emailjs.init("Mn8SktbLHijh9rLip");
-        })();
-    </script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<script type="text/javascript">
+    (function() {
+        emailjs.init("Mn8SktbLHijh9rLip");
+    })();
+</script>
 
-    <!-- SCRIPT DE CONTROL CORREGIDO -->
-    <script>
-        function calcularAhorro() {
-            const slider = document.getElementById('slider-bancas');
-            if (!slider) return;
-            const bancas = slider.value;
-            const valBancas = document.getElementById('valor-bancas');
-            if (valBancas) valBancas.textContent = bancas + (bancas == 1 ? ' Banca' : ' Bancas');
-            
-            const horas = bancas * 3;
-            const resHoras = document.getElementById('resultado-horas');
-            if (resHoras) resHoras.textContent = horas + ' Horas';
+<script>
+    function calcularAhorro() {
+        const slider = document.getElementById('slider-bancas');
+        if (!slider) return;
+        const bancas = slider.value;
+        const valBancas = document.getElementById('valor-bancas');
+        if (valBancas) valBancas.textContent = bancas + (bancas == 1 ? ' Banca' : ' Bancas');
+        
+        const horas = bancas * 3;
+        const resHoras = document.getElementById('resultado-horas');
+        if (resHoras) resHoras.textContent = horas + ' Horas';
 
-            let plan = 'Plan Estándar ($150)';
-            if (bancas > 10 && bancas <= 15) plan = 'Plan Pro ($250)';
-            else if (bancas > 15 && bancas <= 50) plan = 'Plan Premium Pro ($500)';
-            else if (bancas > 50) plan = 'Plan Super Gold ($1,000)';
-            
-            const resPlan = document.getElementById('resultado-plan');
-            if (resPlan) resPlan.textContent = plan;
+        let plan = 'Plan Estándar ($150)';
+        if (bancas > 10 && bancas <= 15) plan = 'Plan Pro ($250)';
+        else if (bancas > 15 && bancas <= 50) plan = 'Plan Premium Pro ($500)';
+        else if (bancas > 50) plan = 'Plan Super Gold ($1,000)';
+        
+        const resPlan = document.getElementById('resultado-plan');
+        if (resPlan) resPlan.textContent = plan;
+    }
+
+    function abrirModalPlan(nombrePlan) {
+        const modalTitulo = document.getElementById('modal-titulo');
+        if (modalTitulo) modalTitulo.textContent = 'Solicitar: ' + nombrePlan;
+        
+        const form = document.getElementById('form-solicitud');
+        if (form) form.reset();
+
+        const campoDisplay = document.getElementById('campo-plan-display');
+        if (campoDisplay) campoDisplay.value = nombrePlan;
+
+        const campoHidden = document.getElementById('campo-plan-hidden');
+        if (campoHidden) campoHidden.value = nombrePlan;
+        
+        if (form) form.classList.remove('hidden');
+        
+        const alertaExito = document.getElementById('alerta-exito');
+        if (alertaExito) alertaExito.classList.add('hidden');
+        
+        const btn = document.getElementById('btn-enviar');
+        if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
+            btn.disabled = false;
         }
 
-        function abrirModalPlan(nombrePlan) {
-            const modalTitulo = document.getElementById('modal-titulo');
-            if (modalTitulo) modalTitulo.textContent = 'Solicitar: ' + nombrePlan;
-            
-            const form = document.getElementById('form-solicitud');
-            if (form) form.reset();
+        const modalContratacion = document.getElementById('modal-contratacion');
+        if (modalContratacion) modalContratacion.classList.remove('hidden');
+    }
+
+    function cerrarModal() {
+        const modalContratacion = document.getElementById('modal-contratacion');
+        if (modalContratacion) modalContratacion.classList.add('hidden');
+        
+        const form = document.getElementById('form-solicitud');
+        if (form) {
+            form.reset();
+            form.classList.remove('hidden');
+        }
+        
+        const alertaExito = document.getElementById('alerta-exito');
+        if (alertaExito) alertaExito.classList.add('hidden');
+        
+        const btn = document.getElementById('btn-enviar');
+        if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
+            btn.disabled = false;
+        }
+    }
+
+    const formSol = document.getElementById('form-solicitud');
+    if (formSol) {
+        formSol.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-enviar');
+            if (btn) {
+                btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Enviando...';
+                btn.disabled = true;
+            }
 
             const campoHidden = document.getElementById('campo-plan-hidden');
-            if (campoHidden) campoHidden.value = nombrePlan;
-            
-            if (form) form.classList.remove('hidden');
-            
-            const alertaExito = document.getElementById('alerta-exito');
-            if (alertaExito) alertaExito.classList.add('hidden');
-            
-            const btn = document.getElementById('btn-enviar');
-            if (btn) {
-                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
-                btn.disabled = false;
-            }
+            const planElegido = campoHidden ? campoHidden.value : 'Plan General';
 
-            const modalContratacion = document.getElementById('modal-contratacion');
-            if (modalContratacion) modalContratacion.classList.remove('hidden');
-        }
+            const templateParams = {
+                plan: planElegido,
+                Nombre: document.querySelector('input[name="Nombre"]') ? document.querySelector('input[name="Nombre"]').value : '',
+                email: document.querySelector('input[name="email"]') ? document.querySelector('input[name="email"]').value : '',
+                Pais: document.querySelector('input[name="Pais"]') ? document.querySelector('input[name="Pais"]').value : '',
+                Telefono: document.querySelector('input[name="Telefono"]') ? document.querySelector('input[name="Telefono"]').value : ''
+            };
 
-        function cerrarModal() {
-            const modalContratacion = document.getElementById('modal-contratacion');
-            if (modalContratacion) modalContratacion.classList.add('hidden');
-            
-            const form = document.getElementById('form-solicitud');
-            if (form) {
-                form.reset();
-                form.classList.remove('hidden');
-            }
-            
-            const alertaExito = document.getElementById('alerta-exito');
-            if (alertaExito) alertaExito.classList.add('hidden');
-            
-            const btn = document.getElementById('btn-enviar');
-            if (btn) {
-                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
-                btn.disabled = false;
-            }
-        }
-
-        const formSol = document.getElementById('form-solicitud');
-        if (formSol) {
-            formSol.addEventListener('submit', function(e) {
-                e.preventDefault();
-                const btn = document.getElementById('btn-enviar');
-                if (btn) {
-                    btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Enviando...';
-                    btn.disabled = true;
-                }
-
-                const campoHidden = document.getElementById('campo-plan-hidden');
-                const planElegido = campoHidden ? campoHidden.value : 'Plan General';
-
-                // Nombres exactos mapeados a tu plantilla de EmailJS
-                const templateParams = {
-                    plan: planElegido,
-                    Nombre: document.querySelector('input[name="Nombre"]') ? document.querySelector('input[name="Nombre"]').value : '',
-                    email: document.querySelector('input[name="email"]') ? document.querySelector('input[name="email"]').value : '',
-                    Pais: document.querySelector('input[name="Pais"]') ? document.querySelector('input[name="Pais"]').value : '',
-                    Telefono: document.querySelector('input[name="Telefono"]') ? document.querySelector('input[name="Telefono"]').value : ''
-                };
-
-                // Tus credenciales oficiales de EmailJS verificadas
-                emailjs.send('service_jozgy2u', 'template_syo2syo', templateParams)
-                    .then(function(response) {
-                        console.log('SUCCESS!', response.status, response.text);
-                        const form = document.getElementById('form-solicitud');
-                        if (form) form.classList.add('hidden');
-                        const alerta = document.getElementById('alerta-exito');
-                        if (alerta) alerta.classList.remove('hidden');
-                    }, function(error) {
-                        console.log('FAILED...', error);
-                        alert("Hubo un error al enviar la solicitud. Inténtalo de nuevo.");
-                        if (btn) {
-                            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
-                            btn.disabled = false;
-                        }
-                    });
-            });
-        }
-    </script>
+            emailjs.send('service_jozgy2u', 'template_syo2syo', templateParams)
+                .then(function(response) {
+                    console.log('SUCCESS!', response.status, response.text);
+                    const form = document.getElementById('form-solicitud');
+                    if (form) form.classList.add('hidden');
+                    const alerta = document.getElementById('alerta-exito');
+                    if (alerta) alerta.classList.remove('hidden');
+                }, function(error) {
+                    console.log('FAILED...', error);
+                    alert("Hubo un error al enviar la solicitud. Inténtalo de nuevo.");
+                    if (btn) {
+                        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar Solicitud Oficial';
+                        btn.disabled = false;
+                    }
+                });
+        });
+    }
+</script>
 </body>
 </html>

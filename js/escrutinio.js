@@ -141,12 +141,11 @@ window.editarResultadoSorteo = async function(id, p1Actual, p2Actual, p3Actual) 
                 updated_at: new Date().toISOString()
             }, { onConflict: 'sorteo_id,fecha' });
 
+        // Código Corregido: Le pasamos exactamente la FECHA al escrutinio
         try {
             await supabase.rpc('evaluar_tickets_sorteo', {
-                p_id_sorteo: sorteoIdNum,
-                p_num1: cleanP1,
-                p_num2: cleanP2,
-                p_num3: cleanP3
+                p_sorteo_id: sorteoIdNum,
+                p_fecha: fechaHoy // 🔥 Candado de fecha para no alterar el pasado
             });
         } catch (rpcErr) {
             console.warn("Aviso al reevaluar tickets:", rpcErr);

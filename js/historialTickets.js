@@ -84,6 +84,7 @@ export async function cargarHistorialTicketsCentral() {
             const esAnulable = (estatus === 'pendiente');
 
             // 🎯 BOTONES DEFINITIVOS CON FUNCIONES INDEPENDIENTES
+            // 🎯 BOTONES DEFINITIVOS CON FUNCIONES INDEPENDIENTES
             tr.innerHTML = `
                 <td class="p-3 font-mono font-bold text-cyan-400">${codigoRef}</td>
                 <td class="p-3 text-slate-300 text-[11px]">${fecha}</td>
@@ -93,19 +94,19 @@ export async function cargarHistorialTicketsCentral() {
                 <td class="p-3 font-mono font-bold text-white">$${montoPremio}</td>
                 <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold border ${badgeClass}">${estatusText}</span></td>
                 <td class="p-3 flex justify-center items-center space-x-1.5">
-                    <button onclick="window.buxyAccionTicket('${t.id}', 'ver')" title="Ver Opciones (WhatsApp, Descargar)" 
-                            class="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold flex items-center">
-                        <i class="fa-solid fa-eye mr-1"></i> Ver
+                    <button onclick="window.buxyAccionTicket('${t.id}', 'ver')" title="Ver Detalles del Ticket" 
+                            class="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white px-3 py-1.5 rounded-xl transition-colors text-xs font-bold flex items-center justify-center">
+                        <i class="fa-solid fa-eye mr-2"></i> Detalles
                     </button>
                     <button onclick="window.buxyAccionTicket('${t.id}', 'imprimir')" title="Imprimir Directo en POS" 
-                            class="bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold flex items-center">
+                            class="bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white px-2 py-1.5 rounded-xl transition-colors text-xs font-bold flex items-center justify-center">
                         <i class="fa-solid fa-print mr-1"></i> Imprimir
                     </button>
                     ${esAnulable ? `
                     <button onclick="window.cancelarTicketDefinitivo('${codigoRef}')" title="Anular Ticket" 
-                            class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2 py-1 rounded transition-colors text-xs font-semibold">
+                            class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2 py-1.5 rounded-xl transition-colors text-xs font-bold flex items-center justify-center">
                         <i class="fa-solid fa-ban"></i>
-                    </button>` : '<span class="text-slate-500 text-[10px] bg-slate-800 px-1.5 py-0.5 rounded" title="No Anulable"><i class="fa-solid fa-lock"></i></span>'}
+                    </button>` : '<span class="text-slate-500 text-[10px] bg-slate-800 px-2 py-1 rounded-xl flex items-center justify-center" title="No Anulable"><i class="fa-solid fa-lock"></i></span>'}
                 </td>
             `;
             tbody.appendChild(tr);

@@ -820,7 +820,8 @@ function renderizarTablaTickets(lista) {
                 </td>
                 <td class="p-3 text-center">
                     <div class="flex items-center justify-center gap-1.5">
-                        <button onclick="window.verTicketHistorial('${uniqueId}')" title="Ver Detalle Ticket" class="bg-slate-700 hover:bg-slate-600 text-slate-200 p-1.5 rounded-lg transition-colors text-xs">
+                        <button onclick="window.verDesgloseDirecto('${t.id}')" title="Ver Desglose de Jugadas" 
+                                class="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
                             <i class="fa-solid fa-eye"></i>
                         </button>
                         <button onclick="window.imprimirTicketHistorial('${uniqueId}')" title="Reimprimir Ticket" class="bg-emerald-700/80 hover:bg-emerald-600 text-white p-1.5 rounded-lg transition-colors text-xs">

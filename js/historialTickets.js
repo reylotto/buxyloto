@@ -86,6 +86,7 @@ export async function cargarHistorialTicketsCentral() {
             // 🎯 BOTONES DEFINITIVOS CON FUNCIONES INDEPENDIENTES
             // 🎯 BOTONES DEFINITIVOS CON FUNCIONES INDEPENDIENTES
             // 🎯 BOTONES CORREGIDOS: Ojito (Detalles), Impresora (Opciones), Ban (Cancelar)
+        // BOTONES CORREGIDOS: Ojito (Detalles), Impresora (Opciones), Ban (Cancelar)
         tr.innerHTML = `
             <td class="p-3 font-mono font-bold text-cyan-400">${codigoRef}</td>
             <td class="p-3 text-slate-300 text-[11px]">${fecha}</td>
@@ -96,7 +97,7 @@ export async function cargarHistorialTicketsCentral() {
             <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold border ${badgeClass}">${estatusText}</span></td>
             <td class="p-3 flex justify-center items-center space-x-2">
                 
-                <!-- BOTÓN 1: OJITO (Abre el detalle exacto de las jugadas) -->
+                <!-- BOTÓN 1: OJITO (Llama directo al folio del ticket) -->
                 <button onclick="window.verTicketHistorial('${codigoRef}')" title="Ver Detalles del Ticket" 
                         class="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
                     <i class="fa-solid fa-eye"></i>
@@ -117,7 +118,7 @@ export async function cargarHistorialTicketsCentral() {
             </td>
         `;
         tbody.appendChild(tr);
-        });
+    });
 
     } catch (err) {
         console.error("❌ Error al cargar historial:", err);
@@ -185,12 +186,20 @@ if (typeof window !== 'undefined') {
                 if (typeof window.imprimirTicketTermica === 'function') {
                     window.imprimirTicketTermica(ticketData);
                 } else { alert("Error: El gestor de impresión no está cargado."); }
+            } else if (accion === 'detalle') {
+                // 🔥 NUEVO RUTEO PARA EL "OJITO" (Desglose de jugadas)
+                if (typeof window.verTicketHistorial === 'function') {
+                    window.verTicketHistorial(ticketData.codigo_ticket);
+                } else { 
+                    alert("Error: El visor de detalles no está cargado."); 
+                }
             }
         } catch (err) { 
             console.error(err);
             alert("❌ " + err.message); 
         }
     };
+
 
     window.cancelarTicketDefinitivo = async function(ticketRef) {
         if (!confirm(`¿Está seguro de que desea CANCELAR el ticket "${ticketRef}"?`)) return;

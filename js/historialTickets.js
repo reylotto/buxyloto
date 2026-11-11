@@ -98,7 +98,7 @@ export async function cargarHistorialTicketsCentral() {
             <td class="p-3 flex justify-center items-center space-x-2">
                 
                 <!-- BOTÓN 1: OJITO (Llama directo al folio del ticket) -->
-                <button onclick="window.verTicketHistorial('${codigoRef}')" title="Ver Detalles del Ticket" 
+                <button onclick="window.verDesgloseDirecto('${t.id}')" title="Ver Desglose de Jugadas" 
                         class="bg-cyan-600/20 hover:bg-cyan-600 text-cyan-400 hover:text-white w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
                     <i class="fa-solid fa-eye"></i>
                 </button>
@@ -126,9 +126,11 @@ export async function cargarHistorialTicketsCentral() {
 }
 
 // ==========================================================
-// 🧠 CEREBRO DE ACCIONES Y VISUALIZADOR DEFINITIVO
+// 🧠 CEREBRO DE ACCIONES 
 // ==========================================================
 if (typeof window !== 'undefined') {
+
+    // 🔥 SE ELIMINÓ EL NEUTRALIZADOR CSS QUE OCULTABA TU MODAL BLANCO (Error solucionado)
 
     window.buxyAccionTicket = async function(ticketInput, accion) {
         try {
@@ -151,7 +153,7 @@ if (typeof window !== 'undefined') {
                 ticket = fallback;
             }
 
-            if (!ticket) throw new Error("Ticket no encontrado en la base de datos.");
+            if (!ticket) throw new Error("Ticket no encontrado.");
 
             const { data: jugadas } = await supabase.from('jugadas').select('*').eq('ticket_id', ticket.id);
             let nombreBanca = ticket.banca_nombre || ticket.vendedor_nombre || 'Banca General';
@@ -164,7 +166,7 @@ if (typeof window !== 'undefined') {
                 detalles: jugadas || [], jugadas: jugadas || []
             };
 
-            // RUTEO DE ACCIONES BLINDADO
+            // Ruteo de acciones
             if (accion === 'ver') {
                 if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
                     window.mostrarOpcionesExportacionTicket(ticketData);
@@ -174,119 +176,24 @@ if (typeof window !== 'undefined') {
                     window.imprimirTicketTermica(ticketData);
                 } 
             } else if (accion === 'detalle') {
-                // 🔥 LLAMAMOS AL NUEVO VISUALIZADOR A PRUEBA DE FALLOS
-                window.renderizarDetalleTicketBuxy(ticketData);
+                // 🔥 RECONEXIÓN AL RECIBO BLANCO ORIGINAL (El Ojito)
+                if (typeof window.verTicketDetalle === 'function') {
+                    window.verTicketDetalle(ticket.id);
+                } else if (typeof window.verTicketDetalleDirecto === 'function') {
+                    window.verTicketDetalleDirecto(ticket.id);
+                } else if (typeof window.showTicketModal === 'function') {
+                    window.showTicketModal(ticket.id);
+                } else if (typeof window.verTicketHistorial === 'function') {
+                    window.verTicketHistorial(ticket.id);
+                } else { 
+                    alert("Error: El visor del recibo no está cargado."); 
+                }
             }
         } catch (err) { 
             console.error(err);
             alert("❌ " + err.message); 
         }
     };
-
-    // 🔥 VISUALIZADOR DEFINITIVO DEL TICKET (El Ojito)
-    window.renderizarDetalleTicketBuxy = function(ticket) {
-        // Eliminar modal anterior si existe para evitar choques
-        const existingModal = document.getElementById('modal-detalle-blindado');
-        if (existingModal) existingModal.remove();
-
-        const jugadas = ticket.detalles || ticket.jugadas || [];
-        let filasJugadas = '';
-
-        if (jugadas.length === 0) {
-            filasJugadas = '<tr><td colspan="4" class="text-center p-4 text-slate-400 text-xs">No hay detalles registrados para este ticket.</td></tr>';
-        } else {
-            jugadas.forEach(j => {
-                const num = j.numero || j.num1 || '--';
-                const tipo = String(j.tipo || 'Directo').toUpperCase();
-                const monto = parseFloat(j.monto || j.amount || j.monto_apostado || 0).toFixed(2);
-                const premio = parseFloat(j.premio || j.monto_premio || 0).toFixed(2);
-                const esGanador = premio > 0;
-                
-                filasJugadas += `
-                    <tr class="border-b border-slate-700/50 text-xs hover:bg-slate-700/30 transition">
-                        <td class="p-2.5 text-center font-black text-white tracking-widest">${num}</td>
-                        <td class="p-2.5 text-center text-cyan-300 font-semibold">${tipo}</td>
-                        <td class="p-2.5 text-center text-emerald-400 font-mono">$${monto}</td>
-                        <td class="p-2.5 text-center font-mono font-bold ${esGanador ? 'text-amber-400' : 'text-slate-500'}">$${premio}</td>
-                    </tr>
-                `;
-            });
-        }
-
-        const estatus = String(ticket.estatus || ticket.estado || 'PENDIENTE').toUpperCase();
-        let badgeColor = 'bg-slate-500/20 text-slate-400 border-slate-500/30';
-        if (estatus.includes('PREMIAD') || estatus.includes('GANADOR')) badgeColor = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-        else if (estatus.includes('NO') || estatus.includes('PERDEDOR')) badgeColor = 'bg-rose-500/20 text-rose-400 border-rose-500/30';
-        else if (estatus.includes('CANCEL')) badgeColor = 'bg-red-600/20 text-red-500 border-red-600/30';
-
-        const modalHTML = `
-            <div id="modal-detalle-blindado" class="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-fade-in">
-                <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
-                    
-                    <!-- Cabecera -->
-                    <div class="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700">
-                        <h3 class="text-white font-bold text-base flex items-center">
-                            <i class="fa-solid fa-receipt text-cyan-400 mr-2"></i> Desglose del Ticket
-                        </h3>
-                        <button onclick="document.getElementById('modal-detalle-blindado').remove()" class="text-slate-400 hover:text-rose-400 transition text-lg px-2">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
-                    </div>
-                    
-                    <!-- Información General -->
-                    <div class="p-4 bg-slate-800/50 grid grid-cols-2 gap-4 border-b border-slate-700/50">
-                        <div>
-                            <p class="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Folio</p>
-                            <p class="text-cyan-400 font-mono font-bold text-sm">${ticket.codigo_ticket}</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Estado</p>
-                            <span class="px-2 py-0.5 rounded text-[10px] font-black border uppercase ${badgeColor}">${estatus}</span>
-                        </div>
-                        <div>
-                            <p class="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Fecha</p>
-                            <p class="text-slate-200 text-xs">${new Date(ticket.created_at).toLocaleString('en-GB')}</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Banca</p>
-                            <p class="text-slate-200 text-xs truncate">${ticket.banca_nombre}</p>
-                        </div>
-                    </div>
-
-                    <!-- Tabla de Números -->
-                    <div class="overflow-y-auto max-h-64 bg-slate-900">
-                        <table class="w-full">
-                            <thead class="bg-slate-800 text-[10px] text-slate-400 uppercase sticky top-0 shadow-md">
-                                <tr>
-                                    <th class="p-2.5 text-center">N°</th>
-                                    <th class="p-2.5 text-center">Tipo</th>
-                                    <th class="p-2.5 text-center">Apostado</th>
-                                    <th class="p-2.5 text-center">Premio</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${filasJugadas}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- Totales -->
-                    <div class="p-4 bg-slate-800 border-t border-slate-700 flex justify-between items-center">
-                        <div>
-                            <p class="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Total Jugado</p>
-                            <p class="text-emerald-400 font-mono font-bold text-lg">$${parseFloat(ticket.monto_total || ticket.monto || 0).toFixed(2)}</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Total Ganado</p>
-                            <p class="text-amber-400 font-mono font-black text-2xl drop-shadow-md">$${parseFloat(ticket.premio || ticket.monto_premio || 0).toFixed(2)}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', modalHTML);
-    };
-
 
 
 
@@ -319,6 +226,130 @@ if (typeof window !== 'undefined') {
             } else { alert(`⚠️ ${data?.message || 'Error al cancelar'}`); }
         } catch (err) { alert("❌ Error: " + err.message); }
     };
+    // ==========================================================
+// 🔍 VISUALIZADOR EXCLUSIVO DEL "OJITO" (DESGLOSE DE JUGADAS)
+// ==========================================================
+if (typeof window !== 'undefined') {
+    window.verDesgloseDirecto = async function(ticketId) {
+        try {
+            const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+            if (!supabase) throw new Error("Sin conexión a la Base de Datos.");
+
+            // 1. Buscar el ticket por ID o Folio
+            let query = supabase.from('tickets').select('*');
+            if (/^\d+$/.test(String(ticketId))) {
+                query = query.eq('id', parseInt(ticketId));
+            } else {
+                query = query.eq('codigo_ticket', String(ticketId));
+            }
+
+            let { data: ticket, error: errTicket } = await query.maybeSingle();
+            if (!ticket) {
+                const { data: fallback } = await supabase.from('tickets').select('*').eq('folio', String(ticketId)).maybeSingle();
+                ticket = fallback;
+            }
+
+            if (!ticket) throw new Error("No se encontró el ticket en la base de datos.");
+
+            // 2. Buscar las jugadas asociadas en la tabla 'jugadas' o en el JSON del ticket
+            let listaJugadas = [];
+            const { data: jugadasDB } = await supabase.from('jugadas').select('*').eq('ticket_id', ticket.id);
+            
+            if (jugadasDB && jugadasDB.length > 0) {
+                listaJugadas = jugadasDB;
+            } else {
+                // Respaldo si están guardadas en formato JSON en el ticket
+                listaJugadas = ticket.jugadas || ticket.detalles || [];
+            }
+
+            // 3. Construir las filas de la tabla visual
+            let filasHTML = '';
+            if (listaJugadas.length === 0) {
+                filasHTML = '<tr><td colspan="4" class="text-center p-4 text-slate-400 text-xs">No hay jugadas registradas para este ticket.</td></tr>';
+            } else {
+                listaJugadas.forEach(j => {
+                    const num = j.numero || j.num1 || '--';
+                    const tipo = String(j.tipo || 'Directo').toUpperCase();
+                    const monto = parseFloat(j.monto || j.amount || j.monto_apostado || 0).toFixed(2);
+                    const premio = parseFloat(j.premio || j.monto_premio || 0).toFixed(2);
+                    const esGanador = premio > 0;
+
+                    filasHTML += `
+                        <tr class="border-b border-slate-700/50 text-xs hover:bg-slate-700/30">
+                            <td class="p-2.5 text-center font-black text-white tracking-widest">${num}</td>
+                            <td class="p-2.5 text-center text-cyan-300 font-semibold">${tipo}</td>
+                            <td class="p-2.5 text-center text-emerald-400 font-mono">$${monto}</td>
+                            <td class="p-2.5 text-center font-mono font-bold ${esGanador ? 'text-amber-400' : 'text-slate-500'}">$${premio}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            // 4. Eliminar modal anterior si existía
+            const modalPrevio = document.getElementById('modal-desglose-puro');
+            if (modalPrevio) modalPrevio.remove();
+
+            // 5. Crear el modal flotante en pantalla
+            const modalHTML = `
+                <div id="modal-desglose-puro" class="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+                    <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+                        
+                        <div class="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700">
+                            <h3 class="text-white font-bold text-base flex items-center">
+                                <i class="fa-solid fa-eye text-cyan-400 mr-2"></i> Detalle de Jugadas
+                            </h3>
+                            <button onclick="document.getElementById('modal-desglose-puro').remove()" class="text-slate-400 hover:text-rose-400 transition text-lg px-2">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="p-4 bg-slate-800/50 grid grid-cols-2 gap-3 border-b border-slate-700/50 text-xs">
+                            <div>
+                                <span class="text-slate-400 font-bold">Folio:</span> <strong class="text-cyan-400 font-mono">${ticket.codigo_ticket || ticket.folio || 'BX'}</strong>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-slate-400 font-bold">Estado:</span> <strong class="text-amber-400 uppercase">${ticket.estatus || ticket.estado || 'PENDIENTE'}</strong>
+                            </div>
+                        </div>
+
+                        <div class="overflow-y-auto max-h-60 bg-slate-900">
+                            <table class="w-full">
+                                <thead class="bg-slate-800 text-[10px] text-slate-400 uppercase sticky top-0">
+                                    <tr>
+                                        <th class="p-2 text-center">Número</th>
+                                        <th class="p-2 text-center">Tipo</th>
+                                        <th class="p-2 text-center">Apostado</th>
+                                        <th class="p-2 text-center">Premio</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${filasHTML}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="p-4 bg-slate-800 border-t border-slate-700 flex justify-between items-center">
+                            <div>
+                                <span class="text-slate-400 text-[10px] uppercase font-bold">Total Venta:</span>
+                                <p class="text-emerald-400 font-mono font-bold text-sm">$${parseFloat(ticket.monto_total || ticket.total || ticket.monto || 0).toFixed(2)}</p>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-slate-400 text-[10px] uppercase font-bold">Total Premio:</span>
+                                <p class="text-amber-400 font-mono font-black text-lg">$${parseFloat(ticket.premio || ticket.monto_premio || 0).toFixed(2)}</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        } catch (err) {
+            console.error(err);
+            alert("❌ No se pudo cargar el detalle: " + err.message);
+        }
+    };
+}
 
     // Apagar todos los enlaces viejos y obligarlos a usar la función nueva
     window.reimpresionUnificadaPOS = (id) => window.buxyAccionTicket(id, 'ver');

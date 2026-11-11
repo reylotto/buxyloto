@@ -70,8 +70,9 @@ window.cargarHistorialResultados = async function() {
                     <td class="p-3"><span class="bg-amber-500/20 text-amber-400 px-3 py-1 rounded font-black tracking-widest border border-amber-500/30">${p3}</span></td>
                     <td class="p-3">
                         <div class="flex gap-2">
-                            <button onclick="window.editarResultadoSorteo('${r.sorteo_id}', '${p1}', '${p2}', '${p3}')" class="bg-amber-600/20 text-amber-400 hover:bg-amber-500 hover:text-white px-3 py-1.5 rounded text-xs transition border border-amber-600/30" title="Editar"><i class="fa-solid fa-pen"></i> Editar</button>
-                            <button onclick="window.eliminarResultadoSorteo('${r.sorteo_id}')" class="bg-rose-600/20 text-rose-400 hover:bg-rose-500 hover:text-white px-3 py-1.5 rounded text-xs transition border border-rose-600/30" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                            <!-- 🔥 AHORA LE ENVIAMOS LA FECHA EXACTA DEL REGISTRO AL BOTÓN -->
+                            <button onclick="window.editarResultadoSorteo('${r.sorteo_id}', '${res.fecha}', '${p1}', '${p2}', '${p3}')" class="bg-amber-600/20 text-amber-400 hover:bg-amber-500 hover:text-white px-3 py-1.5 rounded text-xs transition border border-amber-600/30" title="Editar"><i class="fa-solid fa-pen"></i> Editar</button>
+                            <button onclick="window.eliminarResultadoSorteo('${r.sorteo_id}', '${res.fecha}')" class="bg-rose-600/20 text-rose-400 hover:bg-rose-500 hover:text-white px-3 py-1.5 rounded text-xs transition border border-rose-600/30" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
                         </div>
                     </td>
                 </tr>
@@ -85,18 +86,17 @@ window.cargarHistorialResultados = async function() {
 window.cargarHistorialSorteosEscrutados = window.cargarHistorialResultados;
 
 
-window.editarResultadoSorteo = async function(id, p1Actual, p2Actual, p3Actual) {
+// 🔥 LA FUNCIÓN AHORA RECIBE LA FECHA HISTÓRICA
+window.editarResultadoSorteo = async function(id, fechaSorteo, p1Actual, p2Actual, p3Actual) {
     const valP1 = (p1Actual === '--') ? '' : p1Actual;
     const valP2 = (p2Actual === '--') ? '' : p2Actual;
     const valP3 = (p3Actual === '--') ? '' : p3Actual;
 
-    const nuevoP1 = prompt("Nuevo 1er Premio (Deje en blanco si no aplica):", valP1);
+    const nuevoP1 = prompt(`Editando Sorteo del ${fechaSorteo}\nNuevo 1er Premio:`, valP1);
     if (nuevoP1 === null) return;
-
-    const nuevoP2 = prompt("Nuevo 2do Premio (Deje en blanco si no aplica):", valP2);
+    const nuevoP2 = prompt("Nuevo 2do Premio:", valP2);
     if (nuevoP2 === null) return;
-
-    const nuevoP3 = prompt("Nuevo 3er Premio (Deje en blanco si no aplica):", valP3);
+    const nuevoP3 = prompt("Nuevo 3er Premio:", valP3);
     if (nuevoP3 === null) return;
 
     try {
@@ -107,51 +107,29 @@ window.editarResultadoSorteo = async function(id, p1Actual, p2Actual, p3Actual) 
         const cleanP2 = nuevoP2.trim() || null;
         const cleanP3 = nuevoP3.trim() || null;
         const sorteoIdNum = parseInt(id, 10);
-        const fechaHoy = getFechaPanamaEscrutinio();
 
-        // 💡 CORRECCIÓN 2: Eliminamos la regla que forzaba estatus='cerrado' aquí.
-        // El estatus del sorteo se maneja dinámicamente por la hora del día.
-        const payload = {
-            p1: cleanP1,
-            p2: cleanP2,
-            p3: cleanP3,
-            primer_premio: cleanP1,
-            segundo_premio: cleanP2,
-            tercer_premio: cleanP3
-        };
-
-        const { error: errSorteo } = await supabase
-            .from('sorteos')
-            .update(payload)
-            .eq('id', sorteoIdNum);
-
-        if (errSorteo) throw errSorteo;
-
+        // 1. Actualizamos la tabla de resultados exactamente en la FECHA PASADA
         await supabase
             .from('resultados')
             .upsert({
                 sorteo_id: sorteoIdNum,
-                fecha: fechaHoy,
-                p1: cleanP1,
-                p2: cleanP2,
-                p3: cleanP3,
-                primero: cleanP1,
-                segundo: cleanP2,
-                tercero: cleanP3,
+                fecha: fechaSorteo, // <--- CANDADO 100% ACTIVO
+                p1: cleanP1, p2: cleanP2, p3: cleanP3,
+                primero: cleanP1, segundo: cleanP2, tercero: cleanP3,
                 updated_at: new Date().toISOString()
             }, { onConflict: 'sorteo_id,fecha' });
 
-        // Código Corregido: Le pasamos exactamente la FECHA al escrutinio
+        // 2. Evaluamos los tickets estrictamente para la fecha de ese sorteo
         try {
             await supabase.rpc('evaluar_tickets_sorteo', {
                 p_sorteo_id: sorteoIdNum,
-                p_fecha: fechaHoy // 🔥 Candado de fecha para no alterar el pasado
+                p_fecha: fechaSorteo // <--- ELIMINAMOS "fechaHoy"
             });
         } catch (rpcErr) {
             console.warn("Aviso al reevaluar tickets:", rpcErr);
         }
 
-        alert("✅ Resultado actualizado y tickets reevaluados.");
+        alert(`✅ Resultado actualizado y tickets reevaluados SOLO para la fecha: ${fechaSorteo}`);
         
         await window.cargarHistorialResultados();
         if (typeof window.cargarHistorialTickets === 'function') window.cargarHistorialTickets();
@@ -162,32 +140,26 @@ window.editarResultadoSorteo = async function(id, p1Actual, p2Actual, p3Actual) 
     }
 };
 
-window.eliminarResultadoSorteo = async function(id) {
-    if (!confirm("¿Está seguro de eliminar este resultado? Sus tickets se resetearán a 'pendiente'.")) return;
+// 🔥 LA FUNCIÓN AHORA RECIBE LA FECHA HISTÓRICA A BORRAR
+window.eliminarResultadoSorteo = async function(id, fechaSorteo) {
+    if (!confirm(`¿Está seguro de eliminar el escrutinio del día ${fechaSorteo}? Sus tickets se resetearán a 'pendiente'.`)) return;
 
     try {
         const supabase = getSupabaseClient();
         if (!supabase) throw new Error("Cliente Supabase no inicializado.");
 
         const sorteoIdNum = parseInt(id, 10);
-        const fechaHoy = getFechaPanamaEscrutinio();
 
+        // Borrar el resultado exactamente de esa fecha
         await supabase
             .from('resultados')
             .delete()
             .eq('sorteo_id', sorteoIdNum)
-            .eq('fecha', fechaHoy);
-
-        const payloadSorteo = {
-            p1: null, p2: null, p3: null,
-            primer_premio: null, segundo_premio: null, tercer_premio: null
-        };
-
-        await supabase.from('sorteos').update(payloadSorteo).eq('id', sorteoIdNum);
+            .eq('fecha', fechaSorteo); // <--- CANDADO
         
-        // Reset tickets de hoy para ese sorteo
-        const startOfDay = `${fechaHoy}T00:00:00`;
-        const endOfDay = `${fechaHoy}T23:59:59`;
+        // Reset tickets de ESA FECHA en específico (No los de hoy)
+        const startOfDay = `${fechaSorteo}T00:00:00`;
+        const endOfDay = `${fechaSorteo}T23:59:59`;
         
         await supabase
             .from('tickets')
@@ -196,7 +168,7 @@ window.eliminarResultadoSorteo = async function(id) {
             .gte('created_at', startOfDay)
             .lte('created_at', endOfDay);
 
-        alert("✅ Escrutinio eliminado.");
+        alert(`✅ Escrutinio eliminado para la fecha ${fechaSorteo}.`);
 
         await window.cargarHistorialResultados();
         if (typeof window.cargarHistorialTickets === 'function') window.cargarHistorialTickets();

@@ -226,8 +226,8 @@ if (typeof window !== 'undefined') {
             } else { alert(`⚠️ ${data?.message || 'Error al cancelar'}`); }
         } catch (err) { alert("❌ Error: " + err.message); }
     };
-    // ==========================================================
-// 🔍 VISUALIZADOR EXCLUSIVO DEL "OJITO" (DESGLOSE DE JUGADAS)
+   // ==========================================================
+// 🔍 VISUALIZADOR EXCLUSIVO DEL "OJITO" (CON SORTEO Y SUMA REAL)
 // ==========================================================
 if (typeof window !== 'undefined') {
     window.verDesgloseDirecto = async function(ticketId) {
@@ -235,7 +235,7 @@ if (typeof window !== 'undefined') {
             const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
             if (!supabase) throw new Error("Sin conexión a la Base de Datos.");
 
-            // 1. Buscar el ticket por ID o Folio
+            // 1. Buscar el ticket
             let query = supabase.from('tickets').select('*');
             if (/^\d+$/.test(String(ticketId))) {
                 query = query.eq('id', parseInt(ticketId));
@@ -243,55 +243,73 @@ if (typeof window !== 'undefined') {
                 query = query.eq('codigo_ticket', String(ticketId));
             }
 
-            let { data: ticket, error: errTicket } = await query.maybeSingle();
+            let { data: ticket } = await query.maybeSingle();
             if (!ticket) {
                 const { data: fallback } = await supabase.from('tickets').select('*').eq('folio', String(ticketId)).maybeSingle();
                 ticket = fallback;
             }
-
             if (!ticket) throw new Error("No se encontró el ticket en la base de datos.");
 
-            // 2. Buscar las jugadas asociadas en la tabla 'jugadas' o en el JSON del ticket
+            // 2. 🎯 EXTRAER EL NOMBRE DEL SORTEO
+            let nombreSorteo = ticket.sorteo_nombre || 'Sorteo General';
+            if (!ticket.sorteo_nombre && ticket.sorteo_id) {
+                try {
+                    const { data: sData } = await supabase.from('sorteos').select('nombre').eq('id', ticket.sorteo_id).maybeSingle();
+                    if (sData && sData.nombre) nombreSorteo = sData.nombre;
+                } catch(e) {}
+            }
+
+            // 3. Buscar las jugadas
             let listaJugadas = [];
             const { data: jugadasDB } = await supabase.from('jugadas').select('*').eq('ticket_id', ticket.id);
-            
             if (jugadasDB && jugadasDB.length > 0) {
                 listaJugadas = jugadasDB;
             } else {
-                // Respaldo si están guardadas en formato JSON en el ticket
                 listaJugadas = ticket.jugadas || ticket.detalles || [];
             }
 
-            // 3. Construir las filas de la tabla visual
+            // 4. Construir filas y CALCULAR SUMA REAL EN VIVO
             let filasHTML = '';
+            let sumaApostadoReal = 0;
+            let sumaPremioReal = 0;
+
             if (listaJugadas.length === 0) {
-                filasHTML = '<tr><td colspan="4" class="text-center p-4 text-slate-400 text-xs">No hay jugadas registradas para este ticket.</td></tr>';
+                filasHTML = '<tr><td colspan="4" class="text-center p-4 text-slate-400 text-xs">No hay jugadas registradas.</td></tr>';
             } else {
                 listaJugadas.forEach(j => {
                     const num = j.numero || j.num1 || '--';
                     const tipo = String(j.tipo || 'Directo').toUpperCase();
-                    const monto = parseFloat(j.monto || j.amount || j.monto_apostado || 0).toFixed(2);
-                    const premio = parseFloat(j.premio || j.monto_premio || 0).toFixed(2);
-                    const esGanador = premio > 0;
+                    const monto = parseFloat(j.monto || j.amount || j.monto_apostado || 0);
+                    const premio = parseFloat(j.premio || j.monto_premio || 0);
+                    
+                    // Suma matemática en vivo para evitar descuadres de la base de datos
+                    sumaApostadoReal += monto;
+                    sumaPremioReal += premio;
 
+                    const esGanador = premio > 0;
                     filasHTML += `
                         <tr class="border-b border-slate-700/50 text-xs hover:bg-slate-700/30">
                             <td class="p-2.5 text-center font-black text-white tracking-widest">${num}</td>
                             <td class="p-2.5 text-center text-cyan-300 font-semibold">${tipo}</td>
-                            <td class="p-2.5 text-center text-emerald-400 font-mono">$${monto}</td>
-                            <td class="p-2.5 text-center font-mono font-bold ${esGanador ? 'text-amber-400' : 'text-slate-500'}">$${premio}</td>
+                            <td class="p-2.5 text-center text-emerald-400 font-mono">$${monto.toFixed(2)}</td>
+                            <td class="p-2.5 text-center font-mono font-bold ${esGanador ? 'text-amber-400' : 'text-slate-500'}">$${premio.toFixed(2)}</td>
                         </tr>
                     `;
                 });
             }
 
-            // 4. Eliminar modal anterior si existía
+            // Validar Estado Real basado en los cálculos vivos
+            let estadoReal = sumaPremioReal > 0 ? 'PREMIADO' : (ticket.estatus || ticket.estado || 'PENDIENTE').toUpperCase();
+            if (['CANCELADO', 'ANULADO'].includes((ticket.estatus || ticket.estado || '').toUpperCase())) {
+                estadoReal = (ticket.estatus || ticket.estado).toUpperCase();
+            }
+
+            // 5. Dibujar el Modal
             const modalPrevio = document.getElementById('modal-desglose-puro');
             if (modalPrevio) modalPrevio.remove();
 
-            // 5. Crear el modal flotante en pantalla
             const modalHTML = `
-                <div id="modal-desglose-puro" class="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+                <div id="modal-desglose-puro" class="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-fade-in">
                     <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
                         
                         <div class="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700">
@@ -308,7 +326,11 @@ if (typeof window !== 'undefined') {
                                 <span class="text-slate-400 font-bold">Folio:</span> <strong class="text-cyan-400 font-mono">${ticket.codigo_ticket || ticket.folio || 'BX'}</strong>
                             </div>
                             <div class="text-right">
-                                <span class="text-slate-400 font-bold">Estado:</span> <strong class="text-amber-400 uppercase">${ticket.estatus || ticket.estado || 'PENDIENTE'}</strong>
+                                <span class="text-slate-400 font-bold">Estado:</span> <strong class="${estadoReal === 'PREMIADO' ? 'text-amber-400' : 'text-slate-300'} uppercase">${estadoReal}</strong>
+                            </div>
+                            <!-- 🎯 AQUÍ SE MUESTRA EL SORTEO -->
+                            <div class="col-span-2 pt-2 border-t border-slate-700/50 mt-1">
+                                <span class="text-slate-400 font-bold">Sorteo:</span> <strong class="text-emerald-300 uppercase">${nombreSorteo}</strong>
                             </div>
                         </div>
 
@@ -331,11 +353,11 @@ if (typeof window !== 'undefined') {
                         <div class="p-4 bg-slate-800 border-t border-slate-700 flex justify-between items-center">
                             <div>
                                 <span class="text-slate-400 text-[10px] uppercase font-bold">Total Venta:</span>
-                                <p class="text-emerald-400 font-mono font-bold text-sm">$${parseFloat(ticket.monto_total || ticket.total || ticket.monto || 0).toFixed(2)}</p>
+                                <p class="text-emerald-400 font-mono font-bold text-sm">$${sumaApostadoReal.toFixed(2)}</p>
                             </div>
                             <div class="text-right">
                                 <span class="text-slate-400 text-[10px] uppercase font-bold">Total Premio:</span>
-                                <p class="text-amber-400 font-mono font-black text-lg">$${parseFloat(ticket.premio || ticket.monto_premio || 0).toFixed(2)}</p>
+                                <p class="text-amber-400 font-mono font-black text-lg">$${sumaPremioReal.toFixed(2)}</p>
                             </div>
                         </div>
 

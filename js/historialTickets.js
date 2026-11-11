@@ -126,14 +126,11 @@ export async function cargarHistorialTicketsCentral() {
 }
 
 // ==========================================================
-// 🧠 CEREBRO DE ACCIONES Y ELIMINADOR DE VENTANA ANTIGUA
+// 🧠 CEREBRO DE ACCIONES 
 // ==========================================================
 if (typeof window !== 'undefined') {
 
-    // Destruir la ventana blanca vieja automáticamente si existe
-    const cssNeutralizador = document.createElement('style');
-    cssNeutralizador.innerHTML = `#modal-ticket-view { display: none !important; opacity: 0 !important; pointer-events: none !important; }`;
-    document.head.appendChild(cssNeutralizador);
+    // 🔥 SE ELIMINÓ EL NEUTRALIZADOR CSS QUE OCULTABA TU MODAL BLANCO (Error solucionado)
 
     window.buxyAccionTicket = async function(ticketInput, accion) {
         try {
@@ -151,7 +148,6 @@ if (typeof window !== 'undefined') {
 
             let { data: ticket } = await query.maybeSingle();
             
-            // Respaldo por folio
             if (!ticket) {
                 let { data: fallback } = await supabase.from('tickets').select('*').eq('folio', identificador).maybeSingle();
                 ticket = fallback;
@@ -159,16 +155,9 @@ if (typeof window !== 'undefined') {
 
             if (!ticket) throw new Error("Ticket no encontrado.");
 
-            // Buscar jugadas y banca segura
             const { data: jugadas } = await supabase.from('jugadas').select('*').eq('ticket_id', ticket.id);
             let nombreBanca = ticket.banca_nombre || ticket.vendedor_nombre || 'Banca General';
-            if (!ticket.banca_nombre && ticket.banca_id) {
-                try {
-                    const { data: bData } = await supabase.from('bancas').select('nombre').eq('id', ticket.banca_id).maybeSingle();
-                    if (bData && bData.nombre) nombreBanca = bData.nombre;
-                } catch(e) {}
-            }
-
+            
             const ticketData = {
                 ...ticket,
                 codigo_ticket: ticket.codigo_ticket || ticket.folio || ticket.codigo || 'BX-000000',
@@ -181,17 +170,23 @@ if (typeof window !== 'undefined') {
             if (accion === 'ver') {
                 if (typeof window.mostrarOpcionesExportacionTicket === 'function') {
                     window.mostrarOpcionesExportacionTicket(ticketData);
-                } else { alert("Error: El gestor de ventanas no está cargado."); }
+                } 
             } else if (accion === 'imprimir') {
                 if (typeof window.imprimirTicketTermica === 'function') {
                     window.imprimirTicketTermica(ticketData);
-                } else { alert("Error: El gestor de impresión no está cargado."); }
+                } 
             } else if (accion === 'detalle') {
-                // 🔥 NUEVO RUTEO PARA EL "OJITO" (Desglose de jugadas)
-                if (typeof window.verTicketHistorial === 'function') {
-                    window.verTicketHistorial(ticketData.codigo_ticket);
+                // 🔥 RECONEXIÓN AL RECIBO BLANCO ORIGINAL (El Ojito)
+                if (typeof window.verTicketDetalle === 'function') {
+                    window.verTicketDetalle(ticket.id);
+                } else if (typeof window.verTicketDetalleDirecto === 'function') {
+                    window.verTicketDetalleDirecto(ticket.id);
+                } else if (typeof window.showTicketModal === 'function') {
+                    window.showTicketModal(ticket.id);
+                } else if (typeof window.verTicketHistorial === 'function') {
+                    window.verTicketHistorial(ticket.id);
                 } else { 
-                    alert("Error: El visor de detalles no está cargado."); 
+                    alert("Error: El visor del recibo no está cargado."); 
                 }
             }
         } catch (err) { 
@@ -199,6 +194,7 @@ if (typeof window !== 'undefined') {
             alert("❌ " + err.message); 
         }
     };
+
 
 
     window.cancelarTicketDefinitivo = async function(ticketRef) {

@@ -61,24 +61,48 @@ if (loginForm) {
                 });
                 
                 if (!authError && authData.user) {
-                    const { data: perfilReal } = await window.supabase
-                        .from('usuarios')
+                    // 🔥 PASO 1: BUSCAR PRIMERO EN PROFILES (Dueños de Inquilinos y Maestro)
+                    const { data: perfilVIP } = await window.supabase
+                        .from('profiles')
                         .select('*')
-                        .eq('email', userInput)
+                        .eq('id', authData.user.id)
                         .maybeSingle();
 
-                    if (perfilReal) {
-                        cuentaUsuario = perfilReal; 
-                    } else {
+                    if (perfilVIP) {
                         cuentaUsuario = {
-                            id: authData.user.id,
-                            nombre: 'Administrador Maestro',
-                            username: 'admin',
-                            rol: 'admin',
+                            id: perfilVIP.id,
+                            nombre: perfilVIP.nombre_completo || 'Administrador',
+                            username: perfilVIP.nombre_usuario || 'admin',
+                            // Adaptar el rol según lo que uses en profiles
+                            rol: perfilVIP.rol_id === 1 ? 'admin' : (perfilVIP.rol || 'admin'), 
                             email: authData.user.email,
                             estatus: 'activo',
-                            zona: 'Zona General'
+                            zona: 'Zona General',
+                            inquilino_id: perfilVIP.inquilino_id // 🔥 AQUÍ CAPTURAMOS LA EMPRESA
                         };
+                    } else {
+                        // 🔥 PASO 2: SI NO ES VIP, BUSCAR EN USUARIOS (Supervisores normales)
+                        const { data: perfilReal } = await window.supabase
+                            .from('usuarios')
+                            .select('*')
+                            .eq('email', userInput)
+                            .maybeSingle();
+
+                        if (perfilReal) {
+                            cuentaUsuario = perfilReal; 
+                        } else {
+                            // PASO 3: SALVAVIDAS (Solo si la DB está vacía o hay un error crítico)
+                            cuentaUsuario = {
+                                id: authData.user.id,
+                                nombre: 'Administrador Maestro',
+                                username: 'admin',
+                                rol: 'admin',
+                                email: authData.user.email,
+                                estatus: 'activo',
+                                zona: 'Zona General',
+                                inquilino_id: null
+                            };
+                        }
                     }
                 }
             }
@@ -141,10 +165,13 @@ if (loginForm) {
 
             // Paso C: Determinar la ruta de destino
             const rolActual = String(cuentaUsuario.rol || 'caja').toLowerCase();
-            if (rolActual.includes('caja') || rolActual.includes('vendedor') || rolActual.includes('banca')) {
-                window.location.hash = '#pos';
+            // 🔥 ORDEN ESTRICTO MULTI-TENANT PARA EVITAR EL F5
+            
+            // Paso A: Guardar el ID de la empresa en la memoria
+            if (cuentaUsuario.inquilino_id && cuentaUsuario.inquilino_id !== 'null') {
+                localStorage.setItem('inquilino_id', cuentaUsuario.inquilino_id);
             } else {
-                window.location.hash = '#dashboard';
+                localStorage.removeItem('inquilino_id');
             }
 
             // Paso D: 🚀 FORZAR RECARGA INMEDIATA 

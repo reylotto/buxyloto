@@ -140,35 +140,41 @@ window.editarResultadoSorteo = async function(id, fechaSorteo, p1Actual, p2Actua
     }
 };
 
-// 🔥 LA FUNCIÓN AHORA RECIBE LA FECHA HISTÓRICA A BORRAR
-window.eliminarResultadoSorteo = async function(id, fechaSorteo) {
-    if (!confirm(`¿Está seguro de eliminar el escrutinio del día ${fechaSorteo}? Sus tickets se resetearán a 'pendiente'.`)) return;
+// 🔥 FUNCIÓN BLINDADA CONTRA BORRADOS GLOBALES
+window.eliminarResultadoSorteo = async function(sorteoId, fechaSorteo) {
+    if (!confirm(`¿Está seguro de eliminar el escrutinio del día ${fechaSorteo}? Los tickets de este día se resetearán a 'pendiente'.`)) return;
 
     try {
         const supabase = getSupabaseClient();
         if (!supabase) throw new Error("Cliente Supabase no inicializado.");
 
-        const sorteoIdNum = parseInt(id, 10);
+        const sorteoIdNum = parseInt(sorteoId, 10);
 
-        // Borrar el resultado exactamente de esa fecha
-        await supabase
+        // 1. Borrar el resultado EXCLUSIVAMENTE de esa fecha y de ese sorteo_id (Usamos .eq para ambos para no borrar el pasado)
+        const { error: errDel } = await supabase
             .from('resultados')
             .delete()
             .eq('sorteo_id', sorteoIdNum)
-            .eq('fecha', fechaSorteo); // <--- CANDADO
+            .eq('fecha', fechaSorteo); // <--- CANDADO DE ACERO
+
+        if (errDel) throw errDel;
         
-        // 🔥 Inyectamos -05:00 para forzar a Supabase a usar el horario de Panamá
+        // 2. Resetear los tickets ESTRICTAMENTE de ESA FECHA en específico (con horario de Panamá -05:00)
         const startOfDay = `${fechaSorteo}T00:00:00-05:00`;
         const endOfDay = `${fechaSorteo}T23:59:59-05:00`;
         
-        await supabase
+        const { error: errTickets } = await supabase
             .from('tickets')
             .update({ estatus: 'pendiente', estado: 'pendiente', premio: 0, monto_premio: 0 })
             .eq('sorteo_id', sorteoIdNum)
             .gte('created_at', startOfDay)
             .lte('created_at', endOfDay);
 
-        alert(`✅ Escrutinio eliminado para la fecha ${fechaSorteo}.`);
+        if (errTickets) {
+            console.warn("Aviso al resetear tickets:", errTickets.message);
+        }
+
+        alert(`✅ Escrutinio eliminado para la fecha ${fechaSorteo}. Los demás días están a salvo.`);
 
         await window.cargarHistorialResultados();
         if (typeof window.cargarHistorialTickets === 'function') window.cargarHistorialTickets();

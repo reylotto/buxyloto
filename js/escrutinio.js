@@ -71,7 +71,7 @@ window.cargarHistorialResultados = async function() {
                     <td class="p-3">
                         <div class="flex gap-2">
                             <!-- 🔥 AHORA LE ENVIAMOS LA FECHA EXACTA DEL REGISTRO AL BOTÓN -->
-                            <button onclick="window.editarResultadoSorteo('${r.sorteo_id}', '${res.fecha}', '${p1}', '${p2}', '${p3}')" class="bg-amber-600/20 text-amber-400 hover:bg-amber-500 hover:text-white px-3 py-1.5 rounded text-xs transition border border-amber-600/30" title="Editar"><i class="fa-solid fa-pen"></i> Editar</button>
+                            <button onclick="window.editarResultadoSorteo('${r.sorteo_id}', '${r.fecha}', '${p1}', '${p2}', '${p3}')" class="bg-amber-600/20 text-amber-400 hover:bg-amber-500 hover:text-white px-3 py-1.5 rounded text-xs transition border border-amber-600/30" title="Editar"><i class="fa-solid fa-pen"></i> Editar</button>
                             <button onclick="window.eliminarResultadoSorteo('${r.sorteo_id}', '${res.fecha}')" class="bg-rose-600/20 text-rose-400 hover:bg-rose-500 hover:text-white px-3 py-1.5 rounded text-xs transition border border-rose-600/30" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
                         </div>
                     </td>
@@ -157,9 +157,9 @@ window.eliminarResultadoSorteo = async function(id, fechaSorteo) {
             .eq('sorteo_id', sorteoIdNum)
             .eq('fecha', fechaSorteo); // <--- CANDADO
         
-        // Reset tickets de ESA FECHA en específico (No los de hoy)
-        const startOfDay = `${fechaSorteo}T00:00:00`;
-        const endOfDay = `${fechaSorteo}T23:59:59`;
+        // 🔥 Inyectamos -05:00 para forzar a Supabase a usar el horario de Panamá
+        const startOfDay = `${fechaSorteo}T00:00:00-05:00`;
+        const endOfDay = `${fechaSorteo}T23:59:59-05:00`;
         
         await supabase
             .from('tickets')

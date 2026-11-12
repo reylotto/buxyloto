@@ -171,25 +171,28 @@ function inicializarFormularioResultados() {
             const esInquilino = (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '');
             const sorteoIdNum = parseInt(sorteo_id);
 
-            // 1. Guardar en la tabla 'resultados' con aislamiento estricto
-            const payloadResultados = {
-                sorteo_id: sorteoIdNum,
-                fecha: fecha,
-                p1: primero,
-                p2: segundo,
-                p3: tercero,
-                primero: primero,
-                segundo: segundo,
-                tercero: tercero,
-                inquilino_id: esInquilino ? inquilinoId : null, // 🔥 BLINDAJE: Nulo para el Maestro
-                updated_at: new Date().toISOString()
-            };
+            // 2. Actualizar la tabla maestra 'sorteos' SOLO SI LA FECHA ES HOY
+            const fechaHoyPanama = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+            
+            if (fecha === fechaHoyPanama) {
+                const payloadSorteo = {
+                    p1: primero,
+                    p2: segundo,
+                    p3: tercero,
+                    primer_premio: primero,
+                    segundo_premio: segundo,
+                    tercer_premio: tercero,
+                    estatus: 'cerrado',
+                    estado: 'cerrado'
+                };
 
-            const { error: errRes } = await supabase
-                .from('resultados')
-                .upsert(payloadResultados, { onConflict: 'sorteo_id,fecha' });
+                const { error: errSorteo } = await supabase
+                    .from('sorteos')
+                    .update(payloadSorteo)
+                    .eq('id', sorteoIdNum);
 
-            if (errRes) throw errRes;
+                if (errSorteo) throw errSorteo;
+            }
 
             // 2. Actualizar la tabla 'sorteos'
             const payloadSorteo = {
@@ -211,22 +214,17 @@ function inicializarFormularioResultados() {
             if (errSorteo) throw errSorteo;
 
             // 3. 🚀 Ejecutar la evaluación de tickets en Supabase (RPC)
-            try {
-                // Aquí usamos EXACTAMENTE los parámetros que la función SQL pide: p_sorteo_id y p_fecha
-                const { error: errRpc } = await supabase.rpc('evaluar_tickets_sorteo', {
-                    p_sorteo_id: sorteoIdNum,
-                    p_fecha: fecha
-                });
+            const { error: errRpc } = await supabase.rpc('evaluar_tickets_sorteo', {
+                p_sorteo_id: sorteoIdNum,
+                p_fecha: fecha
+            });
 
-                if (errRpc) {
-                    console.error("Aviso en evaluar_tickets_sorteo:", errRpc.message);
-                }
-            } catch (rpcErr) {
-                console.error("Error al ejecutar RPC evaluar_tickets_sorteo:", rpcErr);
+            // 🔥 Si la fórmula falla o no existe, SE DETIENE TODO y lanza el error real
+            if (errRpc) {
+                throw new Error("Fallo en la base de datos al evaluar: " + errRpc.message);
             }
 
             alert(`🚀 Resultado guardado y tickets evaluados correctamente (${fecha})`);
-
             // Limpiar los inputs
             document.getElementById('result-p1').value = '';
             document.getElementById('result-p2').value = '';

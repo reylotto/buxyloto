@@ -113,23 +113,63 @@ window.cargarResultadoEnFormulario = cargarResultadoEnFormulario;
 
 async function eliminarResultado(id) {
     if (!id || id === 'undefined') return alert("ID de registro no válido.");
-    if (!confirm("¿Desea eliminar este resultado escrutado?")) return;
-
+    
+    // 1. Primero obtenemos los datos del resultado que se va a borrar para conocer su fecha exacta y su sorteo_id
     const supabase = getSupabaseInstance();
     if (!supabase) return;
 
     try {
-        const { error } = await supabase.from('resultados').delete().eq('id', id);
-        if (error) throw error;
+        const { data: resData, error: errFetch } = await supabase
+            .from('resultados')
+            .select('*')
+            .eq('id', id)
+            .single();
 
-        alert("✅ Resultado eliminado correctamente.");
+        if (errFetch || !resData) {
+            throw new Error("No se pudo encontrar el registro del resultado a eliminar.");
+        }
+
+        const sorteoIdNum = resData.sorteo_id;
+        const fechaSorteo = resData.fecha; // <--- LA FECHA EXACTA SAGRADA
+
+        if (!confirm(`¿Desea eliminar este resultado del día ${fechaSorteo}? Los tickets de este día se resetearán a 'pendiente'.`)) return;
+
+        // 2. Borrar el resultado exclusivamente de esa fecha y ID
+        const { error: errDel } = await supabase
+            .from('resultados')
+            .delete()
+            .eq('id', id);
+
+        if (errDel) throw errDel;
+
+        // 3. Resetear los tickets ESTRICTAMENTE de ESA FECHA en específico (con horario de Panamá -05:00)
+        const startOfDay = `${fechaSorteo}T00:00:00-05:00`;
+        const endOfDay = `${fechaSorteo}T23:59:59-05:00`;
+        
+        const { error: errTickets } = await supabase
+            .from('tickets')
+            .update({ estatus: 'pendiente', estado: 'pendiente', premio: 0, monto_premio: 0 })
+            .eq('sorteo_id', sorteoIdNum)
+            .gte('created_at', startOfDay)
+            .lte('created_at', endOfDay);
+
+        if (errTickets) {
+            console.warn("Aviso al resetear tickets:", errTickets.message);
+        }
+
+        alert(`✅ Escrutinio eliminado correctamente para la fecha ${fechaSorteo}. Los días anteriores y futuros están a salvo.`);
+        
         await cargarHistorialResultados();
         if (typeof window.cargarHistorialSorteosEscrutados === 'function') {
             await window.cargarHistorialSorteosEscrutados();
         }
+        if (typeof window.cargarHistorialTickets === 'function') {
+            await window.cargarHistorialTickets();
+        }
+
     } catch (err) {
         console.error("Error al eliminar:", err);
-        alert("Error al eliminar de Supabase: " + err.message);
+        alert("❌ Error al eliminar en Supabase: " + err.message);
     }
 }
 window.eliminarResultado = eliminarResultado;

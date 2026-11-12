@@ -171,25 +171,28 @@ function inicializarFormularioResultados() {
             const esInquilino = (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '');
             const sorteoIdNum = parseInt(sorteo_id);
 
-            // 1. Guardar en la tabla 'resultados' con aislamiento estricto
-            const payloadResultados = {
-                sorteo_id: sorteoIdNum,
-                fecha: fecha,
-                p1: primero,
-                p2: segundo,
-                p3: tercero,
-                primero: primero,
-                segundo: segundo,
-                tercero: tercero,
-                inquilino_id: esInquilino ? inquilinoId : null, // 🔥 BLINDAJE: Nulo para el Maestro
-                updated_at: new Date().toISOString()
-            };
+            // 2. Actualizar la tabla maestra 'sorteos' SOLO SI LA FECHA ES HOY
+            const fechaHoyPanama = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+            
+            if (fecha === fechaHoyPanama) {
+                const payloadSorteo = {
+                    p1: primero,
+                    p2: segundo,
+                    p3: tercero,
+                    primer_premio: primero,
+                    segundo_premio: segundo,
+                    tercer_premio: tercero,
+                    estatus: 'cerrado',
+                    estado: 'cerrado'
+                };
 
-            const { error: errRes } = await supabase
-                .from('resultados')
-                .upsert(payloadResultados, { onConflict: 'sorteo_id,fecha' });
+                const { error: errSorteo } = await supabase
+                    .from('sorteos')
+                    .update(payloadSorteo)
+                    .eq('id', sorteoIdNum);
 
-            if (errRes) throw errRes;
+                if (errSorteo) throw errSorteo;
+            }
 
             // 2. Actualizar la tabla 'sorteos'
             const payloadSorteo = {

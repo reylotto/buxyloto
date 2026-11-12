@@ -37,21 +37,25 @@ async function cargarFiltrosAisladosBalances() {
     try {
         const inquilinoId = localStorage.getItem('inquilino_id');
 
-        // 1. Aislar Supervisores
-        let querySuper = window.supabase.from('usuarios').select('id, nombre_banca, username, nombre_completo').eq('rol', 'supervisor');
+        // 1. Aislar Supervisores (CORREGIDO: columna 'nombre' en vez de 'nombre_completo')
+        let querySuper = window.supabase.from('usuarios').select('id, nombre_banca, username, nombre').eq('rol', 'supervisor');
+        
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             querySuper = querySuper.eq('inquilino_id', inquilinoId);
         } else {
             querySuper = querySuper.is('inquilino_id', null);
         }
-        const { data: superData } = await querySuper;
+        
+        const { data: superData, error: errSuper } = await querySuper;
+        if (errSuper) throw errSuper; // Atrapa el error si la tabla cambia
         
         const selectSuper = document.querySelector('select#filtro-supervisor') || document.querySelector('select[name="supervisor"]');
         if (selectSuper) {
             selectSuper.innerHTML = '<option value="TODOS">Todos los supervisores</option>';
             (superData || []).forEach(s => {
-                const nombre = s.nombre_completo || s.nombre_banca || s.username || 'Supervisor';
-                selectSuper.insertAdjacentHTML('beforeend', `<option value="${s.id}">${nombre}</option>`);
+                // Usa 'nombre' en lugar de 'nombre_completo'
+                const nombreMostrar = s.nombre || s.nombre_banca || s.username || 'Supervisor';
+                selectSuper.insertAdjacentHTML('beforeend', `<option value="${s.id}">${nombreMostrar}</option>`);
             });
         }
 
@@ -62,7 +66,9 @@ async function cargarFiltrosAisladosBalances() {
         } else {
             queryLot = queryLot.is('inquilino_id', null);
         }
-        const { data: lotData } = await queryLot;
+        
+        const { data: lotData, error: errLot } = await queryLot;
+        if (errLot) throw errLot;
 
         const selectLot = document.querySelector('select#filtro-loteria') || document.querySelector('select[name="loteria"]');
         if (selectLot) {

@@ -169,9 +169,29 @@ function inicializarFormularioResultados() {
         try {
             const inquilinoId = localStorage.getItem('inquilino_id');
             const esInquilino = (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '');
-            const sorteoIdNum = parseInt(sorteo_id);
+            const sorteoIdNum = parseInt(sorteo_id, 10);
 
-            // 2. Actualizar la tabla maestra 'sorteos' SOLO SI LA FECHA ES HOY
+            // 1. Guardar en la tabla 'resultados' con aislamiento estricto
+            const payloadResultados = {
+                sorteo_id: sorteoIdNum,
+                fecha: fecha,
+                p1: primero,
+                p2: segundo,
+                p3: tercero,
+                primero: primero,
+                segundo: segundo,
+                tercero: tercero,
+                inquilino_id: esInquilino ? inquilinoId : null,
+                updated_at: new Date().toISOString()
+            };
+
+            const { error: errRes } = await supabase
+                .from('resultados')
+                .upsert(payloadResultados, { onConflict: 'sorteo_id,fecha' });
+
+            if (errRes) throw errRes;
+
+            // 2. Actualizar la tabla maestra 'sorteos' ÚNICAMENTE SI LA FECHA ES HOY
             const fechaHoyPanama = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
             
             if (fecha === fechaHoyPanama) {
@@ -194,20 +214,18 @@ function inicializarFormularioResultados() {
                 if (errSorteo) throw errSorteo;
             }
 
-            
-
-            // 3. 🚀 Ejecutar la evaluación de tickets en Supabase (RPC)
+            // 3. 🚀 Ejecutar la función blindada de evaluación de tickets en Supabase (RPC)
             const { error: errRpc } = await supabase.rpc('evaluar_tickets_sorteo', {
                 p_sorteo_id: sorteoIdNum,
                 p_fecha: fecha
             });
 
-            // 🔥 Si la fórmula falla o no existe, SE DETIENE TODO y lanza el error real
             if (errRpc) {
                 throw new Error("Fallo en la base de datos al evaluar: " + errRpc.message);
             }
 
-            alert(`🚀 Resultado guardado y tickets evaluados correctamente (${fecha})`);
+            alert(`🚀 Resultado guardado y tickets evaluados correctamente para el día ${fecha}`);
+
             // Limpiar los inputs
             document.getElementById('result-p1').value = '';
             document.getElementById('result-p2').value = '';
@@ -226,7 +244,7 @@ function inicializarFormularioResultados() {
 
         } catch (err) {
             console.error("Error al guardar resultado:", err);
-            alert("Error al guardar en Supabase: " + err.message);
+            alert("❌ Error al guardar en Supabase: " + err.message);
         } finally {
             if (btnSubmit) btnSubmit.disabled = false;
         }

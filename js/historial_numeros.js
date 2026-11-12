@@ -31,7 +31,17 @@ async function cargarLoteriasParaFiltroHistorial() {
         const supabase = window.supabaseClient || window.supabase;
         if (!supabase) return;
 
-        const { data, error } = await supabase.from('sorteos').select('id, nombre, estatus');
+        // 🔥 ESCUDO MULTI-TENANT PARA EL SELECT DE LOTERÍAS
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        let querySorteos = supabase.from('sorteos').select('id, nombre, estatus');
+        
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
+            querySorteos = querySorteos.eq('inquilino_id', inquilinoId);
+        } else {
+            querySorteos = querySorteos.is('inquilino_id', null);
+        }
+
+        const { data, error } = await querySorteos;
         if (error) throw error;
 
         const selectFiltro = document.getElementById('filtro-loteria-numeros');

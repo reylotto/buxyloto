@@ -15,10 +15,66 @@ export async function initBalancesCuadresModule() {
     if (btnDesde && !btnDesde.value) btnDesde.value = hoy;
     if (btnHasta && !btnHasta.value) btnHasta.value = hoy;
 
+    // 🔥 NUEVO: INYECTAR OPCIONES DE CHANCE Y BILLETE AL FILTRO DE JUGADAS (Si existe)
+    const selectJugada = document.querySelector('select[name="jugada"]') || document.getElementById('filtro-jugada');
+    if (selectJugada && !selectJugada.innerHTML.includes('chance')) {
+        // Asegurarnos de no duplicar si ya están
+        if(!selectJugada.querySelector('option[value="chance"]')) {
+             selectJugada.insertAdjacentHTML('beforeend', '<option value="chance">Chance</option>');
+        }
+        if(!selectJugada.querySelector('option[value="billete"]')) {
+             selectJugada.insertAdjacentHTML('beforeend', '<option value="billete">Billete</option>');
+        }
+    }
+
     await cargarListaVendedores();
+    await cargarFiltrosAisladosBalances(); // 🔥 Llenar loterías y supervisores de forma segura
     await window.cargarResumenBalances();
 }
 window.initBalancesCuadresModule = initBalancesCuadresModule;
+// 🔥 NUEVO: FUNCIÓN PARA AISLAR FILTROS DESPLEGABLES EN BALANCES
+async function cargarFiltrosAisladosBalances() {
+    try {
+        const inquilinoId = localStorage.getItem('inquilino_id');
+
+        // 1. Aislar Supervisores
+        let querySuper = window.supabase.from('usuarios').select('id, nombre_banca, username, nombre_completo').eq('rol', 'supervisor');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
+            querySuper = querySuper.eq('inquilino_id', inquilinoId);
+        } else {
+            querySuper = querySuper.is('inquilino_id', null);
+        }
+        const { data: superData } = await querySuper;
+        
+        const selectSuper = document.querySelector('select#filtro-supervisor') || document.querySelector('select[name="supervisor"]');
+        if (selectSuper) {
+            selectSuper.innerHTML = '<option value="TODOS">Todos los supervisores</option>';
+            (superData || []).forEach(s => {
+                const nombre = s.nombre_completo || s.nombre_banca || s.username || 'Supervisor';
+                selectSuper.insertAdjacentHTML('beforeend', `<option value="${s.id}">${nombre}</option>`);
+            });
+        }
+
+        // 2. Aislar Loterías
+        let queryLot = window.supabase.from('sorteos').select('id, nombre');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
+            queryLot = queryLot.eq('inquilino_id', inquilinoId);
+        } else {
+            queryLot = queryLot.is('inquilino_id', null);
+        }
+        const { data: lotData } = await queryLot;
+
+        const selectLot = document.querySelector('select#filtro-loteria') || document.querySelector('select[name="loteria"]');
+        if (selectLot) {
+            selectLot.innerHTML = '<option value="TODAS">Todas las loterías</option>';
+            (lotData || []).forEach(l => {
+                selectLot.insertAdjacentHTML('beforeend', `<option value="${l.id}">${l.nombre}</option>`);
+            });
+        }
+    } catch (e) {
+        console.error("Error cargando filtros aislados en Balances:", e);
+    }
+}
 
 async function cargarListaVendedores() {
     try {

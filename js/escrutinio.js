@@ -157,9 +157,9 @@ window.eliminarResultadoSorteo = async function(id, fechaSorteo) {
             .eq('sorteo_id', sorteoIdNum)
             .eq('fecha', fechaSorteo); // <--- CANDADO
         
-        // 🔥 Inyectamos -05:00 para forzar a Supabase a usar el horario de Panamá
-        const startOfDay = `${fechaSorteo}T00:00:00-05:00`;
-        const endOfDay = `${fechaSorteo}T23:59:59-05:00`;
+        // Reset tickets de ESA FECHA en específico (No los de hoy)
+        const startOfDay = `${fechaSorteo}T00:00:00`;
+        const endOfDay = `${fechaSorteo}T23:59:59`;
         
         await supabase
             .from('tickets')

@@ -150,39 +150,44 @@ window.eliminarResultadoSorteo = async function(sorteoId, fechaSorteo) {
 
         const sorteoIdNum = parseInt(sorteoId, 10);
 
-        // 1. Borrar el resultado EXCLUSIVAMENTE de esa fecha y de ese sorteo_id (Usamos .eq para ambos para no borrar el pasado)
-        const { error: errDel } = await supabase
-            .from('resultados')
-            .delete()
-            .eq('sorteo_id', sorteoIdNum)
-            .eq('fecha', fechaSorteo); // <--- CANDADO DE ACERO
+        // Llamamos a la función RPC blindada en la base de datos
+        const { error: errRpc } = await supabase.rpc('eliminar_resultado_seguro', {
+            p_sorteo_id: sorteoIdNum,
+            p_fecha: fechaSorteo
+        });
 
-        if (errDel) throw errDel;
-        
-        // 2. Resetear los tickets ESTRICTAMENTE de ESA FECHA en específico (con horario de Panamá -05:00)
-        const startOfDay = `${fechaSorteo}T00:00:00-05:00`;
-        const endOfDay = `${fechaSorteo}T23:59:59-05:00`;
-        
-        const { error: errTickets } = await supabase
-            .from('tickets')
-            .update({ estatus: 'pendiente', estado: 'pendiente', premio: 0, monto_premio: 0 })
-            .eq('sorteo_id', sorteoIdNum)
-            .gte('created_at', startOfDay)
-            .lte('created_at', endOfDay);
+        if (errRpc) throw errRpc;
 
-        if (errTickets) {
-            console.warn("Aviso al resetear tickets:", errTickets.message);
-        }
-
-        alert(`✅ Escrutinio eliminado para la fecha ${fechaSorteo}. Los demás días están a salvo.`);
+        alert(`✅ Escrutinio eliminado perfectamente para la fecha ${fechaSorteo}. Los demás días están totalmente a salvo.`);
 
         await window.cargarHistorialResultados();
         if (typeof window.cargarHistorialTickets === 'function') window.cargarHistorialTickets();
-        await notificarActualizacionResumen();
+        if (typeof notificarActualizacionResumen === 'function') await notificarActualizacionResumen();
 
     } catch (err) {
         alert("❌ Error al borrar resultado: " + (err.message || err));
     }
+};
+
+// Vinculamos también para la otra vista si usa el mismo nombre
+window.eliminarResultado = async function(idRegistro) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    // Buscamos primero el sorteo_id y la fecha exacta de ese ID en la tabla resultados
+    const { data, error } = await supabase
+        .from('resultados')
+        .select('sorteo_id, fecha')
+        .eq('id', idRegistro)
+        .single();
+
+    if (error || !data) {
+        alert("No se pudo localizar el registro para eliminar.");
+        return;
+    }
+
+    // Ejecutamos la eliminación segura por RPC
+    await window.eliminarResultadoSorteo(data.sorteo_id, data.fecha);
 };
 
 // 💡 SCRAPER BLINDADO CONTRA FALSOS POSITIVOS (ANTI-90)

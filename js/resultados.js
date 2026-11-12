@@ -194,24 +194,7 @@ function inicializarFormularioResultados() {
                 if (errSorteo) throw errSorteo;
             }
 
-            // 2. Actualizar la tabla 'sorteos'
-            const payloadSorteo = {
-                p1: primero,
-                p2: segundo,
-                p3: tercero,
-                primer_premio: primero,
-                segundo_premio: segundo,
-                tercer_premio: tercero,
-                estatus: 'cerrado',
-                estado: 'cerrado'
-            };
-
-            const { error: errSorteo } = await supabase
-                .from('sorteos')
-                .update(payloadSorteo)
-                .eq('id', sorteoIdNum);
-
-            if (errSorteo) throw errSorteo;
+            
 
             // 3. 🚀 Ejecutar la evaluación de tickets en Supabase (RPC)
             const { error: errRpc } = await supabase.rpc('evaluar_tickets_sorteo', {

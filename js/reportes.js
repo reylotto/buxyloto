@@ -957,6 +957,69 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// 🔥 BLINDAJE DE FILTROS DE AUDITORÍA (MULTI-INQUILINO)
+window.cargarFiltrosAuditoriaAislados = async function() {
+    const inquilinoId = localStorage.getItem('inquilino_id');
+    const esInquilino = (inquilinoId && inquilinoId !== 'null' && String(inquilinoId).trim() !== '');
+    const supabase = window.supabaseClient || window.supabase;
+    if (!supabase) return;
+
+    try {
+        // 1. Aislar Supervisores
+        let qSup = supabase.from('perfiles').select('id, nombre, username').eq('rol', 'supervisor');
+        if (esInquilino) qSup = qSup.eq('inquilino_id', inquilinoId);
+        else qSup = qSup.is('inquilino_id', null);
+
+        const { data: supervisores } = await qSup;
+        const selSup = document.getElementById('rep-filtro-supervisor');
+        if (selSup) {
+            selSup.innerHTML = '<option value="todos">Todos los supervisores</option>';
+            (supervisores || []).forEach(s => {
+                selSup.insertAdjacentHTML('beforeend', `<option value="${s.id}">${s.nombre || s.username}</option>`);
+            });
+        }
+
+        // 2. Aislar Vendedores / Bancas
+        let qVen = supabase.from('bancas').select('id, nombre_banca, vendedor_nombre');
+        if (esInquilino) qVen = qVen.eq('inquilino_id', inquilinoId);
+        else qVen = qVen.is('inquilino_id', null);
+
+        const { data: vendedores } = await qVen;
+        const selVen = document.getElementById('rep-filtro-vendedor');
+        if (selVen) {
+            selVen.innerHTML = '<option value="todos">Todos los vendedores</option>';
+            (vendedores || []).forEach(v => {
+                selVen.insertAdjacentHTML('beforeend', `<option value="${v.id}">${v.nombre_banca || v.vendedor_nombre}</option>`);
+            });
+        }
+
+        // 3. Aislar Loterías
+        let qLot = supabase.from('sorteos').select('id, nombre');
+        if (esInquilino) qLot = qLot.eq('inquilino_id', inquilinoId);
+        else qLot = qLot.is('inquilino_id', null);
+
+        const { data: loterias } = await qLot;
+        const selLot = document.getElementById('rep-filtro-loteria');
+        if (selLot) {
+            selLot.innerHTML = '<option value="todas">Todas las loterías</option>';
+            (loterias || []).forEach(l => {
+                selLot.insertAdjacentHTML('beforeend', `<option value="${l.id}">${l.nombre}</option>`);
+            });
+        }
+    } catch (error) {
+        console.error("Error al cargar filtros de auditoría:", error);
+    }
+};
+
+// Activar la carga segura apenas el documento esté listo
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        if (typeof window.cargarFiltrosAuditoriaAislados === 'function') {
+            window.cargarFiltrosAuditoriaAislados();
+        }
+    }, 1000);
+});
+
 // Asignaciones globales
 window.initReportesModule = initReportesModule;
 window.generarReporte = generarReporte;

@@ -78,7 +78,7 @@ window.guardarTarifasInquilino = async function() {
     try {
         const supabase = window.supabaseClient || window.supabase;
 
-        // Leer valores extranjeras del HTML (Si están vacíos, se enviará nulo para que el SQL use el default)
+        // 1. LEER VALORES EXTRANJERA
         const vDir1 = document.getElementById('t-dir-1').value;
         const vDir2 = document.getElementById('t-dir-2').value;
         const vDir3 = document.getElementById('t-dir-3').value;
@@ -92,18 +92,32 @@ window.guardarTarifasInquilino = async function() {
             pago_directo_2: vDir2 ? parseFloat(vDir2) : null,
             pago_directo_3: vDir3 ? parseFloat(vDir3) : null,
             pago_pale_1_2: vPale1 ? parseFloat(vPale1) : null,
-            pago_pale_1_3: vPale1 ? parseFloat(vPale1) : null, // Se paga igual que 1ro con 2do
+            pago_pale_1_3: vPale1 ? parseFloat(vPale1) : null,
             pago_pale_2_3: vPale2 ? parseFloat(vPale2) : null,
             updated_at: new Date().toISOString()
         };
 
-        // Guardar en la nueva tabla matemática
+        // 2. LEER VALORES NACIONAL (Chances como equivalentes al Directo)
+        const vChan1 = document.getElementById('t-c1').value;
+        const vChan2 = document.getElementById('t-c2').value;
+        const vChan3 = document.getElementById('t-c3').value;
+
+        const payloadNacional = {
+            inquilino_id: inquilinoId,
+            tipo_loteria: 'nacional',
+            pago_directo_1: vChan1 ? parseFloat(vChan1) : null,
+            pago_directo_2: vChan2 ? parseFloat(vChan2) : null,
+            pago_directo_3: vChan3 ? parseFloat(vChan3) : null,
+            updated_at: new Date().toISOString()
+        };
+
+        // 3. ENVIAR AMBAS FILAS A SUPABASE AL MISMO TIEMPO
         const { error } = await supabase
             .from('tarifas_inquilinos')
-            .upsert(payloadExtranjera, { onConflict: 'inquilino_id,tipo_loteria' });
+            .upsert([payloadExtranjera, payloadNacional], { onConflict: 'inquilino_id,tipo_loteria' });
         
         if (error) throw error;
-        alert("✅ Tarifas de Lotería Extranjera guardadas con éxito y vinculadas al Escrutinio.");
+        alert("✅ Tarifas de premios (Extranjera y Nacional) guardadas con éxito y vinculadas al Escrutinio.");
     } catch (e) {
         alert("❌ Error al guardar las tarifas: " + e.message);
     } finally {

@@ -993,6 +993,17 @@ window.cargarFiltrosAuditoriaAislados = async function() {
             });
         }
 
+        // 🔥 NUEVO: 2.5 AISLAR LAS ZONAS BASADO EN LOS VENDEDORES PERMITIDOS
+        const selZona = document.getElementById('rep-filtro-zona');
+        if (selZona) {
+            selZona.innerHTML = '<option value="todas">Todas las zonas</option>';
+            // Extraer solo las zonas únicas de las bancas que este admin tiene permitido ver
+            const zonasUnicas = [...new Set((vendedores || []).map(v => v.zona).filter(Boolean))];
+            zonasUnicas.forEach(z => {
+                selZona.insertAdjacentHTML('beforeend', `<option value="${z}">${z}</option>`);
+            });
+        }
+
         // 3. Aislar Loterías
         let qLot = supabase.from('sorteos').select('id, nombre');
         if (esInquilino) qLot = qLot.eq('inquilino_id', inquilinoId);

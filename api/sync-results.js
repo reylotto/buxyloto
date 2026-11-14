@@ -210,19 +210,22 @@ function extraer3PremiosAbierto(html, nombreSorteo, infoFecha) {
 // ==========================================================
 // B. UTILIDADES CENTROAMÉRICA (PORTAL CR + YELU)
 // ==========================================================
-function extraerDeLoteriasCR(textoNorm, etiquetas, fechaISO, cantidad = 1, digitos = 2) {
+function extraerDeLoteriasCRPreciso(textoNorm, etiquetas, fechaISO, digitos = 2) {
     if (!textoNorm) return null;
-    const regexNum = digitos === 3 ? /\b\d{3}\b/g : /\b\d{2}\b/g;
+    const regexNum = digitos === 3 ? /\b\d{3}\b/ : /\b\d{2}\b/;
 
     for (const etq of etiquetas) {
         let idx = textoNorm.indexOf(etq);
         while (idx !== -1) {
-            const ventana = textoNorm.substring(idx + etq.length, idx + etq.length + 140);
-            if (ventana.includes(fechaISO)) {
-                const limpio = limpiarFechasYHoras(ventana);
-                const nums = limpio.match(regexNum);
-                if (nums && nums.length >= cantidad) {
-                    return nums.slice(0, cantidad);
+            // Validar que la etiqueta esté acompañada de la fecha de hoy en su entorno cercano
+            const entornoPrevio = textoNorm.substring(Math.max(0, idx - 45), idx);
+            const entornoPosterior = textoNorm.substring(idx, idx + 140);
+            
+            if (entornoPrevio.includes(fechaISO) || entornoPosterior.includes(fechaISO)) {
+                const limpio = limpiarFechasYHoras(entornoPosterior.replace(etq, ''));
+                const m = limpio.match(regexNum);
+                if (m) {
+                    return m[1];
                 }
             }
             idx = textoNorm.indexOf(etq, idx + etq.length);
@@ -289,12 +292,10 @@ function extraerTicaCompleto(textoCR, textoKingTica, textoYeluCr, nombreSorteo, 
         etiquetasYeluCr = ['7:30PM', '7:30 PM', 'NOCHE'];
     }
 
-    // 1. 1er Premio (Tica Reventados / Nuevos Tiempos)
-    let p1 = null;
-    const numsCR = extraerDeLoteriasCR(textoCR, etiquetasCR, infoFecha.fechaISO, 1, 2);
-    if (numsCR) {
-        p1 = numsCR[0];
-    } else if (textoKingTica && contieneFechaHoy(textoKingTica, infoFecha)) {
+    // 1. 1er Premio (Tica Reventados / Nuevos Tiempos) de forma estricta
+    let p1 = extraerDeLoteriasCRPreciso(textoCR, etiquetasCR, infoFecha.fechaISO, 2);
+    
+    if (!p1 && textoKingTica && contieneFechaHoy(textoKingTica, infoFecha)) {
         for (const etq of etiquetasKing) {
             let idx = textoKingTica.indexOf(etq);
             while (idx !== -1) {
@@ -311,31 +312,13 @@ function extraerTicaCompleto(textoCR, textoKingTica, textoYeluCr, nombreSorteo, 
         if (numsYelu) p1 = numsYelu[0];
     }
 
-    // 2. 2do y 3er Premio desde MONAZO TICA (3 dígitos: "600" -> p2 = "60", p3 = "00")
+    // 2. 2do y 3er Premio desde MONAZO TICA (3 dígitos precisos)
     let p2 = null;
     let p3 = null;
-    const monazoArr = extraerDeLoteriasCR(textoCR, etiquetasMonazo, infoFecha.fechaISO, 1, 3);
-    if (monazoArr && monazoArr[0].length === 3) {
-        p2 = monazoArr[0].substring(0, 2);
-        p3 = monazoArr[0].substring(1, 3);
-    }
-
-    // Respaldo para Monazo en KingArroba Tica Hoy (si aparece un número de 3 dígitos en el turno)
-    if ((!p2 || !p3) && textoKingTica && contieneFechaHoy(textoKingTica, infoFecha)) {
-        for (const etq of etiquetasKing) {
-            let idx = textoKingTica.indexOf(etq);
-            while (idx !== -1) {
-                const despues = limpiarFechasYHoras(textoKingTica.substring(idx + etq.length, idx + etq.length + 95));
-                const m3 = despues.match(/\b(\d{3})\b/);
-                if (m3) {
-                    p2 = m3[1].substring(0, 2);
-                    p3 = m3[1].substring(1, 3);
-                    break;
-                }
-                idx = textoKingTica.indexOf(etq, idx + etq.length);
-            }
-            if (p2 && p3) break;
-        }
+    const monazoStr = extraerDeLoteriasCRPreciso(textoCR, etiquetasMonazo, infoFecha.fechaISO, 3);
+    if (monazoStr && monazoStr.length === 3) {
+        p2 = monazoStr.substring(0, 2);
+        p3 = monazoStr.substring(1, 3);
     }
 
     if (p1 || (p2 && p3)) {
@@ -358,11 +341,27 @@ function extraerNicaDePortalCR(textoNorm, nombreSorteo, fechaISO) {
     const cfg = mapa[turno];
     if (!cfg) return null;
 
-    const p1Arr = extraerDeLoteriasCR(textoNorm, cfg.nica, fechaISO, 1, 2);
-    const p23Arr = extraerDeLoteriasCR(textoNorm, cfg.premia, fechaISO, 2, 2);
+    const p1 = extraerDeLoteriasCRPreciso(textoNorm, cfg.nica, fechaISO, 2);
+    const p23Arr = [];
+    for (const etqP of cfg.premia) {
+        let idx = textoNorm.indexOf(etqP);
+        while (idx !== -1) {
+            const entorno = textoNorm.substring(Math.max(0, idx - 45), idx + 140);
+            if (entorno.includes(fechaISO)) {
+                const limpio = limpiarFechasYHoras(entorno.replace(etqP, ''));
+                const nums = limpio.match(/\b\d{2}\b/g);
+                if (nums && nums.length >= 2) {
+                    p23Arr.push(nums[0], nums[1]);
+                    break;
+                }
+            }
+            idx = textoNorm.indexOf(etqP, idx + etqP.length);
+        }
+        if (p23Arr.length > 0) break;
+    }
 
-    if (p1Arr && p23Arr) {
-        return { p1: p1Arr[0], p2: p23Arr[0], p3: p23Arr[1] };
+    if (p1 && p23Arr.length >= 2) {
+        return { p1, p2: p23Arr[0], p3: p23Arr[1] };
     }
     return null;
 }
@@ -397,7 +396,7 @@ function extraerNicaRespaldoNuevaYa(html, nombreSorteo, infoFecha) {
 }
 
 // ==========================================================
-// E. EXTRACTOR HONDURAS (NACIONALLOTERIA + KINGARROBA + YELU.HN + PORTAL CR)
+// E. EXTRACTOR HONDURAS (NACIONALLOTERIA + KINGARROBA + YELU.HN)
 // ==========================================================
 function extraerDeNacionalLoteriaHn(textoNacional, horas, infoFecha) {
     if (!textoNacional) return { p1: null, p23: null };
@@ -521,7 +520,7 @@ function extraerHondurasCompleto(fuentesHn, nombreSorteo, infoFecha) {
     const kingHnRes = extraerDeKingHonduras(fuentesHn.textoKingHn, cfg.horas, infoFecha);
 
     const p1Arr =
-        extraerDeLoteriasCR(fuentesHn.textoCR, cfg.crP1, infoFecha.fechaISO, 1, 2) ||
+        extraerDeLoteriasCRPreciso(fuentesHn.textoCR, cfg.crP1, infoFecha.fechaISO, 2) ? [extraerDeLoteriasCRPreciso(fuentesHn.textoCR, cfg.crP1, infoFecha.fechaISO, 2)] : null ||
         (nacIdxRes.p1 ? [nacIdxRes.p1] : null) ||
         buscarEnYelu(fuentesHn.textoYeluDiaria, cfg.horas, infoFecha, 1);
 
@@ -719,7 +718,7 @@ export default async function handler(req, res) {
             });
         }
 
-        // 3. Guardar en Supabase (con inquilino_id correspondiente) y escrutar en paralelo
+        // 3. Guardar en Supabase y escrutar en paralelo
         const { error: errInsert } = await supabase
             .from('resultados')
             .upsert(aInsertar, { onConflict: 'sorteo_id,fecha' });

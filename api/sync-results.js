@@ -47,33 +47,48 @@ function getInfoFechaPanama() {
     };
 }
 
-function contieneFechaHoy(textoPlano, infoFecha) {
-    const norm = normalizar(textoPlano);
+function obtenerVariantesFecha(infoFecha) {
     const { fechaISO, dia, diaNum, mes, mesNombre, mesNombreEn } = infoFecha;
     const mesNorm = normalizar(mesNombre);
     const mesCorto = mesNorm.substring(0, 3);
     const mesEnNorm = normalizar(mesNombreEn);
     const mesEnCorto = mesEnNorm.substring(0, 3);
 
-    return (
-        norm.includes(fechaISO) ||
-        norm.includes(`${dia}/${mes}`) ||
-        norm.includes(`${dia}-${mes}`) ||
-        norm.includes(`${diaNum}/${mes}`) ||
-        norm.includes(`${diaNum}-${mes}`) ||
-        norm.includes(`${diaNum} DE ${mesNorm}`) ||
-        norm.includes(`${dia} DE ${mesNorm}`) ||
-        norm.includes(`${diaNum} ${mesCorto}`) ||
-        norm.includes(`${dia} ${mesCorto}`) ||
-        norm.includes(`${mesNorm} ${diaNum}`) ||
-        norm.includes(`${mesNorm} ${dia}`) ||
-        norm.includes(`${mesCorto} ${diaNum}`) ||
-        norm.includes(`${mesCorto} ${dia}`) ||
-        norm.includes(`${diaNum} ${mesEnCorto}`) ||
-        norm.includes(`${dia} ${mesEnCorto}`) ||
-        norm.includes(`${mesEnNorm} ${diaNum}`) ||
-        norm.includes(`${mesEnCorto} ${diaNum}`)
-    );
+    return [
+        fechaISO,
+        `${dia}/${mes}`,
+        `${dia}-${mes}`,
+        `${diaNum}/${mes}`,
+        `${diaNum}-${mes}`,
+        `${diaNum} DE ${mesNorm}`,
+        `${dia} DE ${mesNorm}`,
+        `${diaNum} ${mesCorto}`,
+        `${dia} ${mesCorto}`,
+        `${mesNorm} ${diaNum}`,
+        `${mesNorm} ${dia}`,
+        `${mesCorto} ${diaNum}`,
+        `${mesCorto} ${dia}`,
+        `${diaNum} ${mesEnCorto}`,
+        `${dia} ${mesEnCorto}`,
+        `${mesEnNorm} ${diaNum}`,
+        `${mesEnCorto} ${diaNum}`
+    ];
+}
+
+function contieneFechaHoy(textoPlano, infoFecha) {
+    const norm = normalizar(textoPlano);
+    return obtenerVariantesFecha(infoFecha).some(v => norm.includes(v));
+}
+
+function extraerSeccionDesdeFechaHoy(textoNorm, infoFecha, largo = 550) {
+    if (!textoNorm) return '';
+    for (const v of obtenerVariantesFecha(infoFecha)) {
+        const idx = textoNorm.indexOf(v);
+        if (idx !== -1) {
+            return textoNorm.substring(idx, idx + largo);
+        }
+    }
+    return '';
 }
 
 function limpiarFechasYHoras(textoNorm) {
@@ -217,24 +232,22 @@ function extraerDeLoteriasCR(textoNorm, etiquetas, fechaISO, cantidad = 1, digit
 }
 
 function buscarEnYelu(textoYelu, etiquetasHora, infoFecha, cantidad = 1) {
-    if (!textoYelu) return null;
+    const bloqueHoy = extraerSeccionDesdeFechaHoy(textoYelu, infoFecha, 500);
+    if (!bloqueHoy) return null;
+
     for (const etq of etiquetasHora) {
-        let idx = textoYelu.indexOf(etq);
-        while (idx !== -1) {
-            const entorno = textoYelu.substring(Math.max(0, idx - 95), idx + 65);
-            if (contieneFechaHoy(entorno, infoFecha)) {
-                const rawDespues = textoYelu.substring(idx + etq.length, idx + etq.length + 45);
-                if (cantidad === 2) {
-                    const mGuion = rawDespues.match(/\b(\d{2})\s*-\s*(\d{2})\b/);
-                    if (mGuion) return [mGuion[1], mGuion[2]];
-                }
-                const limpio = limpiarFechasYHoras(rawDespues);
-                const nums = limpio.match(/\b\d{2}\b/g);
-                if (nums && nums.length >= cantidad) {
-                    return nums.slice(0, cantidad);
-                }
+        const idx = bloqueHoy.indexOf(etq);
+        if (idx !== -1) {
+            const rawDespues = bloqueHoy.substring(idx + etq.length, idx + etq.length + 50);
+            if (cantidad === 2) {
+                const mGuion = rawDespues.match(/\b(\d{2})\s*[-\/•|]\s*(\d{2})\b/);
+                if (mGuion) return [mGuion[1], mGuion[2]];
             }
-            idx = textoYelu.indexOf(etq, idx + etq.length);
+            const limpio = limpiarFechasYHoras(rawDespues);
+            const nums = limpio.match(/\b\d{2}\b/g);
+            if (nums && nums.length >= cantidad) {
+                return nums.slice(0, cantidad);
+            }
         }
     }
     return null;
@@ -276,7 +289,6 @@ function extraerTicaCompleto(textoCR, textoKingTica, textoYeluCr, nombreSorteo, 
         etiquetasYeluCr = ['7:30PM', '7:30 PM', 'NOCHE'];
     }
 
-    // 1. 1er Premio (Tica Reventados / Nuevos Tiempos)
     let p1 = null;
     const numsCR = extraerDeLoteriasCR(textoCR, etiquetasCR, infoFecha.fechaISO, 1, 2);
     if (numsCR) {
@@ -298,7 +310,6 @@ function extraerTicaCompleto(textoCR, textoKingTica, textoYeluCr, nombreSorteo, 
         if (numsYelu) p1 = numsYelu[0];
     }
 
-    // 2. 2do y 3er Premio desde MONAZO TICA (3 dígitos: "600" -> p2 = "60", p3 = "00")
     let p2 = null;
     let p3 = null;
     const monazoArr = extraerDeLoteriasCR(textoCR, etiquetasMonazo, infoFecha.fechaISO, 1, 3);
@@ -366,28 +377,29 @@ function extraerNicaRespaldoNuevaYa(html, nombreSorteo, infoFecha) {
 }
 
 // ==========================================================
-// E. EXTRACTOR HONDURAS (NACIONALLOTERIA.COM + PORTAL CR + YELU.HN)
+// E. EXTRACTOR HONDURAS (NACIONALLOTERIA + KINGARROBA + YELU.HN + PORTAL CR)
 // ==========================================================
 function extraerDeNacionalLoteriaHn(textoNacional, horas, infoFecha) {
     if (!textoNacional) return { p1: null, p23: null };
 
-    // Cortar antes de "DE AYER" para analizar únicamente la sección de resultados de HOY
     const seccionHoy = textoNacional.split('DE AYER')[0];
     if (!contieneFechaHoy(seccionHoy, infoFecha)) return { p1: null, p23: null };
 
     let p1 = null;
     let p23 = null;
 
-    // 1. Buscar Premia2 -> 2do y 3er premio (formato: "11:00 AM DIA 64 - 99")
+    // 1. Buscar Premia2 -> 2do y 3er premio (cortando antes del siguiente juego)
     for (const etqP of ['PREMIA2', 'PREMIA 2']) {
         let idxP = seccionHoy.indexOf(etqP);
         while (idxP !== -1 && !p23) {
-            const subP = seccionHoy.substring(idxP, idxP + 450);
+            let subP = seccionHoy.substring(idxP + etqP.length, idxP + etqP.length + 950);
+            subP = subP.split(/\b(?:LA DIARIA|PEGA\s*3|SUPER\s*PREMIO|DE AYER)\b/)[0];
+
             for (const h of horas) {
                 const idxH = subP.indexOf(h);
                 if (idxH !== -1) {
-                    const raw = subP.substring(idxH + h.length, idxH + h.length + 50);
-                    const mGuion = raw.match(/\b(\d{2})\s*-\s*(\d{2})\b/);
+                    const raw = subP.substring(idxH + h.length, idxH + h.length + 65);
+                    const mGuion = raw.match(/\b(\d{2})\s*[-\/•|]\s*(\d{2})\b/);
                     if (mGuion) { p23 = [mGuion[1], mGuion[2]]; break; }
                     const nums = limpiarFechasYHoras(raw).match(/\b\d{2}\b/g);
                     if (nums && nums.length >= 2) { p23 = [nums[0], nums[1]]; break; }
@@ -398,19 +410,71 @@ function extraerDeNacionalLoteriaHn(textoNacional, horas, infoFecha) {
         if (p23) break;
     }
 
-    // 2. Buscar La Diaria -> 1er premio (formato: "11:00 AM DIA 87 + 0")
+    // 2. Buscar La Diaria -> 1er premio
     let idxD = seccionHoy.indexOf('LA DIARIA');
     while (idxD !== -1 && !p1) {
-        const subD = seccionHoy.substring(idxD, idxD + 450);
+        let subD = seccionHoy.substring(idxD + 9, idxD + 950);
+        subD = subD.split(/\b(?:PREMIA\s*2|PREMIA2|PEGA\s*3|SUPER\s*PREMIO|DE AYER)\b/)[0];
+
         for (const h of horas) {
             const idxH = subD.indexOf(h);
             if (idxH !== -1) {
-                const limpio = limpiarFechasYHoras(subD.substring(idxH + h.length, idxH + h.length + 45));
+                const limpio = limpiarFechasYHoras(subD.substring(idxH + h.length, idxH + h.length + 55));
                 const m = limpio.match(/\b(\d{2})\b/);
                 if (m) { p1 = m[1]; break; }
             }
         }
         idxD = seccionHoy.indexOf('LA DIARIA', idxD + 9);
+    }
+
+    return { p1, p23 };
+}
+
+function extraerDeKingHonduras(textoKingHn, horas, infoFecha) {
+    if (!textoKingHn || !contieneFechaHoy(textoKingHn, infoFecha)) return { p1: null, p23: null };
+
+    let p1 = null;
+    let p23 = null;
+
+    // Formato A: Bloque por juego ("PREMIA 2" -> "3:00 PM" -> "XX - YY")
+    for (const etq of ['PREMIA 2', 'PREMIA2']) {
+        let idxP = textoKingHn.indexOf(etq);
+        while (idxP !== -1 && !p23) {
+            let sub = textoKingHn.substring(idxP + etq.length, idxP + etq.length + 850);
+            sub = sub.split(/\b(?:LA DIARIA|PEGA\s*3|SUPER\s*PREMIO)\b/)[0];
+            for (const h of horas) {
+                const idxH = sub.indexOf(h);
+                if (idxH !== -1) {
+                    const raw = sub.substring(idxH + h.length, idxH + h.length + 65);
+                    const mGuion = raw.match(/\b(\d{2})\s*[-\/•|]\s*(\d{2})\b/);
+                    if (mGuion) { p23 = [mGuion[1], mGuion[2]]; break; }
+                    const nums = limpiarFechasYHoras(raw).match(/\b\d{2}\b/g);
+                    if (nums && nums.length >= 2) { p23 = [nums[0], nums[1]]; break; }
+                }
+            }
+            idxP = textoKingHn.indexOf(etq, idxP + etq.length);
+        }
+        if (p23) break;
+    }
+
+    // Formato B: Bloque por hora ("3:00 PM" -> "PREMIA 2" -> "XX - YY")
+    if (!p23) {
+        for (const h of horas) {
+            let idxH = textoKingHn.indexOf(h);
+            while (idxH !== -1 && !p23) {
+                const subH = textoKingHn.substring(idxH + h.length, idxH + h.length + 400);
+                const idxP = subH.search(/\bPREMIA\s*2\b/);
+                if (idxP !== -1) {
+                    const raw = subH.substring(idxP + 7, idxP + 75);
+                    const mGuion = raw.match(/\b(\d{2})\s*[-\/•|]\s*(\d{2})\b/);
+                    if (mGuion) { p23 = [mGuion[1], mGuion[2]]; break; }
+                    const nums = limpiarFechasYHoras(raw).match(/\b\d{2}\b/g);
+                    if (nums && nums.length >= 2) { p23 = [nums[0], nums[1]]; break; }
+                }
+                idxH = textoKingHn.indexOf(h, idxH + h.length);
+            }
+            if (p23) break;
+        }
     }
 
     return { p1, p23 };
@@ -438,17 +502,17 @@ function extraerHondurasCompleto(fuentesHn, nombreSorteo, infoFecha) {
 
     const nacIdxRes = extraerDeNacionalLoteriaHn(fuentesHn.textoNacIdx, cfg.horas, infoFecha);
     const nacP2Res = extraerDeNacionalLoteriaHn(fuentesHn.textoNacP2, cfg.horas, infoFecha);
+    const kingHnRes = extraerDeKingHonduras(fuentesHn.textoKingHn, cfg.horas, infoFecha);
 
-    // 1er premio (La Diaria)
     const p1Arr =
         extraerDeLoteriasCR(fuentesHn.textoCR, cfg.crP1, infoFecha.fechaISO, 1, 2) ||
         (nacIdxRes.p1 ? [nacIdxRes.p1] : null) ||
         buscarEnYelu(fuentesHn.textoYeluDiaria, cfg.horas, infoFecha, 1);
 
-    // 2do y 3er premio (Premia 2)
     const p23Arr =
         nacIdxRes.p23 ||
         nacP2Res.p23 ||
+        kingHnRes.p23 ||
         buscarEnYelu(fuentesHn.textoYeluPremia2, cfg.horas, infoFecha, 2);
 
     if (p1Arr || p23Arr) {
@@ -594,12 +658,13 @@ export default async function handler(req, res) {
                 }
             }
 
-            // HONDURAS (NacionalLoteria + Portal CR + Yelu.hn)
+            // HONDURAS
             const pendientesHn = pendientesCA.filter(x => normalizar(x.nombre).includes('HONDURAS'));
             if (pendientesHn.length > 0) {
-                const [resNacIdx, resNacP2, resYeluP1, resYeluP23] = await Promise.all([
+                const [resNacIdx, resNacP2, resKingHn, resYeluP1, resYeluP23] = await Promise.all([
                     descargarPaginaAbierta('https://www.nacionalloteria.com/honduras/index.php'),
                     descargarPaginaAbierta('https://www.nacionalloteria.com/honduras/loto-premia2.php'),
+                    descargarPaginaAbierta('https://www.kingarrobanumeros.com/honduras-hoy'),
                     descargarPaginaAbierta('https://www.yelu.hn/lottery/results/la-diaria'),
                     descargarPaginaAbierta('https://www.yelu.hn/lottery/results/premia-dos')
                 ]);
@@ -607,6 +672,7 @@ export default async function handler(req, res) {
                 diagnostico.push(
                     `nac_hn_idx: ${resNacIdx.estado}`,
                     `nac_hn_p2: ${resNacP2.estado}`,
+                    `king_hn_hoy: ${resKingHn.estado}`,
                     `yelu_diaria: ${resYeluP1.estado}`,
                     `yelu_premia2: ${resYeluP23.estado}`
                 );
@@ -615,12 +681,20 @@ export default async function handler(req, res) {
                     textoCR,
                     textoNacIdx: resNacIdx.html ? normalizar(limpiarHtmlATexto(resNacIdx.html)) : '',
                     textoNacP2: resNacP2.html ? normalizar(limpiarHtmlATexto(resNacP2.html)) : '',
+                    textoKingHn: resKingHn.html ? normalizar(limpiarHtmlATexto(resKingHn.html)) : '',
                     textoYeluDiaria: resYeluP1.html ? normalizar(limpiarHtmlATexto(resYeluP1.html)) : '',
                     textoYeluPremia2: resYeluP23.html ? normalizar(limpiarHtmlATexto(resYeluP23.html)) : ''
                 };
 
                 for (const s of pendientesHn) {
-                    registrarResultado(s, extraerHondurasCompleto(fuentesHn, s.nombre, infoFecha));
+                    const completo = registrarResultado(s, extraerHondurasCompleto(fuentesHn, s.nombre, infoFecha));
+                    if (!completo && fuentesHn.textoNacP2) {
+                        const seccion = fuentesHn.textoNacP2.split('DE AYER')[0];
+                        const idx3 = seccion.indexOf('3:00');
+                        if (idx3 !== -1) {
+                            diagnostico.push(`Muestra_NacP2_3PM: ${seccion.substring(Math.max(0, idx3 - 30), idx3 + 90)}`);
+                        }
+                    }
                 }
             }
         }

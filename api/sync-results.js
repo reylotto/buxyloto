@@ -193,7 +193,7 @@ function extraer3PremiosAbierto(html, nombreSorteo, infoFecha) {
 }
 
 // ==========================================================
-// B. EXTRACTOR TICA (LOTERIASCOSTARICA + KINGARROBA TICA HOY + RESULTADOS)
+// B. UTILIDADES CENTROAMÉRICA (PORTAL CR + YELU)
 // ==========================================================
 function extraerDeLoteriasCR(textoNorm, etiquetas, fechaISO, cantidad = 1) {
     if (!textoNorm) return null;
@@ -215,6 +215,31 @@ function extraerDeLoteriasCR(textoNorm, etiquetas, fechaISO, cantidad = 1) {
     return null;
 }
 
+function buscarEnYelu(textoYelu, etiquetasHora, infoFecha, cantidad = 1) {
+    if (!textoYelu) return null;
+    for (const etq of etiquetasHora) {
+        let idx = textoYelu.indexOf(etq);
+        while (idx !== -1) {
+            // Formato Yelu: "14 DE NOVIEMBRE 2026 - SABADO LA DIARIA 11AM 93" / "PREMIA 2 11AM 64 99"
+            const entorno = textoYelu.substring(Math.max(0, idx - 95), idx + 65);
+            if (contieneFechaHoy(entorno, infoFecha)) {
+                const rawDespues = textoYelu.substring(idx + etq.length, idx + etq.length + 45);
+                if (cantidad === 2) {
+                    const mGuion = rawDespues.match(/\b(\d{2})\s*-\s*(\d{2})\b/);
+                    if (mGuion) return [mGuion[1], mGuion[2]];
+                }
+                const limpio = limpiarFechasYHoras(rawDespues);
+                const nums = limpio.match(/\b\d{2}\b/g);
+                if (nums && nums.length >= cantidad) {
+                    return nums.slice(0, cantidad);
+                }
+            }
+            idx = textoYelu.indexOf(etq, idx + etq.length);
+        }
+    }
+    return null;
+}
+
 function getTurnoCentroamerica(nombreSorteo) {
     const n = normalizar(nombreSorteo);
     if (n.includes('12') || n.includes('11') || n.includes('AM') || n.includes('DIA')) return '11AM';
@@ -224,20 +249,27 @@ function getTurnoCentroamerica(nombreSorteo) {
     return '';
 }
 
-function extraerTicaCompleto(textoCR, textoKingTica, textoKingGeneral, nombreSorteo, infoFecha) {
+// ==========================================================
+// C. EXTRACTOR TICA (LOTERIASCOSTARICA + KINGARROBA TICA-HOY + YELU.CR)
+// ==========================================================
+function extraerTicaCompleto(textoCR, textoKingTica, textoYeluCr, nombreSorteo, infoFecha) {
     const n = normalizar(nombreSorteo);
     let etiquetasCR = [];
     let etiquetasKing = [];
+    let etiquetasYeluCr = [];
 
     if (n.includes('2PM') || n.includes('2:00') || n.includes('DIA') || n.includes('1PM')) {
         etiquetasCR = ['TICA DIA REVENTADOS', 'TICA DIA', 'TICA 12:55', 'TICA 1:00', 'NUEVOS TIEMPOS DIA'];
-        etiquetasKing = ['TICA DIA', '12:55', '1:00', 'MEDIODIA', 'MEDIO DIA'];
+        etiquetasKing = ['12:55', '1:00', 'TICA DIA', 'MEDIODIA', 'MEDIO DIA'];
+        etiquetasYeluCr = ['12:55PM', '12:55 PM', '1:00PM', '1:00 PM', 'MEDIODIA'];
     } else if (n.includes('5:30') || n.includes('5PM') || n.includes('TARDE') || n.includes('3:00')) {
         etiquetasCR = ['TICA TARDE REVENTADOS', 'TICA TARDE', 'TICA 4:30', 'NUEVOS TIEMPOS TARDE'];
-        etiquetasKing = ['TICA TARDE', '4:30', 'TARDE'];
+        etiquetasKing = ['4:30', 'TICA TARDE'];
+        etiquetasYeluCr = ['4:30PM', '4:30 PM', 'TARDE'];
     } else if (n.includes('8:30') || n.includes('8PM') || n.includes('NOCHE') || n.includes('7:30')) {
         etiquetasCR = ['TICA NOCHE REVENTADOS', 'TICA NOCHE', 'TICA 7:30', 'NUEVOS TIEMPOS NOCHE'];
-        etiquetasKing = ['TICA NOCHE', '7:30', 'NOCHE'];
+        etiquetasKing = ['7:30', 'TICA NOCHE'];
+        etiquetasYeluCr = ['7:30PM', '7:30 PM', 'NOCHE'];
     }
 
     // 1. Fuente principal: loteriascostarica.com
@@ -249,7 +281,7 @@ function extraerTicaCompleto(textoCR, textoKingTica, textoKingGeneral, nombreSor
         for (const etq of etiquetasKing) {
             let idx = textoKingTica.indexOf(etq);
             while (idx !== -1) {
-                const despues = limpiarFechasYHoras(textoKingTica.substring(idx + etq.length, idx + etq.length + 85));
+                const despues = limpiarFechasYHoras(textoKingTica.substring(idx + etq.length, idx + etq.length + 65));
                 const m = despues.match(/\b(\d{2})\b/);
                 if (m) return { p1: m[1], p2: null, p3: null };
                 idx = textoKingTica.indexOf(etq, idx + etq.length);
@@ -257,27 +289,15 @@ function extraerTicaCompleto(textoCR, textoKingTica, textoKingGeneral, nombreSor
         }
     }
 
-    // 3. Respaldo 2: kingarrobanumeros.com/resultados
-    if (textoKingGeneral) {
-        for (const etq of ['TICA DIA', 'TICA TARDE', 'TICA NOCHE'].filter(e => etiquetasKing.includes(e))) {
-            let idx = textoKingGeneral.indexOf(etq);
-            while (idx !== -1) {
-                const entorno = textoKingGeneral.substring(idx + etq.length, idx + etq.length + 110);
-                if (contieneFechaHoy(entorno, infoFecha)) {
-                    const limpio = limpiarFechasYHoras(entorno);
-                    const m = limpio.match(/\b(\d{2})\b/);
-                    if (m) return { p1: m[1], p2: null, p3: null };
-                }
-                idx = textoKingGeneral.indexOf(etq, idx + etq.length);
-            }
-        }
-    }
+    // 3. Respaldo 2: yelu.cr/lottery/results/nuevos-tiempos
+    const numsYelu = buscarEnYelu(textoYeluCr, etiquetasYeluCr, infoFecha, 1);
+    if (numsYelu) return { p1: numsYelu[0], p2: null, p3: null };
 
     return null;
 }
 
 // ==========================================================
-// C. EXTRACTOR NICA (PORTAL CR + RESPALDO NUEVAYA)
+// D. EXTRACTOR NICA (PORTAL CR + RESPALDO NUEVAYA)
 // ==========================================================
 function extraerNicaDePortalCR(textoNorm, nombreSorteo, fechaISO) {
     const turno = getTurnoCentroamerica(nombreSorteo);
@@ -329,76 +349,47 @@ function extraerNicaRespaldoNuevaYa(html, nombreSorteo, infoFecha) {
 }
 
 // ==========================================================
-// D. EXTRACTOR HONDURAS (VALIDANDO FECHA EN CABECERA DE TARJETA/PÁGINA)
+// E. EXTRACTOR HONDURAS (5 FUENTES ABIERTAS + GUARDADO PROGRESIVO)
 // ==========================================================
-function extraerDeBloqueHonduras(texto, horas, infoFecha, esTarjetaPais = false) {
-    if (!texto || !contieneFechaHoy(texto, infoFecha)) return { p1: null, p23: null };
+function extraerDeKingHonduras(textoKingHn, horas, infoFecha) {
+    if (!textoKingHn || !contieneFechaHoy(textoKingHn, infoFecha)) return { p1: null, p23: null };
 
     let p1 = null;
     let p23 = null;
 
-    const analizarZona = (zona) => {
-        // 1. Buscar LA DIARIA -> 1er premio
-        if (!p1) {
-            let idxD = zona.indexOf('DIARIA');
-            while (idxD !== -1 && !p1) {
-                const subD = zona.substring(idxD, idxD + 500);
-                for (const h of horas) {
-                    const idxH = subD.indexOf(h);
-                    if (idxH !== -1) {
-                        const limpio = limpiarFechasYHoras(subD.substring(idxH + h.length, idxH + h.length + 70));
-                        const m = limpio.match(/\b(\d{2})\b/);
-                        if (m) { p1 = m[1]; break; }
-                    }
-                }
-                idxD = zona.indexOf('DIARIA', idxD + 6);
+    // 1. Buscar LA DIARIA
+    let idxD = textoKingHn.indexOf('DIARIA');
+    while (idxD !== -1 && !p1) {
+        const sub = textoKingHn.substring(idxD, idxD + 400);
+        for (const h of horas) {
+            const idxH = sub.indexOf(h);
+            if (idxH !== -1) {
+                const limpio = limpiarFechasYHoras(sub.substring(idxH + h.length, idxH + h.length + 55));
+                const m = limpio.match(/\b(\d{2})\b/);
+                if (m) { p1 = m[1]; break; }
             }
         }
-
-        // 2. Buscar PREMIA2 / PREMIA 2 -> 2do y 3er premio
-        if (!p23) {
-            for (const etqP of ['PREMIA2', 'PREMIA 2']) {
-                let idxP = zona.indexOf(etqP);
-                while (idxP !== -1 && !p23) {
-                    const subP = zona.substring(idxP, idxP + 550);
-                    for (const h of horas) {
-                        const idxH = subP.indexOf(h);
-                        if (idxH !== -1) {
-                            const rawDespues = subP.substring(idxH + h.length, idxH + h.length + 75);
-                            const mGuion = rawDespues.match(/\b(\d{2})\s*[-\/•|]\s*(\d{2})\b/);
-                            if (mGuion) {
-                                p23 = [mGuion[1], mGuion[2]];
-                                break;
-                            }
-                            const limpio = limpiarFechasYHoras(rawDespues);
-                            const nums = limpio.match(/\b\d{2}\b/g);
-                            if (nums && nums.length >= 2) {
-                                p23 = [nums[0], nums[1]];
-                                break;
-                            }
-                        }
-                    }
-                    idxP = zona.indexOf(etqP, idxP + etqP.length);
-                }
-                if (p23) break;
-            }
-        }
-    };
-
-    if (!esTarjetaPais) {
-        analizarZona(texto);
-        return { p1, p23 };
+        idxD = textoKingHn.indexOf('DIARIA', idxD + 6);
     }
 
-    // Recorrer cada sección de HONDURAS y validar la fecha de hoy en la cabecera de la tarjeta (primeros 650 chars)
-    let idxHn = texto.indexOf('HONDURAS');
-    while (idxHn !== -1) {
-        const tarjeta = texto.substring(idxHn, idxHn + 1800);
-        if (contieneFechaHoy(tarjeta.substring(0, 650), infoFecha)) {
-            analizarZona(tarjeta);
-            if (p1 && p23) break;
+    // 2. Buscar PREMIA 2 / PREMIA2
+    for (const etq of ['PREMIA 2', 'PREMIA2']) {
+        let idxP = textoKingHn.indexOf(etq);
+        while (idxP !== -1 && !p23) {
+            const sub = textoKingHn.substring(idxP, idxP + 450);
+            for (const h of horas) {
+                const idxH = sub.indexOf(h);
+                if (idxH !== -1) {
+                    const raw = sub.substring(idxH + h.length, idxH + h.length + 65);
+                    const mGuion = raw.match(/\b(\d{2})\s*[-\/•|]\s*(\d{2})\b/);
+                    if (mGuion) { p23 = [mGuion[1], mGuion[2]]; break; }
+                    const nums = limpiarFechasYHoras(raw).match(/\b\d{2}\b/g);
+                    if (nums && nums.length >= 2) { p23 = [nums[0], nums[1]]; break; }
+                }
+            }
+            idxP = textoKingHn.indexOf(etq, idxP + etq.length);
         }
-        idxHn = texto.indexOf('HONDURAS', idxHn + 8);
+        if (p23) break;
     }
 
     return { p1, p23 };
@@ -408,18 +399,18 @@ function extraerHondurasCompleto(fuentesHn, nombreSorteo, infoFecha) {
     const turno = getTurnoCentroamerica(nombreSorteo);
     const mapa = {
         '11AM': {
-            crP1: ['HONDURAS 11 AM', 'HONDURAS 11AM', 'HONDURAS DIA', 'DIARIA 11 AM', 'LA DIARIA 11 AM'],
-            crP23: ['PREMIA2 HONDURAS 11 AM', 'HONDURAS PREMIA2 11 AM', 'PREMIA 2 HONDURAS 11 AM', 'PREMIA2 HONDURAS DIA'],
+            crP1: ['HONDURAS 11 AM', 'HONDURAS 11AM', 'HONDURAS DIA'],
+            crP23: ['PREMIA2 HONDURAS 11 AM', 'HONDURAS PREMIA2 11 AM', 'PREMIA 2 HONDURAS 11 AM'],
             horas: ['11:00 AM', '11:00AM', '11:00', '11 AM', '11AM']
         },
         '3PM': {
-            crP1: ['HONDURAS 3 PM', 'HONDURAS 3PM', 'HONDURAS TARDE', 'DIARIA 3 PM', 'LA DIARIA 3 PM'],
-            crP23: ['PREMIA2 HONDURAS 3 PM', 'HONDURAS PREMIA2 3 PM', 'PREMIA 2 HONDURAS 3 PM', 'PREMIA2 HONDURAS TARDE'],
+            crP1: ['HONDURAS 3 PM', 'HONDURAS 3PM', 'HONDURAS TARDE'],
+            crP23: ['PREMIA2 HONDURAS 3 PM', 'HONDURAS PREMIA2 3 PM', 'PREMIA 2 HONDURAS 3 PM'],
             horas: ['3:00 PM', '3:00PM', '3:00', '3 PM', '3PM']
         },
         '9PM': {
-            crP1: ['HONDURAS 9 PM', 'HONDURAS 9PM', 'HONDURAS NOCHE', 'DIARIA 9 PM', 'LA DIARIA 9 PM'],
-            crP23: ['PREMIA2 HONDURAS 9 PM', 'HONDURAS PREMIA2 9 PM', 'PREMIA 2 HONDURAS 9 PM', 'PREMIA2 HONDURAS NOCHE'],
+            crP1: ['HONDURAS 9 PM', 'HONDURAS 9PM', 'HONDURAS NOCHE'],
+            crP23: ['PREMIA2 HONDURAS 9 PM', 'HONDURAS PREMIA2 9 PM', 'PREMIA 2 HONDURAS 9 PM'],
             horas: ['9:00 PM', '9:00PM', '9:00', '9 PM', '9PM']
         }
     };
@@ -427,21 +418,28 @@ function extraerHondurasCompleto(fuentesHn, nombreSorteo, infoFecha) {
     const cfg = mapa[turno];
     if (!cfg) return null;
 
-    const resLotoHnPortal = extraerDeBloqueHonduras(fuentesHn.textoLoteriasHn, cfg.horas, infoFecha, false);
-    const resKing = extraerDeBloqueHonduras(fuentesHn.textoKing, cfg.horas, infoFecha, true);
+    const kingHnRes = extraerDeKingHonduras(fuentesHn.textoKingHn, cfg.horas, infoFecha);
+    const lhPremia2Res = extraerDeKingHonduras(fuentesHn.textoLHPremia2, cfg.horas, infoFecha);
 
+    // 1er premio (La Diaria)
     const p1Arr =
         extraerDeLoteriasCR(fuentesHn.textoCR, cfg.crP1, infoFecha.fechaISO, 1) ||
-        (resLotoHnPortal.p1 ? [resLotoHnPortal.p1] : null) ||
-        (resKing.p1 ? [resKing.p1] : null);
+        (kingHnRes.p1 ? [kingHnRes.p1] : null) ||
+        buscarEnYelu(fuentesHn.textoYeluDiaria, cfg.horas, infoFecha, 1);
 
+    // 2do y 3er premio (Premia 2)
     const p23Arr =
         extraerDeLoteriasCR(fuentesHn.textoCR, cfg.crP23, infoFecha.fechaISO, 2) ||
-        resLotoHnPortal.p23 ||
-        resKing.p23;
+        kingHnRes.p23 ||
+        lhPremia2Res.p23 ||
+        buscarEnYelu(fuentesHn.textoYeluPremia2, cfg.horas, infoFecha, 2);
 
     if (p1Arr && p23Arr) {
         return { p1: p1Arr[0], p2: p23Arr[0], p3: p23Arr[1] };
+    }
+    // Guardado progresivo: si ya salió el 1er premio en Portal CR pero Premia 2 aún no publica, registrar p1 de inmediato
+    if (p1Arr) {
+        return { p1: p1Arr[0], p2: null, p3: null };
     }
     return null;
 }
@@ -458,39 +456,54 @@ export default async function handler(req, res) {
 
         const [{ data: sorteos }, { data: yaRegistrados }] = await Promise.all([
             supabase.from('sorteos').select('id, nombre, estatus, hora_cierre'),
-            supabase.from('resultados').select('sorteo_id').eq('fecha', fechaISO)
+            supabase.from('resultados').select('sorteo_id, p1, p2, p3').eq('fecha', fechaISO)
         ]);
 
         if (!sorteos || sorteos.length === 0) {
             return res.status(200).json({ success: false, message: 'No hay sorteos configurados.' });
         }
 
-        const idsYaEscrutados = new Set((yaRegistrados || []).map(r => String(r.sorteo_id)));
+        const mapaRegistrados = new Map((yaRegistrados || []).map(r => [String(r.sorteo_id), r]));
+        const estaCompleto = (s) => {
+            const reg = mapaRegistrados.get(String(s.id));
+            if (!reg || !reg.p1) return false;
+            if (normalizar(s.nombre).includes('TICA')) return true;
+            return Boolean(reg.p2 && reg.p3);
+        };
+
         const aInsertar = [];
 
         const registrarResultado = (sorteo, resultado) => {
             if (!resultado || !resultado.p1) return false;
+            const previo = mapaRegistrados.get(String(sorteo.id));
+            const p1Final = resultado.p1 || previo?.p1 || null;
+            const p2Final = resultado.p2 || previo?.p2 || null;
+            const p3Final = resultado.p3 || previo?.p3 || null;
+
+            // Evitar escritura redundante si no hay datos nuevos respecto a lo ya guardado
+            if (previo && previo.p1 === p1Final && previo.p2 === p2Final && previo.p3 === p3Final) {
+                return Boolean(p1Final && p2Final && p3Final);
+            }
+
             if (aInsertar.some(i => i.sorteo_id === sorteo.id)) return true;
             aInsertar.push({
                 sorteo_id: sorteo.id,
                 fecha: fechaISO,
-                p1: resultado.p1,
-                p2: resultado.p2 || null,
-                p3: resultado.p3 || null,
-                primero: resultado.p1,
-                segundo: resultado.p2 || null,
-                tercero: resultado.p3 || null,
+                p1: p1Final,
+                p2: p2Final,
+                p3: p3Final,
+                primero: p1Final,
+                segundo: p2Final,
+                tercero: p3Final,
                 updated_at: new Date().toISOString()
             });
-            diagnostico.push(`Detectado ${sorteo.nombre}: ${resultado.p1}-${resultado.p2 || '--'}-${resultado.p3 || '--'}`);
-            return true;
+            diagnostico.push(`Detectado ${sorteo.nombre}: ${p1Final}-${p2Final || '--'}-${p3Final || '--'}`);
+            return Boolean(p1Final && p2Final && p3Final);
         };
-
-        let textoKingResultadosCache = '';
 
         // 1. PORTALES ABIERTOS PARA FLORIDA, NEW YORK, LA PRIMERA Y ANGUILLA
         const pendientesPortal = sorteos.filter(s =>
-            !idsYaEscrutados.has(String(s.id)) &&
+            !estaCompleto(s) &&
             ['PRIMERA', 'ANGUILLA', 'FLORIDA', 'YORK'].some(r => normalizar(s.nombre).includes(r)) &&
             (!s.hora_cierre || hora24 >= s.hora_cierre)
         );
@@ -509,10 +522,6 @@ export default async function handler(req, res) {
                 diagnostico.push(`${new URL(url).hostname}: ${estado}`);
                 if (!html) continue;
 
-                if (url.includes('kingarrobanumeros')) {
-                    textoKingResultadosCache = normalizar(limpiarHtmlATexto(html));
-                }
-
                 for (const s of faltantes) {
                     registrarResultado(s, extraer3PremiosAbierto(html, s.nombre, infoFecha));
                 }
@@ -521,7 +530,7 @@ export default async function handler(req, res) {
 
         // 2. CENTROAMÉRICA (TICA, NICA Y HONDURAS)
         const pendientesCA = sorteos.filter(s =>
-            !idsYaEscrutados.has(String(s.id)) &&
+            !estaCompleto(s) &&
             ['TICA', 'NICA', 'HONDURAS'].some(r => normalizar(s.nombre).includes(r)) &&
             (!s.hora_cierre || hora24 >= s.hora_cierre)
         );
@@ -531,19 +540,24 @@ export default async function handler(req, res) {
             diagnostico.push(`loteriascostarica.com: ${estadoCR}`);
             const textoCR = htmlCR ? normalizar(limpiarHtmlATexto(htmlCR)) : '';
 
-            // TICA (Portal CR + KingArroba Tica Hoy + KingArroba Resultados)
+            // TICA (Portal CR + KingArroba Tica Hoy + Yelu CR Nuevos Tiempos)
             const pendientesTica = pendientesCA.filter(x => normalizar(x.nombre).includes('TICA'));
             if (pendientesTica.length > 0) {
                 let textoKingTica = '';
+                let textoYeluCr = '';
                 for (const s of pendientesTica) {
-                    const ok = registrarResultado(s, extraerTicaCompleto(textoCR, '', textoKingResultadosCache, s.nombre, infoFecha));
-                    if (!ok && !textoKingTica) {
-                        const { html: htmlKT, estado: estadoKT } = await descargarPaginaAbierta('https://www.kingarrobanumeros.com/tica-hoy');
-                        diagnostico.push(`king_tica: ${estadoKT}`);
-                        textoKingTica = htmlKT ? normalizar(limpiarHtmlATexto(htmlKT)) : '';
-                    }
-                    if (textoKingTica) {
-                        registrarResultado(s, extraerTicaCompleto('', textoKingTica, textoKingResultadosCache, s.nombre, infoFecha));
+                    const okCR = registrarResultado(s, extraerTicaCompleto(textoCR, '', '', s.nombre, infoFecha));
+                    if (!okCR) {
+                        if (!textoKingTica && !textoYeluCr) {
+                            const [resKT, resYC] = await Promise.all([
+                                descargarPaginaAbierta('https://www.kingarrobanumeros.com/tica-hoy'),
+                                descargarPaginaAbierta('https://www.yelu.cr/lottery/results/nuevos-tiempos')
+                            ]);
+                            diagnostico.push(`king_tica: ${resKT.estado}`, `yelu_cr: ${resYC.estado}`);
+                            textoKingTica = resKT.html ? normalizar(limpiarHtmlATexto(resKT.html)) : '';
+                            textoYeluCr = resYC.html ? normalizar(limpiarHtmlATexto(resYC.html)) : '';
+                        }
+                        registrarResultado(s, extraerTicaCompleto('', textoKingTica, textoYeluCr, s.nombre, infoFecha));
                     }
                 }
             }
@@ -564,37 +578,37 @@ export default async function handler(req, res) {
                 }
             }
 
-            // HONDURAS (LoteriasDeHonduras + KingArroba + Portal CR)
+            // HONDURAS (5 fuentes abiertas en paralelo)
             const pendientesHn = pendientesCA.filter(x => normalizar(x.nombre).includes('HONDURAS'));
             if (pendientesHn.length > 0) {
-                const [resLoteriasHn, resKing] = await Promise.all([
-                    descargarPaginaAbierta('https://loteriasdehonduras.com/'),
-                    textoKingResultadosCache
-                        ? Promise.resolve({ html: null, estado: 'CACHE_OK' })
-                        : descargarPaginaAbierta('https://www.kingarrobanumeros.com/resultados')
+                const [resKingHn, resLHPremia2, resYeluP1, resYeluP23] = await Promise.all([
+                    descargarPaginaAbierta('https://www.kingarrobanumeros.com/honduras-hoy'),
+                    descargarPaginaAbierta('https://loteriasdehonduras.com/premia-2'),
+                    descargarPaginaAbierta('https://www.yelu.hn/lottery/results/la-diaria'),
+                    descargarPaginaAbierta('https://www.yelu.hn/lottery/results/premia-dos')
                 ]);
 
                 diagnostico.push(
-                    `loteriasdehonduras: ${resLoteriasHn.estado}`,
-                    `king_hn: ${resKing.estado}`
+                    `king_hn_hoy: ${resKingHn.estado}`,
+                    `lh_premia2: ${resLHPremia2.estado}`,
+                    `yelu_diaria: ${resYeluP1.estado}`,
+                    `yelu_premia2: ${resYeluP23.estado}`
                 );
 
                 const fuentesHn = {
                     textoCR,
-                    textoLoteriasHn: resLoteriasHn.html ? normalizar(limpiarHtmlATexto(resLoteriasHn.html)) : '',
-                    textoKing: textoKingResultadosCache || (resKing.html ? normalizar(limpiarHtmlATexto(resKing.html)) : '')
+                    textoKingHn: resKingHn.html ? normalizar(limpiarHtmlATexto(resKingHn.html)) : '',
+                    textoLHPremia2: resLHPremia2.html ? normalizar(limpiarHtmlATexto(resLHPremia2.html)) : '',
+                    textoYeluDiaria: resYeluP1.html ? normalizar(limpiarHtmlATexto(resYeluP1.html)) : '',
+                    textoYeluPremia2: resYeluP23.html ? normalizar(limpiarHtmlATexto(resYeluP23.html)) : ''
                 };
 
                 for (const s of pendientesHn) {
-                    const ok = registrarResultado(s, extraerHondurasCompleto(fuentesHn, s.nombre, infoFecha));
-                    if (!ok) {
-                        const ultP = fuentesHn.textoLoteriasHn.lastIndexOf('PREMIA 2');
-                        if (ultP !== -1) {
-                            diagnostico.push(`Muestra_LH_Final: ${fuentesHn.textoLoteriasHn.substring(Math.max(0, ultP - 50), ultP + 160)}`);
-                        }
-                        const ultK = fuentesHn.textoKing.lastIndexOf('HONDURAS');
-                        if (ultK !== -1) {
-                            diagnostico.push(`Muestra_King_Final: ${fuentesHn.textoKing.substring(ultK, ultK + 220)}`);
+                    const completo = registrarResultado(s, extraerHondurasCompleto(fuentesHn, s.nombre, infoFecha));
+                    if (!completo && fuentesHn.textoKingHn) {
+                        const idxKH = fuentesHn.textoKingHn.indexOf('PREMIA');
+                        if (idxKH !== -1) {
+                            diagnostico.push(`Muestra_KingHnHoy: ${fuentesHn.textoKingHn.substring(Math.max(0, idxKH - 40), idxKH + 140)}`);
                         }
                     }
                 }

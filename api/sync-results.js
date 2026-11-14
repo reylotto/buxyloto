@@ -9,6 +9,11 @@ const MESES_ES = [
     'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
 ];
 
+const MESES_EN = [
+    'january', 'february', 'march', 'april', 'may', 'june',
+    'july', 'august', 'september', 'october', 'november', 'december'
+];
+
 function normalizar(texto) {
     return texto ? texto.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
 }
@@ -29,7 +34,7 @@ function getInfoFechaPanama() {
     const fechaISO = ahora.toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); // YYYY-MM-DD
     const hora24 = ahora.toLocaleTimeString('en-GB', { timeZone: 'America/Panama', hour12: false }); // HH:MM:SS
     const [anio, mes, dia] = fechaISO.split('-');
-    const mesNombre = MESES_ES[parseInt(mes, 10) - 1];
+    const idxMes = parseInt(mes, 10) - 1;
     return {
         fechaISO,
         hora24,
@@ -37,15 +42,18 @@ function getInfoFechaPanama() {
         dia,
         mes,
         diaNum: String(parseInt(dia, 10)),
-        mesNombre
+        mesNombre: MESES_ES[idxMes],
+        mesNombreEn: MESES_EN[idxMes]
     };
 }
 
 function contieneFechaHoy(textoPlano, infoFecha) {
     const norm = normalizar(textoPlano);
-    const { fechaISO, dia, diaNum, mes, mesNombre } = infoFecha;
+    const { fechaISO, dia, diaNum, mes, mesNombre, mesNombreEn } = infoFecha;
     const mesNorm = normalizar(mesNombre);
     const mesCorto = mesNorm.substring(0, 3);
+    const mesEnNorm = normalizar(mesNombreEn);
+    const mesEnCorto = mesEnNorm.substring(0, 3);
 
     return (
         norm.includes(fechaISO) ||
@@ -60,7 +68,11 @@ function contieneFechaHoy(textoPlano, infoFecha) {
         norm.includes(`${mesNorm} ${diaNum}`) ||
         norm.includes(`${mesNorm} ${dia}`) ||
         norm.includes(`${mesCorto} ${diaNum}`) ||
-        norm.includes(`${mesCorto} ${dia}`)
+        norm.includes(`${mesCorto} ${dia}`) ||
+        norm.includes(`${diaNum} ${mesEnCorto}`) ||
+        norm.includes(`${dia} ${mesEnCorto}`) ||
+        norm.includes(`${mesEnNorm} ${diaNum}`) ||
+        norm.includes(`${mesEnCorto} ${diaNum}`)
     );
 }
 
@@ -68,10 +80,11 @@ function limpiarFechasYHoras(textoNorm) {
     return textoNorm
         .replace(/\b\d{4}-\d{2}-\d{2}\b/g, ' ')
         .replace(/\b\d{1,2}[-\/]\d{1,2}(?:[-\/]\d{2,4})?\b/g, ' ')
-        .replace(/\b\d{1,2}\s*(?:DE\s+)?(?:ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)[A-Z]*\b/g, ' ')
-        .replace(/\b(?:ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)[A-Z]*\s+\d{1,2}(?:,?\s*\d{4})?\b/g, ' ')
-        .replace(/\b(?:LUNES|MARTES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO)\s+\d{1,2}\b/g, ' ')
-        .replace(/\b\d{1,2}:\d{2}\s*(?:A\.?M\.?|P\.?M\.?|M\.?D\.?)?\b/g, ' ');
+        .replace(/\b\d{1,2}\s*(?:DE\s+)?(?:ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC|JAN|APR|AUG|DEC)[A-Z]*\b/g, ' ')
+        .replace(/\b(?:ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC|JAN|APR|AUG|DEC)[A-Z]*\s+\d{1,2}(?:,?\s*\d{4})?\b/g, ' ')
+        .replace(/\b(?:LUNES|MARTES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY|SUNDAY)\s*,?\s*\d{0,2}\b/g, ' ')
+        .replace(/\b\d{1,2}:\d{2}\s*(?:A\.?M\.?|P\.?M\.?|M\.?D\.?)?\b/g, ' ')
+        .replace(/\b\d{1,2}\s*(?:A\.?M\.?|P\.?M\.?)\b/g, ' ');
 }
 
 async function descargarPaginaAbierta(url, timeoutMs = 5500) {
@@ -187,7 +200,7 @@ function extraerDeLoteriasCR(textoNorm, etiquetas, fechaISO, cantidad = 1) {
     for (const etq of etiquetas) {
         let idx = textoNorm.indexOf(etq);
         while (idx !== -1) {
-            const ventana = textoNorm.substring(idx + etq.length, idx + etq.length + 110);
+            const ventana = textoNorm.substring(idx + etq.length, idx + etq.length + 120);
             if (ventana.includes(fechaISO)) {
                 const limpio = limpiarFechasYHoras(ventana);
                 const nums = limpio.match(/\b\d{2}\b/g);
@@ -246,7 +259,6 @@ function extraerNicaDePortalCR(textoNorm, nombreSorteo, fechaISO) {
     return null;
 }
 
-// Respaldo Nica en nuevaya.com.ni
 function extraerNicaRespaldoNuevaYa(html, nombreSorteo, infoFecha) {
     if (!html) return null;
     const texto = normalizar(limpiarHtmlATexto(html));
@@ -276,38 +288,113 @@ function extraerNicaRespaldoNuevaYa(html, nombreSorteo, infoFecha) {
     return null;
 }
 
-// Honduras: 1ro desde loteriascostarica.com + 2do y 3ro desde yelu.hn/lottery/results/premia-dos
-function extraerHondurasCompleto(textoPortalCR, textoYeluPremia2, nombreSorteo, infoFecha) {
-    const turno = getTurnoCentroamerica(nombreSorteo);
-    const mapa = {
-        '11AM': { hn: ['HONDURAS 11 AM', 'HONDURAS 11AM'], yelu: ['PREMIA 2 11AM', 'PREMIA 2 11:00AM', 'PREMIA2 11AM'] },
-        '3PM':  { hn: ['HONDURAS 3 PM', 'HONDURAS 3PM'],   yelu: ['PREMIA 2 3PM', 'PREMIA 2 3:00PM', 'PREMIA2 3PM'] },
-        '9PM':  { hn: ['HONDURAS 9 PM', 'HONDURAS 9PM'],   yelu: ['PREMIA 2 9PM', 'PREMIA 2 9:00PM', 'PREMIA2 9PM'] }
-    };
-    const cfg = mapa[turno];
-    if (!cfg) return null;
-
-    const p1Arr = extraerDeLoteriasCR(textoPortalCR, cfg.hn, infoFecha.fechaISO, 1);
-    if (!p1Arr) return null;
-
-    // Buscar Premia2 en Yelu Honduras (formato: "14 DE NOVIEMBRE 2026 ... PREMIA 2 11AM 51 37")
-    if (textoYeluPremia2 && contieneFechaHoy(textoYeluPremia2, infoFecha)) {
-        for (const etq of cfg.yelu) {
-            let idx = textoYeluPremia2.indexOf(etq);
-            while (idx !== -1) {
-                const ventanaAntes = textoYeluPremia2.substring(Math.max(0, idx - 80), idx + 30);
-                if (contieneFechaHoy(ventanaAntes, infoFecha)) {
-                    const despues = limpiarFechasYHoras(textoYeluPremia2.substring(idx + etq.length, idx + etq.length + 50));
-                    const nums = despues.match(/\b\d{2}\b/g);
-                    if (nums && nums.length >= 2) {
-                        return { p1: p1Arr[0], p2: nums[0], p3: nums[1] };
-                    }
+// ==========================================================
+// C. EXTRACTOR HONDURAS (LA DIARIA = 1RO, PREMIA2 = 2DO Y 3RO)
+// ==========================================================
+function buscarEnYeluHonduras(textoYelu, etiquetasHora, infoFecha, cantidad = 1) {
+    if (!textoYelu) return null;
+    for (const etq of etiquetasHora) {
+        let idx = textoYelu.indexOf(etq);
+        while (idx !== -1) {
+            // Revisar fecha tanto ANTES como DESPUÉS de la etiqueta de hora
+            const entorno = textoYelu.substring(Math.max(0, idx - 110), idx + 130);
+            if (contieneFechaHoy(entorno, infoFecha)) {
+                const despues = limpiarFechasYHoras(textoYelu.substring(idx + etq.length, idx + etq.length + 75));
+                const nums = despues.match(/\b\d{2}\b/g);
+                if (nums && nums.length >= cantidad) {
+                    return nums.slice(0, cantidad);
                 }
-                idx = textoYeluPremia2.indexOf(etq, idx + etq.length);
+            }
+            idx = textoYelu.indexOf(etq, idx + etq.length);
+        }
+    }
+    return null;
+}
+
+function buscarEnKingHonduras(textoKing, horas, infoFecha) {
+    if (!textoKing || !contieneFechaHoy(textoKing, infoFecha)) return { p1: null, p23: null };
+    let p1 = null;
+    let p23 = null;
+
+    // 1. Buscar bloque de Diaria Honduras
+    const idxDiaria = textoKing.indexOf('DIARIA HONDURAS');
+    if (idxDiaria !== -1) {
+        const subD = textoKing.substring(idxDiaria, idxDiaria + 350);
+        for (const h of horas) {
+            const idxH = subD.indexOf(h);
+            if (idxH !== -1) {
+                const limpio = limpiarFechasYHoras(subD.substring(idxH + h.length, idxH + h.length + 45));
+                const m = limpio.match(/\b(\d{2})\b/);
+                if (m) { p1 = m[1]; break; }
             }
         }
     }
 
+    // 2. Buscar bloque de Premia2 Honduras
+    const idxPremia = textoKing.indexOf('PREMIA2 HONDURAS') !== -1
+        ? textoKing.indexOf('PREMIA2 HONDURAS')
+        : textoKing.indexOf('PREMIA 2 HONDURAS');
+    if (idxPremia !== -1) {
+        const subP = textoKing.substring(idxPremia, idxPremia + 350);
+        for (const h of horas) {
+            const idxH = subP.indexOf(h);
+            if (idxH !== -1) {
+                const limpio = limpiarFechasYHoras(subP.substring(idxH + h.length, idxH + h.length + 55));
+                const nums = limpio.match(/\b\d{2}\b/g);
+                if (nums && nums.length >= 2) { p23 = [nums[0], nums[1]]; break; }
+            }
+        }
+    }
+
+    return { p1, p23 };
+}
+
+function extraerHondurasCompleto(fuentesHn, nombreSorteo, infoFecha) {
+    const turno = getTurnoCentroamerica(nombreSorteo);
+    const mapa = {
+        '11AM': {
+            crP1: ['HONDURAS 11 AM', 'HONDURAS 11AM', 'DIARIA HONDURAS 11 AM', 'HONDURAS DIARIA 11 AM', 'LA DIARIA 11 AM'],
+            crP23: ['PREMIA2 HONDURAS 11 AM', 'HONDURAS PREMIA2 11 AM', 'PREMIA 2 HONDURAS 11 AM'],
+            yeluP1: ['LA DIARIA 11AM', 'LA DIARIA 11:00AM', 'LA DIARIA 11:00 AM', '11AM', '11:00 AM'],
+            yeluP23: ['PREMIA 2 11AM', 'PREMIA 2 11:00AM', 'PREMIA 2 11:00 AM', 'PREMIA2 11AM', '11AM', '11:00 AM'],
+            kingH: ['11:00AM', '11:00 AM', '11AM']
+        },
+        '3PM': {
+            crP1: ['HONDURAS 3 PM', 'HONDURAS 3PM', 'DIARIA HONDURAS 3 PM', 'HONDURAS DIARIA 3 PM', 'LA DIARIA 3 PM'],
+            crP23: ['PREMIA2 HONDURAS 3 PM', 'HONDURAS PREMIA2 3 PM', 'PREMIA 2 HONDURAS 3 PM'],
+            yeluP1: ['LA DIARIA 3PM', 'LA DIARIA 3:00PM', 'LA DIARIA 3:00 PM', '3PM', '3:00 PM'],
+            yeluP23: ['PREMIA 2 3PM', 'PREMIA 2 3:00PM', 'PREMIA 2 3:00 PM', 'PREMIA2 3PM', '3PM', '3:00 PM'],
+            kingH: ['3:00PM', '3:00 PM', '3PM']
+        },
+        '9PM': {
+            crP1: ['HONDURAS 9 PM', 'HONDURAS 9PM', 'DIARIA HONDURAS 9 PM', 'HONDURAS DIARIA 9 PM', 'LA DIARIA 9 PM'],
+            crP23: ['PREMIA2 HONDURAS 9 PM', 'HONDURAS PREMIA2 9 PM', 'PREMIA 2 HONDURAS 9 PM'],
+            yeluP1: ['LA DIARIA 9PM', 'LA DIARIA 9:00PM', 'LA DIARIA 9:00 PM', '9PM', '9:00 PM'],
+            yeluP23: ['PREMIA 2 9PM', 'PREMIA 2 9:00PM', 'PREMIA 2 9:00 PM', 'PREMIA2 9PM', '9PM', '9:00 PM'],
+            kingH: ['9:00PM', '9:00 PM', '9PM']
+        }
+    };
+
+    const cfg = mapa[turno];
+    if (!cfg) return null;
+
+    const kingRes = buscarEnKingHonduras(fuentesHn.textoKing, cfg.kingH, infoFecha);
+
+    // 1. Obtener 1er premio (La Diaria) de cualquiera de las 3 fuentes
+    const p1Arr =
+        extraerDeLoteriasCR(fuentesHn.textoCR, cfg.crP1, infoFecha.fechaISO, 1) ||
+        buscarEnYeluHonduras(fuentesHn.textoYeluDiaria, cfg.yeluP1, infoFecha, 1) ||
+        (kingRes.p1 ? [kingRes.p1] : null);
+
+    // 2. Obtener 2do y 3er premio (Premia2) de cualquiera de las 3 fuentes
+    const p23Arr =
+        extraerDeLoteriasCR(fuentesHn.textoCR, cfg.crP23, infoFecha.fechaISO, 2) ||
+        buscarEnYeluHonduras(fuentesHn.textoYeluPremia2, cfg.yeluP23, infoFecha, 2) ||
+        kingRes.p23;
+
+    if (p1Arr && p23Arr) {
+        return { p1: p1Arr[0], p2: p23Arr[0], p3: p23Arr[1] };
+    }
     return null;
 }
 
@@ -351,6 +438,8 @@ export default async function handler(req, res) {
             return true;
         };
 
+        let textoKingCache = '';
+
         // 1. PORTALES ABIERTOS PARA FLORIDA, NEW YORK, LA PRIMERA Y ANGUILLA
         const pendientesPortal = sorteos.filter(s =>
             !idsYaEscrutados.has(String(s.id)) &&
@@ -372,13 +461,17 @@ export default async function handler(req, res) {
                 diagnostico.push(`${new URL(url).hostname}: ${estado}`);
                 if (!html) continue;
 
+                if (url.includes('kingarrobanumeros')) {
+                    textoKingCache = normalizar(limpiarHtmlATexto(html));
+                }
+
                 for (const s of faltantes) {
                     registrarResultado(s, extraer3PremiosAbierto(html, s.nombre, infoFecha));
                 }
             }
         }
 
-        // 2. CENTROAMÉRICA (TICA, NICA Y HONDURAS) DESDE LOTERIASCOSTARICA.COM + RESPALDOS
+        // 2. CENTROAMÉRICA (TICA, NICA Y HONDURAS)
         const pendientesCA = sorteos.filter(s =>
             !idsYaEscrutados.has(String(s.id)) &&
             ['TICA', 'NICA', 'HONDURAS'].some(r => normalizar(s.nombre).includes(r)) &&
@@ -395,7 +488,7 @@ export default async function handler(req, res) {
                 registrarResultado(s, extraerTicaDePortalCR(textoCR, s.nombre, fechaISO));
             }
 
-            // NICA (Portal CR + respaldo NuevaYa)
+            // NICA
             const pendientesNica = pendientesCA.filter(x => normalizar(x.nombre).includes('NICA'));
             if (pendientesNica.length > 0) {
                 for (const s of pendientesNica) {
@@ -411,15 +504,34 @@ export default async function handler(req, res) {
                 }
             }
 
-            // HONDURAS (Portal CR + Yelu Premia2 Honduras)
+            // HONDURAS (3 fuentes abiertas en paralelo)
             const pendientesHn = pendientesCA.filter(x => normalizar(x.nombre).includes('HONDURAS'));
             if (pendientesHn.length > 0) {
-                const { html: htmlYelu, estado: estadoYelu } = await descargarPaginaAbierta('https://www.yelu.hn/lottery/results/premia-dos');
-                diagnostico.push(`yelu.hn: ${estadoYelu}`);
-                const textoYelu = htmlYelu ? normalizar(limpiarHtmlATexto(htmlYelu)) : '';
+                const [resYeluP1, resYeluP23, resKing] = await Promise.all([
+                    descargarPaginaAbierta('https://www.yelu.hn/lottery/results/la-diaria'),
+                    descargarPaginaAbierta('https://www.yelu.hn/lottery/results/premia-dos'),
+                    textoKingCache
+                        ? Promise.resolve({ html: null, estado: 'CACHE_OK' })
+                        : descargarPaginaAbierta('https://www.kingarrobanumeros.com/resultados')
+                ]);
+
+                diagnostico.push(`yelu_diaria: ${resYeluP1.estado}`, `yelu_premia2: ${resYeluP23.estado}`, `king_hn: ${resKing.estado}`);
+
+                const fuentesHn = {
+                    textoCR,
+                    textoYeluDiaria: resYeluP1.html ? normalizar(limpiarHtmlATexto(resYeluP1.html)) : '',
+                    textoYeluPremia2: resYeluP23.html ? normalizar(limpiarHtmlATexto(resYeluP23.html)) : '',
+                    textoKing: textoKingCache || (resKing.html ? normalizar(limpiarHtmlATexto(resKing.html)) : '')
+                };
 
                 for (const s of pendientesHn) {
-                    registrarResultado(s, extraerHondurasCompleto(textoCR, textoYelu, s.nombre, infoFecha));
+                    const ok = registrarResultado(s, extraerHondurasCompleto(fuentesHn, s.nombre, infoFecha));
+                    if (!ok) {
+                        const idxH = fuentesHn.textoCR.indexOf('HONDURAS');
+                        if (idxH !== -1) diagnostico.push(`Muestra_HN_CR: ${fuentesHn.textoCR.substring(idxH, idxH + 95)}`);
+                        const idxY = fuentesHn.textoYeluPremia2.indexOf('PREMIA');
+                        if (idxY !== -1) diagnostico.push(`Muestra_HN_Yelu: ${fuentesHn.textoYeluPremia2.substring(idxY, idxY + 120)}`);
+                    }
                 }
             }
         }

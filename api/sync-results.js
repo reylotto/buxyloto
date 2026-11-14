@@ -19,6 +19,7 @@ function limpiarHtmlATexto(html) {
         .replace(/<style[\s\S]*?<\/style>/gi, ' ')
         .replace(/<[^>]+>/g, ' ')
         .replace(/&nbsp;/gi, ' ')
+        .replace(/[\u2013\u2014]/g, '-')
         .replace(/\s+/g, ' ')
         .trim();
 }
@@ -55,20 +56,24 @@ function contieneFechaHoy(textoPlano, infoFecha) {
         norm.includes(`${diaNum} DE ${mesNorm}`) ||
         norm.includes(`${dia} DE ${mesNorm}`) ||
         norm.includes(`${diaNum} ${mesCorto}`) ||
-        norm.includes(`${dia} ${mesCorto}`)
+        norm.includes(`${dia} ${mesCorto}`) ||
+        norm.includes(`${mesNorm} ${diaNum}`) ||
+        norm.includes(`${mesNorm} ${dia}`) ||
+        norm.includes(`${mesCorto} ${diaNum}`) ||
+        norm.includes(`${mesCorto} ${dia}`)
     );
 }
 
-// Elimina fechas (14-11, 14 Nov, Sábado 14) y horas (1:30 PM) para dejar solo los números sorteados
 function limpiarFechasYHoras(textoNorm) {
     return textoNorm
         .replace(/\b\d{1,2}[-\/]\d{1,2}(?:[-\/]\d{2,4})?\b/g, ' ')
         .replace(/\b\d{1,2}\s*(?:DE\s+)?(?:ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)[A-Z]*\b/g, ' ')
+        .replace(/\b(?:ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)[A-Z]*\s+\d{1,2}(?:,?\s*\d{4})?\b/g, ' ')
         .replace(/\b(?:LUNES|MARTES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO)\s+\d{1,2}\b/g, ' ')
-        .replace(/\b\d{1,2}:\d{2}\s*(?:AM|PM|M\.?D\.?)?\b/g, ' ');
+        .replace(/\b\d{1,2}:\d{2}\s*(?:A\.?M\.?|P\.?M\.?|M\.?D\.?)?\b/g, ' ');
 }
 
-async function descargarPaginaAbierta(url, timeoutMs = 5000) {
+async function descargarPaginaAbierta(url, timeoutMs = 5500) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -103,7 +108,7 @@ function obtenerEtiquetas3Premios(nombreSorteo) {
 
     if (n.includes('PRIMERA')) {
         if (n.includes('11') || n.includes('DIA') || n.includes('12')) {
-            return ['LA PRIMERA DIA', 'PRIMERA DIA', 'LA PRIMERA 12:00'];
+            return ['LA PRIMERA DIA', 'PRIMERA DIA', 'LA PRIMERA 12:00', 'LA PRIMERA'];
         }
         if (n.includes('6') || n.includes('7') || n.includes('8') || n.includes('NOCHE')) {
             return ['PRIMERA NOCHE', 'LA PRIMERA NOCHE', 'LA PRIMERA 8:00'];
@@ -126,17 +131,18 @@ function obtenerEtiquetas3Premios(nombreSorteo) {
         }
     }
     if (n.includes('ANGUILLA')) {
-        if (n.includes('10') || n.includes('12') || n.includes('AM')) {
-            return ['ANGUILLA 10:00', 'ANGUILLA MANANA', 'ANGUILLA 12:00'];
+        // Anguilla (AST UTC-4) va +1 hora respecto a Panamá (UTC-5)
+        if (n.includes('9AM') || n.includes('10')) {
+            return ['ANGUILLA 10:00', 'ANGUILLA 10AM', 'ANGUILLA MANANA'];
         }
-        if (n.includes('1') || n.includes('TARDE')) {
-            return ['ANGUILLA 1:00', 'ANGUILLA TARDE', 'ANGUILLA MEDIODIA'];
+        if (n.includes('12') || n.includes('1PM') || n.includes('TARDE')) {
+            return ['ANGUILLA 1:00', 'ANGUILLA 1PM', 'ANGUILLA 12:00', 'ANGUILLA 12PM', 'ANGUILLA TARDE'];
         }
         if (n.includes('5') || n.includes('6')) {
-            return ['ANGUILLA 6:00', 'ANGUILLA 5:00'];
+            return ['ANGUILLA 6:00', 'ANGUILLA 6PM', 'ANGUILLA 5:00', 'ANGUILLA 5PM'];
         }
-        if (n.includes('8') || n.includes('9') || n.includes('NOCHE')) {
-            return ['ANGUILLA 9:00', 'ANGUILLA NOCHE', 'ANGUILLA 8:00'];
+        if (n.includes('8') || n.includes('9PM') || n.includes('NOCHE')) {
+            return ['ANGUILLA 9:00', 'ANGUILLA 9PM', 'ANGUILLA 8:00', 'ANGUILLA 8PM', 'ANGUILLA NOCHE'];
         }
     }
     return [n];
@@ -146,14 +152,22 @@ function extraer3PremiosAbierto(html, nombreSorteo, infoFecha) {
     if (!html) return null;
     const texto = normalizar(limpiarHtmlATexto(html));
     const etiquetas = obtenerEtiquetas3Premios(nombreSorteo);
+    const buscaDiaPrimera = normalizar(nombreSorteo).includes('PRIMERA') && !normalizar(nombreSorteo).includes('NOCHE');
 
     for (const etq of etiquetas) {
         let idx = texto.indexOf(etq);
         while (idx !== -1) {
-            const ventanaFecha = texto.substring(Math.max(0, idx - 70), idx + 220);
-            if (contieneFechaHoy(ventanaFecha, infoFecha)) {
+            const cabeceraPropia = texto.substring(idx + etq.length, idx + etq.length + 55);
+
+            // Evitar que "LA PRIMERA" capture por error "LA PRIMERA NOCHE"
+            if (buscaDiaPrimera && etq === 'LA PRIMERA' && cabeceraPropia.startsWith(' NOCHE')) {
+                idx = texto.indexOf(etq, idx + etq.length);
+                continue;
+            }
+
+            if (contieneFechaHoy(cabeceraPropia, infoFecha)) {
                 const despuesLimpio = limpiarFechasYHoras(
-                    texto.substring(idx + etq.length, idx + etq.length + 160)
+                    texto.substring(idx + etq.length, idx + etq.length + 130)
                 );
                 const nums = despuesLimpio.match(/\b\d{2}\b/g);
                 if (nums && nums.length >= 3) {
@@ -172,13 +186,13 @@ function extraer3PremiosAbierto(html, nombreSorteo, infoFecha) {
 function obtenerHoraTica(nombreSorteo) {
     const n = normalizar(nombreSorteo);
     if (n.includes('2PM') || n.includes('2:00') || n.includes('DIA') || n.includes('1PM')) {
-        return ['12:55', '1:00', 'MEDIO DIA', 'MEDIODIA'];
+        return ['12:55', '1:00', 'MEDIODIA', 'MEDIO DIA', 'TICA DIA'];
     }
     if (n.includes('5:30') || n.includes('5PM') || n.includes('TARDE') || n.includes('3:00')) {
-        return ['4:30', 'TARDE'];
+        return ['4:30', 'TICA TARDE', 'TARDE'];
     }
     if (n.includes('8:30') || n.includes('8PM') || n.includes('NOCHE') || n.includes('7:30')) {
-        return ['7:30', 'NOCHE'];
+        return ['7:30', 'TICA NOCHE', 'NOCHE'];
     }
     return [];
 }
@@ -192,12 +206,16 @@ function extraerTica(html, nombreSorteo, infoFecha) {
     for (const etq of etiquetas) {
         let idx = texto.indexOf(etq);
         while (idx !== -1) {
-            const ventana = limpiarFechasYHoras(
-                texto.substring(idx + etq.length, idx + etq.length + 90)
-            );
-            const match = ventana.match(/\b(\d{2})\b/);
-            if (match) {
-                return { p1: match[1], p2: null, p3: null };
+            const despues = limpiarFechasYHoras(texto.substring(idx + etq.length, idx + etq.length + 80));
+            const matchDespues = despues.match(/\b(\d{2})\b/);
+            if (matchDespues) {
+                return { p1: matchDespues[1], p2: null, p3: null };
+            }
+
+            const antes = limpiarFechasYHoras(texto.substring(Math.max(0, idx - 50), idx));
+            const matchesAntes = [...antes.matchAll(/\b(\d{2})\b/g)];
+            if (matchesAntes.length > 0) {
+                return { p1: matchesAntes[matchesAntes.length - 1][1], p2: null, p3: null };
             }
             idx = texto.indexOf(etq, idx + etq.length);
         }
@@ -210,10 +228,10 @@ function extraerTica(html, nombreSorteo, infoFecha) {
 // ==========================================================
 function obtenerHoraNica(nombreSorteo) {
     const n = normalizar(nombreSorteo);
-    if (n.includes('12') || n.includes('11') || n.includes('AM') || n.includes('DIA')) return ['11:00 AM', '11:00AM'];
-    if (n.includes('4') || n.includes('3') || n.includes('TARDE')) return ['3:00 PM', '3:00PM'];
-    if (n.includes('7') || n.includes('6')) return ['6:00 PM', '6:00PM'];
-    if (n.includes('10') || n.includes('9') || n.includes('NOCHE')) return ['9:00 PM', '9:00PM'];
+    if (n.includes('12') || n.includes('11') || n.includes('AM') || n.includes('DIA')) return ['11:00 AM', '11:00AM', '11:00'];
+    if (n.includes('4') || n.includes('3') || n.includes('TARDE')) return ['3:00 PM', '3:00PM', '3:00'];
+    if (n.includes('7') || n.includes('6')) return ['6:00 PM', '6:00PM', '6:00'];
+    if (n.includes('10') || n.includes('9') || n.includes('NOCHE')) return ['9:00 PM', '9:00PM', '9:00'];
     return [];
 }
 
@@ -224,15 +242,26 @@ function extraerNicaCompleto(html, nombreSorteo, infoFecha) {
 
     const horas = obtenerHoraNica(nombreSorteo);
     for (const h of horas) {
-        const idx = texto.indexOf(h);
-        if (idx === -1) continue;
+        let idx = texto.indexOf(h);
+        while (idx !== -1) {
+            // Ampliado a 600 caracteres para cubrir toda la fila de la tabla (Diaria -> Premia2)
+            const bloque = texto.substring(idx, idx + 600);
+            const matchDiaria = bloque.match(/\b(\d{2})\s*\(/);
+            const matchPremia2 = bloque.match(/\b(\d{2})\s*-\s*(\d{2})\b/);
 
-        const bloque = texto.substring(idx, idx + 350);
-        const matchDiaria = bloque.match(/\b(\d{2})\s*\(/);
-        const matchPremia2 = bloque.match(/\b(\d{2})\s*-\s*(\d{2})\b/);
+            if (matchDiaria && matchPremia2) {
+                return { p1: matchDiaria[1], p2: matchPremia2[1], p3: matchPremia2[2] };
+            }
 
-        if (matchDiaria && matchPremia2) {
-            return { p1: matchDiaria[1], p2: matchPremia2[1], p3: matchPremia2[2] };
+            // Formato alternativo en agregadores (ej: "11:00 AM 53 ... PREMIA2 27 - 26")
+            if (matchPremia2) {
+                const limpio = limpiarFechasYHoras(bloque.substring(h.length, bloque.indexOf(matchPremia2[0])));
+                const primerNum = limpio.match(/\b(\d{2})\b/);
+                if (primerNum) {
+                    return { p1: primerNum[1], p2: matchPremia2[1], p3: matchPremia2[2] };
+                }
+            }
+            idx = texto.indexOf(h, idx + h.length);
         }
     }
     return null;
@@ -243,42 +272,31 @@ function extraerNicaCompleto(html, nombreSorteo, infoFecha) {
 // ==========================================================
 function obtenerHoraHonduras(nombreSorteo) {
     const n = normalizar(nombreSorteo);
-    if (n.includes('12') || n.includes('11') || n.includes('AM') || n.includes('DIA')) return ['11:00 AM', '11:00AM'];
-    if (n.includes('4') || n.includes('3') || n.includes('TARDE')) return ['3:00 PM', '3:00PM'];
-    if (n.includes('10') || n.includes('9') || n.includes('NOCHE')) return ['9:00 PM', '9:00PM'];
+    if (n.includes('12') || n.includes('11') || n.includes('AM') || n.includes('DIA')) return ['11:00 AM', '11:00AM', '11:00'];
+    if (n.includes('4') || n.includes('3') || n.includes('TARDE')) return ['3:00 PM', '3:00PM', '3:00'];
+    if (n.includes('10') || n.includes('9') || n.includes('NOCHE')) return ['9:00 PM', '9:00PM', '9:00'];
     return [];
 }
 
 function extraerHondurasCompleto(html, nombreSorteo, infoFecha) {
     if (!html) return null;
     const texto = normalizar(limpiarHtmlATexto(html));
+    if (!contieneFechaHoy(texto, infoFecha)) return null;
+
     const horas = obtenerHoraHonduras(nombreSorteo);
-    if (horas.length === 0) return null;
-
-    const idxDiariaHoy = texto.indexOf('LA DIARIA DE HOY');
-    const idxPremia2Hoy = texto.indexOf('PREMIA2 DE HOY');
-    if (idxDiariaHoy === -1 || idxPremia2Hoy === -1) return null;
-
-    const bloqueDiaria = texto.substring(idxDiariaHoy, idxDiariaHoy + 450);
-    const bloquePremia2 = texto.substring(idxPremia2Hoy, idxPremia2Hoy + 450);
-
-    if (!contieneFechaHoy(bloqueDiaria, infoFecha) || !contieneFechaHoy(bloquePremia2, infoFecha)) {
-        return null;
-    }
-
     for (const h of horas) {
-        const idxH1 = bloqueDiaria.indexOf(h);
-        const idxH2 = bloquePremia2.indexOf(h);
-        if (idxH1 === -1 || idxH2 === -1) continue;
-
-        const subDiaria = bloqueDiaria.substring(idxH1 + h.length, idxH1 + h.length + 50);
-        const subPremia2 = bloquePremia2.substring(idxH2 + h.length, idxH2 + h.length + 50);
-
-        const matchP1 = subDiaria.match(/\b(\d{2})\b/);
-        const matchP2P3 = subPremia2.match(/\b(\d{2})\s*-\s*(\d{2})\b/);
-
-        if (matchP1 && matchP2P3) {
-            return { p1: matchP1[1], p2: matchP2P3[1], p3: matchP2P3[2] };
+        let idx = texto.indexOf(h);
+        while (idx !== -1) {
+            const bloque = texto.substring(idx, idx + 450);
+            const matchPremia2 = bloque.match(/\b(\d{2})\s*-\s*(\d{2})\b/);
+            if (matchPremia2) {
+                const antesPremia = limpiarFechasYHoras(bloque.substring(h.length, bloque.indexOf(matchPremia2[0])));
+                const numDiaria = antesPremia.match(/\b(\d{2})\b/);
+                if (numDiaria) {
+                    return { p1: numDiaria[1], p2: matchPremia2[1], p3: matchPremia2[2] };
+                }
+            }
+            idx = texto.indexOf(h, idx + h.length);
         }
     }
     return null;
@@ -307,8 +325,8 @@ export default async function handler(req, res) {
         const aInsertar = [];
 
         const registrarResultado = (sorteo, resultado) => {
-            if (!resultado || !resultado.p1) return;
-            if (aInsertar.some(i => i.sorteo_id === sorteo.id)) return;
+            if (!resultado || !resultado.p1) return false;
+            if (aInsertar.some(i => i.sorteo_id === sorteo.id)) return true;
             aInsertar.push({
                 sorteo_id: sorteo.id,
                 fecha: fechaISO,
@@ -321,6 +339,7 @@ export default async function handler(req, res) {
                 updated_at: new Date().toISOString()
             });
             diagnostico.push(`Detectado ${sorteo.nombre}: ${resultado.p1}-${resultado.p2 || '--'}-${resultado.p3 || '--'}`);
+            return true;
         };
 
         // 1. PORTALES ABIERTOS PARA FLORIDA, NEW YORK, LA PRIMERA Y ANGUILLA
@@ -347,6 +366,18 @@ export default async function handler(req, res) {
                 for (const s of faltantes) {
                     registrarResultado(s, extraer3PremiosAbierto(html, s.nombre, infoFecha));
                 }
+
+                // Muestra diagnóstica si alguno sigue sin coincidir en enloteria.com
+                if (url.includes('enloteria.com')) {
+                    const txt = normalizar(limpiarHtmlATexto(html));
+                    for (const f of faltantes) {
+                        if (!aInsertar.some(i => i.sorteo_id === f.id)) {
+                            const clave = normalizar(f.nombre).split(' ')[0];
+                            const p = txt.indexOf(clave);
+                            if (p !== -1) diagnostico.push(`Muestra_${clave}: ${txt.substring(p, p + 95)}`);
+                        }
+                    }
+                }
             }
         }
 
@@ -361,7 +392,12 @@ export default async function handler(req, res) {
             diagnostico.push(`TICA: ${estado}`);
             if (html) {
                 for (const s of pendientesTica) {
-                    registrarResultado(s, extraerTica(html, s.nombre, infoFecha));
+                    const ok = registrarResultado(s, extraerTica(html, s.nombre, infoFecha));
+                    if (!ok) {
+                        const txt = normalizar(limpiarHtmlATexto(html));
+                        const p = txt.indexOf('TICA');
+                        if (p !== -1) diagnostico.push(`Muestra_TICA: ${txt.substring(p, p + 120)}`);
+                    }
                 }
             }
         }
@@ -373,11 +409,25 @@ export default async function handler(req, res) {
             (!s.hora_cierre || hora24 >= s.hora_cierre)
         );
         if (pendientesNica.length > 0) {
-            const { html, estado } = await descargarPaginaAbierta('https://nuevaya.com.ni/loto-diaria-de-nicaragua/');
-            diagnostico.push(`NICA: ${estado}`);
-            if (html) {
-                for (const s of pendientesNica) {
-                    registrarResultado(s, extraerNicaCompleto(html, s.nombre, infoFecha));
+            const urlsNica = [
+                'https://nuevaya.com.ni/loto-diaria-de-nicaragua/',
+                'https://www.kingarrobanumeros.com/nica-hoy'
+            ];
+            for (const url of urlsNica) {
+                const faltantes = pendientesNica.filter(p => !aInsertar.some(i => i.sorteo_id === p.id));
+                if (faltantes.length === 0) break;
+
+                const { html, estado } = await descargarPaginaAbierta(url);
+                diagnostico.push(`NICA (${new URL(url).hostname}): ${estado}`);
+                if (!html) continue;
+
+                for (const s of faltantes) {
+                    const ok = registrarResultado(s, extraerNicaCompleto(html, s.nombre, infoFecha));
+                    if (!ok && url.includes('nuevaya')) {
+                        const txt = normalizar(limpiarHtmlATexto(html));
+                        const p = txt.indexOf('11:00');
+                        if (p !== -1) diagnostico.push(`Muestra_NICA: ${txt.substring(p, p + 140)}`);
+                    }
                 }
             }
         }
@@ -389,11 +439,25 @@ export default async function handler(req, res) {
             (!s.hora_cierre || hora24 >= s.hora_cierre)
         );
         if (pendientesHonduras.length > 0) {
-            const { html, estado } = await descargarPaginaAbierta('https://www.nacionalloteria.com/honduras/resultados-loteria.php');
-            diagnostico.push(`HONDURAS: ${estado}`);
-            if (html) {
-                for (const s of pendientesHonduras) {
-                    registrarResultado(s, extraerHondurasCompleto(html, s.nombre, infoFecha));
+            const urlsHn = [
+                'https://www.kingarrobanumeros.com/honduras-hoy',
+                'https://www.kingarrobanumeros.com/resultados'
+            ];
+            for (const url of urlsHn) {
+                const faltantes = pendientesHonduras.filter(p => !aInsertar.some(i => i.sorteo_id === p.id));
+                if (faltantes.length === 0) break;
+
+                const { html, estado } = await descargarPaginaAbierta(url);
+                diagnostico.push(`HONDURAS (${new URL(url).pathname}): ${estado}`);
+                if (!html) continue;
+
+                for (const s of faltantes) {
+                    const ok = registrarResultado(s, extraerHondurasCompleto(html, s.nombre, infoFecha));
+                    if (!ok) {
+                        const txt = normalizar(limpiarHtmlATexto(html));
+                        const p = txt.indexOf('HONDURAS');
+                        if (p !== -1) diagnostico.push(`Muestra_HN: ${txt.substring(p, p + 140)}`);
+                    }
                 }
             }
         }

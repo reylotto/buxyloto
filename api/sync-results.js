@@ -59,41 +59,59 @@ function contieneFechaHoy(textoPlano, infoFecha) {
     );
 }
 
-// Intenta descarga directa gratuita; si Cloudflare bloquea Vercel (403), usa respaldo
-async function descargarHtmlInteligente(url, usarRespaldo = true) {
+async function fetchConTimeout(url, options = {}, timeoutMs = 4500) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-        const res = await fetch(url, {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+async function descargarHtmlInteligente(url, usarRespaldo = true) {
+    let statusDirecto = 'error_red';
+    try {
+        const res = await fetchConTimeout(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml'
             }
-        });
+        }, 4500);
+
+        statusDirecto = `HTTP_${res.status}`;
         if (res.ok) {
             const text = await res.text();
             if (text && !text.includes('Just a moment...') && !text.includes('cf-browser-verification')) {
                 return { html: text, metodo: 'directo_gratis' };
             }
+            statusDirecto = 'bloqueo_cf';
         }
-    } catch {}
+    } catch (e) {
+        statusDirecto = e.name === 'AbortError' ? 'timeout_directo' : 'error_directo';
+    }
 
-    if (usarRespaldo && SCRAPER_API_KEY) {
+    if (usarRespaldo && SCRAPER_API_KEY && statusDirecto !== 'HTTP_404') {
         try {
             const proxyUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(url)}`;
-            const resProxy = await fetch(proxyUrl);
+            const resProxy = await fetchConTimeout(proxyUrl, {}, 6500);
             if (resProxy.ok) {
                 const textProxy = await resProxy.text();
                 return { html: textProxy, metodo: 'proxy_respaldo' };
             }
-        } catch {}
+            return { html: null, metodo: `${statusDirecto}_y_proxy_${resProxy.status}` };
+        } catch {
+            return { html: null, metodo: `${statusDirecto}_y_proxy_timeout` };
+        }
     }
 
-    return { html: null, metodo: 'sin_respuesta' };
+    return { html: null, metodo: statusDirecto };
 }
 
 // ==========================================================
-// A. EXTRACTOR CONECTATE.COM.DO (LA PRIMERA, ANGUILLA, FLORIDA, NEW YORK)
+// A. EXTRACTOR PORTALES DOMINICANOS / AMERICANAS (3 PREMIOS)
 // ==========================================================
-function obtenerTerminosConectate(nombreSorteo) {
+function obtenerTerminosPortal(nombreSorteo) {
     const n = normalizar(nombreSorteo);
 
     if (n.includes('PRIMERA')) {
@@ -117,10 +135,10 @@ function obtenerTerminosConectate(nombreSorteo) {
     return [n];
 }
 
-function extraerDeConectate(html, nombreSorteo, infoFecha) {
+function extraerDePortal3Premios(html, nombreSorteo, infoFecha) {
     if (!html) return null;
     const htmlNorm = normalizar(html);
-    const terminos = obtenerTerminosConectate(nombreSorteo);
+    const terminos = obtenerTerminosPortal(nombreSorteo);
     const fechaGuion = `${infoFecha.dia}-${infoFecha.mes}`;
     const fechaBarra = `${infoFecha.dia}/${infoFecha.mes}`;
 
@@ -130,10 +148,9 @@ function extraerDeConectate(html, nombreSorteo, infoFecha) {
             const bloqueHtml = html.substring(pos, pos + 1400);
             const bloqueTexto = normalizar(limpiarHtmlATexto(bloqueHtml));
 
-            // Confirmar que este bloque corresponde a la fecha de hoy
             if (bloqueTexto.includes(fechaGuion) || bloqueTexto.includes(fechaBarra)) {
-                // Método 1: Spans oficiales de Conectate (text-gray-800)
-                const regexSpan = /<span\s+class="[^"]*text-gray-800[^"]*">\s*(\d{2})\s*<\/span>/gi;
+                // 1. Spans estándar (Conectate / LoteriasDominicanas)
+                const regexSpan = /<span\s+class="[^"]*(?:text-gray-800|score)[^"]*">\s*(\d{2})\s*<\/span>/gi;
                 const numsSpan = [];
                 let m;
                 while ((m = regexSpan.exec(bloqueHtml)) !== null) {
@@ -143,12 +160,11 @@ function extraerDeConectate(html, nombreSorteo, infoFecha) {
                     return { p1: numsSpan[0], p2: numsSpan[1], p3: numsSpan[2] };
                 }
 
-                // Método 2: Texto limpio quitando cabecera y fecha
+                // 2. Extracción sobre texto limpio eliminando título, fecha completa y hora
                 const sinCabecera = bloqueTexto
-                    .substring(0, 160)
+                    .substring(0, 180)
                     .replace(term, ' ')
-                    .replace(fechaGuion, ' ')
-                    .replace(fechaBarra, ' ')
+                    .replace(/\b\d{1,2}[-\/]\d{1,2}(?:[-\/]\d{2,4})?\b/g, ' ')
                     .replace(/\b\d{1,2}:\d{2}\s*(AM|PM)?\b/g, ' ');
 
                 const numsTexto = sinCabecera.match(/\b\d{2}\b/g);
@@ -280,28 +296,33 @@ export default async function handler(req, res) {
             diagnostico.push(`Detectado ${sorteo.nombre}: ${resultado.p1}-${resultado.p2 || '--'}-${resultado.p3 || '--'}`);
         };
 
-        // 1. LA PRIMERA, ANGUILLA, FLORIDA Y NEW YORK (Conectate.com.do con respaldo)
-        const PAGINAS_CONECTATE = [
-            { regla: 'PRIMERA', url: 'https://www.conectate.com.do/loterias/la-primera' },
-            { regla: 'ANGUILLA', url: 'https://www.conectate.com.do/loterias/anguilla' },
-            { regla: 'FLORIDA', url: 'https://www.conectate.com.do/loterias/florida' },
-            { regla: 'YORK', url: 'https://www.conectate.com.do/loterias/new-york' }
-        ];
+        // 1. AMERICANAS Y DOMINICANAS (LoteriasDominicanas gratis + Conectate respaldo)
+        const pendientesPortal = sorteos.filter(s =>
+            !idsYaEscrutados.has(String(s.id)) &&
+            ['PRIMERA', 'ANGUILLA', 'FLORIDA', 'YORK'].some(r => normalizar(s.nombre).includes(r)) &&
+            (!s.hora_cierre || hora24 >= s.hora_cierre)
+        );
 
-        for (const pag of PAGINAS_CONECTATE) {
-            const pendientes = sorteos.filter(s =>
-                !idsYaEscrutados.has(String(s.id)) &&
-                normalizar(s.nombre).includes(pag.regla) &&
-                (!s.hora_cierre || hora24 >= s.hora_cierre)
-            );
-            if (pendientes.length === 0) continue;
+        if (pendientesPortal.length > 0) {
+            const urlsPortal = [
+                'https://loteriasdominicanas.com/americanas',
+                'https://loteriasdominicanas.com/',
+                'https://www.conectate.com.do/loterias/americanas'
+            ];
 
-            const { html, metodo } = await descargarHtmlInteligente(pag.url, true);
-            diagnostico.push(`${pag.regla}: ${metodo}`);
-            if (!html) continue;
+            for (const url of urlsPortal) {
+                const faltantes = pendientesPortal.filter(p => !aInsertar.some(i => i.sorteo_id === p.id));
+                if (faltantes.length === 0) break;
 
-            for (const s of pendientes) {
-                registrarResultado(s, extraerDeConectate(html, s.nombre, infoFecha));
+                const usarProxy = url.includes('conectate.com.do');
+                const { html, metodo } = await descargarHtmlInteligente(url, usarProxy);
+                diagnostico.push(`${new URL(url).hostname}${new URL(url).pathname}: ${metodo}`);
+
+                if (!html) continue;
+
+                for (const s of faltantes) {
+                    registrarResultado(s, extraerDePortal3Premios(html, s.nombre, infoFecha));
+                }
             }
         }
 
@@ -312,7 +333,7 @@ export default async function handler(req, res) {
             (!s.hora_cierre || hora24 >= s.hora_cierre)
         );
         if (pendientesNica.length > 0) {
-            const { html, metodo } = await descargarHtmlInteligente('https://nuevaya.com.ni/loto-diaria-de-nicaragua/', true);
+            const { html, metodo } = await descargarHtmlInteligente('https://nuevaya.com.ni/loto-diaria-de-nicaragua/', false);
             diagnostico.push(`NICA: ${metodo}`);
             if (html) {
                 for (const s of pendientesNica) {
@@ -328,7 +349,7 @@ export default async function handler(req, res) {
             (!s.hora_cierre || hora24 >= s.hora_cierre)
         );
         if (pendientesHonduras.length > 0) {
-            const { html, metodo } = await descargarHtmlInteligente('https://www.nacionalloteria.com/honduras/resultados-loteria.php', true);
+            const { html, metodo } = await descargarHtmlInteligente('https://www.nacionalloteria.com/honduras/resultados-loteria.php', false);
             diagnostico.push(`HONDURAS: ${metodo}`);
             if (html) {
                 for (const s of pendientesHonduras) {
@@ -345,7 +366,7 @@ export default async function handler(req, res) {
             });
         }
 
-        // 4. Guardar en Supabase y disparar escrutinio automático
+        // 4. Guardar en Supabase y ejecutar escrutinio automático
         const { error: errInsert } = await supabase
             .from('resultados')
             .upsert(aInsertar, { onConflict: 'sorteo_id,fecha' });

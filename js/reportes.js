@@ -966,7 +966,7 @@ window.cargarFiltrosAuditoriaAislados = async function() {
 
     try {
         // 1. Aislar Supervisores
-        let qSup = supabase.from('perfiles').select('id, nombre, username').eq('rol', 'supervisor');
+        let qSup = supabase.from('profiles').select('id, nombre, username').eq('rol', 'supervisor');
         if (esInquilino) qSup = qSup.eq('inquilino_id', inquilinoId);
         else qSup = qSup.is('inquilino_id', null);
 

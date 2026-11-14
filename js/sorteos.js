@@ -9,7 +9,6 @@ export function initSorteosModule() {
     cargarSorteosSistema();
     activarEventosSorteo();
 
-    // Refresco automático de la tabla cada 30 segundos para actualizar CERRADO/ACTIVO en vivo
     if (timerRefrescoSorteos) clearInterval(timerRefrescoSorteos);
     timerRefrescoSorteos = setInterval(() => {
         cargarSorteosSistema();
@@ -27,7 +26,6 @@ function getSupabase() {
 export function calcularEstatusVisualSorteo(sorteo) {
     if (!sorteo) return { texto: 'CERRADO', clase: 'bg-rose-500/10 text-rose-400 border border-rose-500/20' };
 
-    // 1. Interruptor Administrativo Maestro (Pausado / Inactivo)
     const estatusDB = String(sorteo.estatus || sorteo.estado || 'ACTIVO').toUpperCase().trim();
     if (['PAUSADO', 'INACTIVO', 'PAUSA', 'DESACTIVADO'].includes(estatusDB)) {
         return {
@@ -36,7 +34,6 @@ export function calcularEstatusVisualSorteo(sorteo) {
         };
     }
 
-    // 2. Evaluar Hora Actual en Panamá (Formato 24h)
     const ahoraPanama = new Date().toLocaleTimeString('en-GB', { 
         timeZone: 'America/Panama', 
         hour12: false 
@@ -52,7 +49,6 @@ export function calcularEstatusVisualSorteo(sorteo) {
     const horaApertura = normHora(sorteo.hora_apertura || sorteo.horario_apertura, '06:00:00');
     const horaCierre = normHora(sorteo.hora_cierre || sorteo.horario_cierre, '23:59:00');
 
-    // Fuera de ventana horaria
     if (ahoraPanama < horaApertura || ahoraPanama >= horaCierre) {
         return {
             texto: 'CERRADO',
@@ -68,7 +64,7 @@ export function calcularEstatusVisualSorteo(sorteo) {
 window.calcularEstatusVisualSorteo = calcularEstatusVisualSorteo;
 
 // ----------------------------------------------------------
-// 2. CARGA Y RENDERIZADO DE LA TABLA EN EL ADMIN
+// 2. CARGA Y RENDERIZADO DE LA TABLA EN EL ADMIN (CON 3 BOTONES)
 // ----------------------------------------------------------
 export async function cargarSorteosSistema() {
     const tbody = document.getElementById('sorteos-table-body') || 
@@ -77,7 +73,7 @@ export async function cargarSorteosSistema() {
                   document.getElementById('sorteos-list-body');
 
     if (!tbody) return;
-    const supabase = window.supabaseClient || window.supabase;
+    const supabase = getSupabase();
     if (!supabase) return;
 
     try {
@@ -89,14 +85,12 @@ export async function cargarSorteosSistema() {
         if (esInquilino) {
             querySorteos = querySorteos.eq('inquilino_id', inquilinoId);
         } else {
-            // Aseguramos que solo traiga los que realmente no tienen inquilino asignado en la BD
             querySorteos = querySorteos.is('inquilino_id', null);
         }
 
         const { data: sorteosRaw, error } = await querySorteos;
         if (error) throw error;
 
-        // 🔥 DOBLE ESCUDO JAVASCRIPT: Corta cualquier fuga de datos rebelde de Supabase
         const sorteos = (sorteosRaw || []).filter(s => {
             if (esInquilino) {
                 return String(s.inquilino_id) === String(inquilinoId);
@@ -119,12 +113,12 @@ export async function cargarSorteosSistema() {
             const horaApertura = s.hora_apertura || s.horario_apertura || '06:00';
             const horaCierre = s.hora_cierre || s.horario_cierre || '--';
             
-            // Adaptación para manejar arrays "dias" o texto plano "dias_juego"
             let diasJuego = 'Dom, Lun, Mar, Mié, Jue, Vie, Sáb';
             if (Array.isArray(s.dias) && s.dias.length > 0) diasJuego = s.dias.join(', ');
             else if (s.dias_juego) diasJuego = s.dias_juego;
 
             const multiplicador = s.multiplicador || 60;
+            const nombreSeguro = String(s.nombre || '').replace(/'/g, "\\'");
 
             return `
                 <tr class="hover:bg-slate-800/60 transition border-b border-slate-700/40 text-xs">
@@ -144,6 +138,9 @@ export async function cargarSorteosSistema() {
                             <button type="button" onclick="window.cambiarEstatusSorteo('${s.id}', '${estatusRealDB}')" class="${esPausado ? 'bg-emerald-500/10 hover:bg-emerald-500 text-emerald-300' : 'bg-amber-500/10 hover:bg-amber-500 text-amber-300'} hover:text-white px-2.5 py-1.5 rounded transition flex items-center gap-1" title="Pausar/Activar">
                                 <i class="fa-solid ${esPausado ? 'fa-play' : 'fa-pause'}"></i> ${esPausado ? 'Activar' : 'Pausar'}
                             </button>
+                            <button type="button" onclick="window.eliminarSorteoSistema('${s.id}', '${nombreSeguro}')" class="bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white px-2.5 py-1.5 rounded transition flex items-center gap-1" title="Eliminar Sorteo">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -156,23 +153,47 @@ export async function cargarSorteosSistema() {
 window.cargarSorteosSistema = cargarSorteosSistema;
 
 // ----------------------------------------------------------
-// 3. APERTURA Y EDICIÓN VÍA MODAL
+// 3. APERTURA, CIERRE BLINDADO Y ELIMINACIÓN DE SORTEO
 // ----------------------------------------------------------
-export function abrirModalSorteo(id = null) {
-    const modal = document.getElementById('modal-sorteo') || 
-                  document.getElementById('modal-loteria') ||
-                  document.getElementById('modal-crear-sorteo');
+function obtenerModalSorteo() {
+    return document.getElementById('modal-sorteo') || 
+           document.getElementById('modal-loteria') ||
+           document.getElementById('modal-crear-sorteo') ||
+           document.getElementById('form-loteria')?.closest('.fixed') ||
+           document.getElementById('form-sorteo')?.closest('.fixed');
+}
+
+export function cerrarModalSorteo() {
+    const modal = obtenerModalSorteo();
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        modal.style.display = 'none';
+    }
 
     const form = document.getElementById('form-sorteo') || 
                  document.getElementById('form-loteria') ||
                  document.getElementById('form-crear-sorteo');
-
-    const titulo = document.getElementById('modal-loteria-title') || document.getElementById('modal-sorteo-title');
-
     if (form) form.reset();
+
+    const inputEditId = document.getElementById('edit-sorteo-id') || 
+                        document.getElementById('loteria-edit-id') || 
+                        document.getElementById('sorteo-id');
+    if (inputEditId) inputEditId.value = '';
+}
+window.cerrarModalSorteo = cerrarModalSorteo;
+window.closeLoteriaModal = cerrarModalSorteo;
+
+export function abrirModalSorteo(id = null) {
+    cerrarModalSorteo();
+
+    const modal = obtenerModalSorteo();
+    const titulo = document.getElementById('modal-loteria-title') || document.getElementById('modal-sorteo-title');
     if (titulo) titulo.textContent = id ? 'Editar Configuración de Sorteo' : 'Nuevo Sorteo';
 
-    const inputEditId = document.getElementById('edit-sorteo-id') || document.getElementById('loteria-edit-id');
+    const inputEditId = document.getElementById('edit-sorteo-id') || 
+                        document.getElementById('loteria-edit-id') || 
+                        document.getElementById('sorteo-id');
     if (inputEditId) inputEditId.value = id || '';
 
     if (id) {
@@ -188,7 +209,7 @@ export function abrirModalSorteo(id = null) {
             if (elAp) elAp.value = (sorteo.hora_apertura === '00:00' ? '06:00' : sorteo.hora_apertura) || '06:00';
             if (elCi) elCi.value = sorteo.hora_cierre || '';
             if (elMult) elMult.value = sorteo.multiplicador || 60;
-            if (elEstatus) elEstatus.value = sorteo.estatus || 'activo';
+            if (elEstatus) elEstatus.value = String(sorteo.estatus || 'activo').toLowerCase();
 
             const cbs = document.querySelectorAll('input[name="loteria-days"]');
             cbs.forEach(cb => {
@@ -198,26 +219,16 @@ export function abrirModalSorteo(id = null) {
         }
     } else {
         const cbs = document.querySelectorAll('input[name="loteria-days"]');
-        cbs.forEach(cb => cb.checked = true); // Seleccionar todos por defecto
+        cbs.forEach(cb => cb.checked = true);
     }
 
     if (modal) {
         modal.classList.remove('hidden');
+        modal.classList.add('flex');
         modal.style.display = 'flex';
     }
 }
 window.abrirModalSorteo = abrirModalSorteo;
-
-export function cerrarModalSorteo() {
-    const modal = document.getElementById('modal-sorteo') || 
-                  document.getElementById('modal-loteria') ||
-                  document.getElementById('modal-crear-sorteo');
-    if (modal) {
-        modal.classList.add('hidden');
-        modal.style.display = 'none';
-    }
-}
-window.cerrarModalSorteo = cerrarModalSorteo;
 
 export async function cambiarEstatusSorteo(id, estatusActual) {
     const esPausado = ['PAUSADO', 'INACTIVO'].includes(String(estatusActual).toUpperCase());
@@ -227,7 +238,7 @@ export async function cambiarEstatusSorteo(id, estatusActual) {
 
     const supabase = getSupabase();
     if (supabase) {
-        await supabase.from('sorteos').update({ estatus: nuevoEstatus, estado: nuevoEstatus }).eq('id', id);
+        await supabase.from('sorteos').update({ estatus: nuevoEstatus }).eq('id', id);
         await cargarSorteosSistema();
         if (typeof window.cargarSorteosPOS === 'function') {
             await window.cargarSorteosPOS();
@@ -236,9 +247,50 @@ export async function cambiarEstatusSorteo(id, estatusActual) {
 }
 window.cambiarEstatusSorteo = cambiarEstatusSorteo;
 
+export async function eliminarSorteoSistema(id, nombre = '') {
+    if (!confirm(`¿Deseas eliminar definitivamente el sorteo "${nombre}"? Esta acción no se puede deshacer.`)) return;
+
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    try {
+        const { error } = await supabase.from('sorteos').delete().eq('id', id);
+        if (error) throw error;
+
+        await cargarSorteosSistema();
+        if (typeof window.cargarSorteosPOS === 'function') {
+            await window.cargarSorteosPOS();
+        }
+    } catch (err) {
+        alert('❌ No se pudo eliminar el sorteo (puede tener tickets asociados): ' + err.message);
+    }
+}
+window.eliminarSorteoSistema = eliminarSorteoSistema;
+window.deleteLoteria = eliminarSorteoSistema;
+
 // ----------------------------------------------------------
-// 4. EVENTOS E INICIALIZACIÓN (CÓDIGO ASESINO V2 INYECTADO)
+// 4. EVENTOS E INTERCEPTACIÓN LIMPIA DE FORMULARIO Y BOTONES
 // ----------------------------------------------------------
+function vincularBotonesCierreModal() {
+    const modal = obtenerModalSorteo();
+    if (!modal) return;
+
+    modal.querySelectorAll('button').forEach(btn => {
+        const texto = (btn.textContent || '').trim().toLowerCase();
+        const esBotonX = btn.querySelector('.fa-xmark, .fa-times') || texto === '×' || texto === 'x';
+        const esCancelar = texto === 'cancelar' || texto === 'cerrar';
+
+        if (esBotonX || esCancelar) {
+            btn.type = 'button';
+            btn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                cerrarModalSorteo();
+            };
+        }
+    });
+}
+
 function activarEventosSorteo() {
     const btnNuevo = document.getElementById('btn-open-loteria-modal') || 
                      document.getElementById('btn-open-sorteo-modal');
@@ -249,20 +301,16 @@ function activarEventosSorteo() {
             abrirModalSorteo(null);
         };
     }
+    vincularBotonesCierreModal();
 }
 
-// 🔥 CÓDIGO ASESINO V2: Destruye memoria falsa, secuestra el formulario e inyecta el inquilino_id
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
-        console.log("💣 Destruyendo memoria falsa e interceptando formularios...");
-        
-        // 1. Borrar el caché falso del HTML
         localStorage.removeItem('buxyloto_app_state');
         
-        // 2. Sobrescribir las funciones estáticas del HTML para que usen Supabase directamente
         if (typeof window.cargarSorteosSistema === 'function') {
             window.renderLoteriasTable = window.cargarSorteosSistema;
-            window.renderizarTablaLoterias = window.cargarSorteosSistema; // Aplastar función conflictiva de app.js
+            window.renderizarTablaLoterias = window.cargarSorteosSistema;
         }
         
         window.editLoteria = function(id) {
@@ -270,22 +318,21 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         
         window.toggleLoteriaStatus = async function(id) {
-            const supabase = window.supabaseClient || window.supabase;
+            const supabase = getSupabase();
             const { data } = await supabase.from('sorteos').select('estatus').eq('id', id).single();
             if (data) {
                 window.cambiarEstatusSorteo(id, data.estatus);
             }
         };
 
-        // 3. SECUESTRAR EL GUARDADO: Función blindada con inquilino_id
         window.guardarLoteriaSorteoSeguro = async function(e) {
-            if(e) e.preventDefault();
+            if (e) e.preventDefault();
             
-            const inputEditId = document.getElementById('loteria-edit-id') || document.getElementById('sorteo-id');
+            const inputEditId = document.getElementById('loteria-edit-id') || document.getElementById('edit-sorteo-id') || document.getElementById('sorteo-id');
             const editId = inputEditId ? inputEditId.value.trim() : '';
-            const nombre = document.getElementById('loteria-name')?.value || '';
-            const horaApertura = document.getElementById('loteria-open-time')?.value || '06:00';
-            const horaCierre = document.getElementById('loteria-close-time')?.value || '';
+            const nombre = document.getElementById('loteria-name')?.value || document.getElementById('sorteo-nombre')?.value || '';
+            const horaApertura = document.getElementById('loteria-open-time')?.value || document.getElementById('sorteo-apertura')?.value || '06:00';
+            const horaCierre = document.getElementById('loteria-close-time')?.value || document.getElementById('sorteo-cierre')?.value || '';
             const multiplicador = document.getElementById('loteria-multiplier')?.value || 60;
             const estatus = document.getElementById('loteria-status')?.value || 'activo';
             
@@ -304,13 +351,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     dias: dias 
                 };
 
-                // 🔥 INYECCIÓN ABSOLUTA DEL INQUILINO
                 const inquilinoId = localStorage.getItem('inquilino_id');
                 if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
                     payload.inquilino_id = inquilinoId;
                 }
 
-                const supabase = window.supabaseClient || window.supabase;
+                const supabase = getSupabase();
                 let res;
                 if (editId !== '' && editId !== 'null' && editId !== 'undefined') {
                     res = await supabase.from('sorteos').update(payload).eq('id', editId);
@@ -321,26 +367,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (res.error) throw res.error;
 
                 alert('✅ ¡Sorteo guardado con éxito!');
-                if(e.target && e.target.reset) e.target.reset();
-                if (inputEditId) inputEditId.value = '';
-
                 window.cerrarModalSorteo();
-                window.cargarSorteosSistema();
+                await window.cargarSorteosSistema();
                 
             } catch (err) {
                 alert('❌ Error al guardar en Supabase: ' + err.message);
             }
         };
 
-        // 4. DESCONECTAR app.js Y CONECTAR NUESTRA FUNCIÓN SEGURA
-        const formLoteria = document.getElementById('form-loteria');
+        const formLoteria = document.getElementById('form-loteria') || document.getElementById('form-sorteo');
         if (formLoteria) {
             const nuevoForm = formLoteria.cloneNode(true);
             formLoteria.parentNode.replaceChild(nuevoForm, formLoteria);
             nuevoForm.addEventListener('submit', window.guardarLoteriaSorteoSeguro);
         }
 
-        // Carga inicial definitiva
+        // Reconectar botones de cierre y apertura después de clonar el formulario
+        activarEventosSorteo();
         if (typeof window.cargarSorteosSistema === 'function') window.cargarSorteosSistema();
 
     }, 1500);

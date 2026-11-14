@@ -29,7 +29,15 @@ function getInfoFechaPanama() {
     const hora24 = ahora.toLocaleTimeString('en-GB', { timeZone: 'America/Panama', hour12: false }); // HH:MM:SS
     const [anio, mes, dia] = fechaISO.split('-');
     const mesNombre = MESES_ES[parseInt(mes, 10) - 1];
-    return { fechaISO, hora24, anio, dia, mes, diaNum: String(parseInt(dia, 10)), mesNombre };
+    return {
+        fechaISO,
+        hora24,
+        anio,
+        dia,
+        mes,
+        diaNum: String(parseInt(dia, 10)),
+        mesNombre
+    };
 }
 
 function contieneFechaHoy(textoPlano, infoFecha) {
@@ -65,12 +73,13 @@ async function descargarHtml(url) {
 }
 
 // ==========================================================
-// A. EXTRACTOR PARA PRIMERA, ANGUILLA, FLORIDA Y NEW YORK (3 PREMIOS)
+// A. EXTRACTOR CONECTATE.COM.DO (PRIMERA, ANGUILLA, FLORIDA, NEW YORK)
 // ==========================================================
-function obtenerTerminos3Premios(nombreSorteo) {
+function obtenerTerminosConectate(nombreSorteo) {
     const n = normalizar(nombreSorteo);
+
     if (n.includes('PRIMERA')) {
-        if (n.includes('11') || n.includes('DIA') || n.includes('12')) return ['PRIMERA DIA', 'LA PRIMERA DIA'];
+        if (n.includes('11') || n.includes('DIA') || n.includes('12')) return ['LA PRIMERA DIA', 'PRIMERA DIA'];
         if (n.includes('6') || n.includes('7') || n.includes('8') || n.includes('NOCHE')) return ['PRIMERA NOCHE', 'LA PRIMERA NOCHE'];
     }
     if (n.includes('FLORIDA')) {
@@ -82,133 +91,135 @@ function obtenerTerminos3Premios(nombreSorteo) {
         if (n.includes('9') || n.includes('10') || n.includes('NOCHE')) return ['NEW YORK NOCHE'];
     }
     if (n.includes('ANGUILLA')) {
-        if (n.includes('10') || n.includes('12') || n.includes('AM')) return ['ANGUILLA 10:00', 'ANGUILLA 1:00'];
-        if (n.includes('1') || n.includes('TARDE')) return ['ANGUILLA 1:00'];
-        if (n.includes('5') || n.includes('6')) return ['ANGUILLA 6:00'];
-        if (n.includes('8') || n.includes('9') || n.includes('NOCHE')) return ['ANGUILLA 9:00'];
+        if (n.includes('10') || n.includes('12') || n.includes('AM')) return ['ANGUILLA 10:00 AM', 'ANGUILLA 10:00', 'ANGUILLA 12:00'];
+        if (n.includes('1') || n.includes('TARDE')) return ['ANGUILLA 1:00 PM', 'ANGUILLA 1:00'];
+        if (n.includes('5') || n.includes('6')) return ['ANGUILLA 6:00 PM', 'ANGUILLA 6:00', 'ANGUILLA 5:00'];
+        if (n.includes('8') || n.includes('9') || n.includes('NOCHE')) return ['ANGUILLA 9:00 PM', 'ANGUILLA 9:00', 'ANGUILLA 8:00'];
     }
     return [n];
 }
 
-function extraer3Premios(html, nombreSorteo, infoFecha) {
+function extraerDeConectate(html, nombreSorteo, infoFecha) {
     if (!html) return null;
-    const htmlNorm = normalizar(html);
-    const terminos = obtenerTerminos3Premios(nombreSorteo);
+    const texto = normalizar(limpiarHtmlATexto(html));
+    const terminos = obtenerTerminosConectate(nombreSorteo);
 
-    let pos = -1;
     for (const term of terminos) {
-        pos = htmlNorm.indexOf(term);
-        if (pos !== -1) break;
-    }
-    if (pos === -1) return null;
+        let idx = texto.indexOf(term);
+        while (idx !== -1) {
+            const ventana = texto.substring(idx, idx + 180);
+            const fechaGuion = `${infoFecha.dia}-${infoFecha.mes}`;
+            const fechaBarra = `${infoFecha.dia}/${infoFecha.mes}`;
 
-    const fragmento = html.substring(pos, pos + 1200);
-    if (!contieneFechaHoy(fragmento, infoFecha)) return null;
+            // Verificar que la fecha de hoy esté junto al bloque del sorteo
+            if (ventana.includes(fechaGuion) || ventana.includes(fechaBarra)) {
+                // Limpiar la fecha y la hora del título para aislar solo los 3 números ganadores
+                const sinCabecera = ventana
+                    .replace(term, ' ')
+                    .replace(fechaGuion, ' ')
+                    .replace(fechaBarra, ' ')
+                    .replace(/\b\d{1,2}:\d{2}\s*(AM|PM)?\b/g, ' ');
 
-    const regexSpan = /<span\s+class="[^"]*text-gray-800[^"]*">\s*(\d{2})\s*<\/span>/gi;
-    const numeros = [];
-    let match;
-    while ((match = regexSpan.exec(fragmento)) !== null) {
-        numeros.push(match[1]);
-    }
-
-    if (numeros.length >= 3) {
-        return { p1: numeros[0], p2: numeros[1], p3: numeros[2] };
+                const nums = sinCabecera.match(/\b\d{2}\b/g);
+                if (nums && nums.length >= 3) {
+                    return { p1: nums[0], p2: nums[1], p3: nums[2] };
+                }
+            }
+            idx = texto.indexOf(term, idx + term.length);
+        }
     }
     return null;
 }
 
 // ==========================================================
-// B. EXTRACTOR PARA TICA, NICA Y HONDURAS (1 PREMIO DE 2 DÍGITOS)
+// B. EXTRACTOR NICA (DIARIA = 1RO, PREMIA2 = 2DO Y 3RO)
 // ==========================================================
-function obtenerEtiquetasCentroamerica(nombreSorteo) {
+function obtenerHoraNica(nombreSorteo) {
     const n = normalizar(nombreSorteo);
-
-    // TICA (CR = Panamá - 1h): 2PM -> 12:55/1:00 | 5:30PM -> 4:30 | 8:30PM -> 7:30
-    if (n.includes('TICA')) {
-        if (n.includes('2PM') || n.includes('2:00') || n.includes('DIA') || n.includes('1PM')) {
-            return ['12:55PM', '12:55 PM', '1:00 PM', '1:00PM', 'MEDIO DIA'];
-        }
-        if (n.includes('5:30') || n.includes('5PM') || n.includes('TARDE') || n.includes('3:00') || n.includes('PM')) {
-            if (!n.includes('8:30') && !n.includes('NOCHE')) {
-                return ['4:30PM', '4:30 PM', 'TARDE'];
-            }
-        }
-        if (n.includes('8:30') || n.includes('8PM') || n.includes('NOCHE') || n.includes('7:30')) {
-            return ['7:30PM', '7:30 PM', 'NOCHE'];
-        }
-    }
-
-    // NICA (NI = Panamá - 1h): 12PM -> 11:00AM | 4PM -> 3:00PM | 7PM -> 6:00PM | 10PM -> 9:00PM
-    if (n.includes('NICA')) {
-        if (n.includes('12') || n.includes('11') || n.includes('AM') || n.includes('DIA')) {
-            return ['11:00AM', '11:00 AM'];
-        }
-        if (n.includes('4') || n.includes('3') || n.includes('TARDE')) {
-            return ['3:00PM', '3:00 PM'];
-        }
-        if (n.includes('7') || n.includes('6')) {
-            return ['6:00PM', '6:00 PM'];
-        }
-        if (n.includes('10') || n.includes('9') || n.includes('NOCHE')) {
-            return ['9:00PM', '9:00 PM'];
-        }
-    }
-
-    // HONDURAS (HN = Panamá - 1h): 12PM -> 11:00AM | 4PM -> 3:00PM | 10PM -> 9:00PM
-    if (n.includes('HONDURAS')) {
-        if (n.includes('12') || n.includes('11') || n.includes('AM') || n.includes('DIA')) {
-            return ['11:00AM', '11:00 AM', 'DIARIA 11AM'];
-        }
-        if (n.includes('4') || n.includes('3') || n.includes('TARDE')) {
-            return ['3:00PM', '3:00 PM', 'DIARIA 3PM'];
-        }
-        if (n.includes('10') || n.includes('9') || n.includes('NOCHE')) {
-            return ['9:00PM', '9:00 PM', 'DIARIA 9PM'];
-        }
-    }
-
+    if (n.includes('12') || n.includes('11') || n.includes('AM') || n.includes('DIA')) return ['11:00 AM', '11:00AM'];
+    if (n.includes('4') || n.includes('3') || n.includes('TARDE')) return ['3:00 PM', '3:00PM'];
+    if (n.includes('7') || n.includes('6')) return ['6:00 PM', '6:00PM'];
+    if (n.includes('10') || n.includes('9') || n.includes('NOCHE')) return ['9:00 PM', '9:00PM'];
     return [];
 }
 
-function extraerCentroamerica(html, nombreSorteo, infoFecha, palabraClavePais = '') {
+function extraerNicaCompleto(html, nombreSorteo, infoFecha) {
     if (!html) return null;
     const texto = normalizar(limpiarHtmlATexto(html));
-
-    // Candado de fecha en la página
     if (!contieneFechaHoy(texto, infoFecha)) return null;
 
-    const etiquetas = obtenerEtiquetasCentroamerica(nombreSorteo);
-    if (etiquetas.length === 0) return null;
+    const horas = obtenerHoraNica(nombreSorteo);
+    for (const h of horas) {
+        const idx = texto.indexOf(h);
+        if (idx === -1) continue;
 
-    // Si es una página general (como /resultados), acotar primero al bloque del país
-    let textoBusqueda = texto;
-    if (palabraClavePais) {
-        const idxPais = texto.indexOf(palabraClavePais);
-        if (idxPais !== -1) {
-            textoBusqueda = texto.substring(Math.max(0, idxPais - 60), idxPais + 400);
+        const bloque = texto.substring(idx, idx + 350);
+        // En nuevaya.com.ni aparece: "11:00 AM DIARIA JUGA 4 FECHAS JUGA 3 PREMIA2 53 (JG) (+1 = 8) 4071 23 AGO 214 27 - 26"
+        const matchDiaria = bloque.match(/\b(\d{2})\s*\(/);
+        const matchPremia2 = bloque.match(/\b(\d{2})\s*-\s*(\d{2})\b/);
+
+        if (matchDiaria && matchPremia2) {
+            return {
+                p1: matchDiaria[1],
+                p2: matchPremia2[1],
+                p3: matchPremia2[2]
+            };
         }
     }
+    return null;
+}
 
-    for (const etq of etiquetas) {
-        const idx = textoBusqueda.indexOf(etq);
-        if (idx !== -1) {
-            // Buscar el número ganador de 2 dígitos justo después (o inmediatamente antes) de la hora del sorteo
-            const ventanaDespues = textoBusqueda.substring(idx + etq.length, idx + etq.length + 90);
-            const matchDespues = ventanaDespues.match(/(?:^|[^0-9:])(\d{2})(?:[^0-9:]|$)/);
-            if (matchDespues) {
-                return { p1: matchDespues[1], p2: null, p3: null };
-            }
+// ==========================================================
+// C. EXTRACTOR HONDURAS (LA DIARIA = 1RO, PREMIA2 = 2DO Y 3RO)
+// ==========================================================
+function obtenerHoraHonduras(nombreSorteo) {
+    const n = normalizar(nombreSorteo);
+    if (n.includes('12') || n.includes('11') || n.includes('AM') || n.includes('DIA')) return ['11:00 AM', '11:00AM'];
+    if (n.includes('4') || n.includes('3') || n.includes('TARDE')) return ['3:00 PM', '3:00PM'];
+    if (n.includes('10') || n.includes('9') || n.includes('NOCHE')) return ['9:00 PM', '9:00PM'];
+    return [];
+}
 
-            const ventanaAntes = textoBusqueda.substring(Math.max(0, idx - 50), idx);
-            const matchesAntes = [...ventanaAntes.matchAll(/(?:^|[^0-9:])(\d{2})(?:[^0-9:]|$)/g)];
-            if (matchesAntes.length > 0) {
-                const ultimo = matchesAntes[matchesAntes.length - 1];
-                return { p1: ultimo[1], p2: null, p3: null };
-            }
-        }
+function extraerHondurasCompleto(html, nombreSorteo, infoFecha) {
+    if (!html) return null;
+    const texto = normalizar(limpiarHtmlATexto(html));
+    const horas = obtenerHoraHonduras(nombreSorteo);
+    if (horas.length === 0) return null;
+
+    const hoyTag = `DE HOY`;
+    const idxDiariaHoy = texto.indexOf(`LA DIARIA ${hoyTag}`);
+    const idxPremia2Hoy = texto.indexOf(`PREMIA2 ${hoyTag}`);
+
+    if (idxDiariaHoy === -1 || idxPremia2Hoy === -1) return null;
+
+    const bloqueDiaria = texto.substring(idxDiariaHoy, idxDiariaHoy + 450);
+    const bloquePremia2 = texto.substring(idxPremia2Hoy, idxPremia2Hoy + 450);
+
+    if (!contieneFechaHoy(bloqueDiaria, infoFecha) || !contieneFechaHoy(bloquePremia2, infoFecha)) {
+        return null;
     }
 
+    for (const h of horas) {
+        const idxH1 = bloqueDiaria.indexOf(h);
+        const idxH2 = bloquePremia2.indexOf(h);
+        if (idxH1 === -1 || idxH2 === -1) continue;
+
+        // En nacionalloteria.com/honduras/resultados-loteria.php:
+        // La Diaria: "11:00 AM DIA 93 + ..." | Premia2: "11:00 AM DIA 51 - 37"
+        const subDiaria = bloqueDiaria.substring(idxH1 + h.length, idxH1 + h.length + 50);
+        const subPremia2 = bloquePremia2.substring(idxH2 + h.length, idxH2 + h.length + 50);
+
+        const matchP1 = subDiaria.match(/\b(\d{2})\b/);
+        const matchP2P3 = subPremia2.match(/\b(\d{2})\s*-\s*(\d{2})\b/);
+
+        if (matchP1 && matchP2P3) {
+            return {
+                p1: matchP1[1],
+                p2: matchP2P3[1],
+                p3: matchP2P3[2]
+            };
+        }
+    }
     return null;
 }
 
@@ -233,94 +244,71 @@ export default async function handler(req, res) {
         const aInsertar = [];
 
         const registrarResultado = (sorteoId, resultado) => {
-            if (!resultado || !resultado.p1) return;
+            if (!resultado || !resultado.p1 || !resultado.p2 || !resultado.p3) return;
             if (aInsertar.some(i => i.sorteo_id === sorteoId)) return;
             aInsertar.push({
                 sorteo_id: sorteoId,
                 fecha: fechaISO,
                 p1: resultado.p1,
-                p2: resultado.p2 || null,
-                p3: resultado.p3 || null,
+                p2: resultado.p2,
+                p3: resultado.p3,
                 primero: resultado.p1,
-                segundo: resultado.p2 || null,
-                tercero: resultado.p3 || null,
+                segundo: resultado.p2,
+                tercero: resultado.p3,
                 updated_at: new Date().toISOString()
             });
         };
 
-        // 1. Loterías de 3 premios (La Primera, Anguilla, Florida, New York)
-        const FUENTES_3_PREMIOS = [
-            { regla: 'PRIMERA', url: 'https://conectate.com.do/loterias/la-primera' },
-            { regla: 'ANGUILLA', url: 'https://conectate.com.do/loterias/anguilla' },
-            { regla: 'FLORIDA', url: 'https://conectate.com.do/loterias/florida' },
-            { regla: 'YORK', url: 'https://conectate.com.do/loterias/new-york' }
+        // 1. PRIMERA, ANGUILLA, FLORIDA Y NEW YORK (Conectate.com.do)
+        const FUENTES_CONECTATE = [
+            { reglas: ['FLORIDA', 'YORK'], urls: ['https://www.conectate.com.do/loterias/americanas/', 'https://www.conectate.com.do/'] },
+            { reglas: ['PRIMERA'], urls: ['https://www.conectate.com.do/loterias/la-primera/', 'https://www.conectate.com.do/'] },
+            { reglas: ['ANGUILLA'], urls: ['https://www.conectate.com.do/loterias/anguilla/', 'https://www.conectate.com.do/'] }
         ];
 
-        for (const fuente of FUENTES_3_PREMIOS) {
+        for (const grupo of FUENTES_CONECTATE) {
             const pendientes = sorteos.filter(s =>
                 !idsYaEscrutados.has(String(s.id)) &&
-                normalizar(s.nombre).includes(fuente.regla) &&
+                grupo.reglas.some(r => normalizar(s.nombre).includes(r)) &&
                 (!s.hora_cierre || hora24 >= s.hora_cierre)
             );
             if (pendientes.length === 0) continue;
 
-            const html = await descargarHtml(fuente.url);
-            if (!html) continue;
+            for (const url of grupo.urls) {
+                const html = await descargarHtml(url);
+                if (!html) continue;
 
-            for (const s of pendientes) {
-                const res3 = extraer3Premios(html, s.nombre, infoFecha);
-                registrarResultado(s.id, res3);
+                for (const s of pendientes) {
+                    const res3 = extraerDeConectate(html, s.nombre, infoFecha);
+                    registrarResultado(s.id, res3);
+                }
+                if (pendientes.every(p => aInsertar.some(i => i.sorteo_id === p.id))) break;
             }
         }
 
-        // 2. TICA (Costa Rica) - Primaria + Respaldo
-        const pendientesTica = sorteos.filter(s =>
-            !idsYaEscrutados.has(String(s.id)) &&
-            normalizar(s.nombre).includes('TICA') &&
-            (!s.hora_cierre || hora24 >= s.hora_cierre)
-        );
-        if (pendientesTica.length > 0) {
-            const htmlTica1 = await descargarHtml('https://www.kingarrobanumeros.com/tica-hoy');
-            const htmlTica2 = await descargarHtml('https://www.nacionalloteria.com/costarica/nuevos-tiempos.php');
-
-            for (const s of pendientesTica) {
-                const resTica = extraerCentroamerica(htmlTica1, s.nombre, infoFecha) ||
-                                extraerCentroamerica(htmlTica2, s.nombre, infoFecha);
-                registrarResultado(s.id, resTica);
-            }
-        }
-
-        // 3. NICA (Nicaragua) - Primaria + Respaldo
+        // 2. NICA (Diaria = 1ro, Premia2 = 2do y 3ro)
         const pendientesNica = sorteos.filter(s =>
             !idsYaEscrutados.has(String(s.id)) &&
             normalizar(s.nombre).includes('NICA') &&
             (!s.hora_cierre || hora24 >= s.hora_cierre)
         );
         if (pendientesNica.length > 0) {
-            const htmlNica1 = await descargarHtml('https://nuevaya.com.ni/loto-diaria-de-nicaragua/');
-            const htmlNica2 = await descargarHtml('https://www.kingarrobanumeros.com/nica-hoy');
-
+            const htmlNica = await descargarHtml('https://nuevaya.com.ni/loto-diaria-de-nicaragua/');
             for (const s of pendientesNica) {
-                const resNica = extraerCentroamerica(htmlNica1, s.nombre, infoFecha) ||
-                                extraerCentroamerica(htmlNica2, s.nombre, infoFecha);
-                registrarResultado(s.id, resNica);
+                registrarResultado(s.id, extraerNicaCompleto(htmlNica, s.nombre, infoFecha));
             }
         }
 
-        // 4. HONDURAS (Loto La Diaria) - Primaria + Respaldo
+        // 3. HONDURAS (La Diaria = 1ro, Premia2 = 2do y 3ro)
         const pendientesHonduras = sorteos.filter(s =>
             !idsYaEscrutados.has(String(s.id)) &&
             normalizar(s.nombre).includes('HONDURAS') &&
             (!s.hora_cierre || hora24 >= s.hora_cierre)
         );
         if (pendientesHonduras.length > 0) {
-            const htmlHn1 = await descargarHtml('https://www.nacionalloteria.com/honduras/loto-la-diaria.php');
-            const htmlHn2 = await descargarHtml('https://www.kingarrobanumeros.com/resultados');
-
+            const htmlHn = await descargarHtml('https://www.nacionalloteria.com/honduras/resultados-loteria.php');
             for (const s of pendientesHonduras) {
-                const resHn = extraerCentroamerica(htmlHn1, s.nombre, infoFecha) ||
-                              extraerCentroamerica(htmlHn2, s.nombre, infoFecha, 'DIARIA HONDURAS');
-                registrarResultado(s.id, resHn);
+                registrarResultado(s.id, extraerHondurasCompleto(htmlHn, s.nombre, infoFecha));
             }
         }
 
@@ -331,7 +319,7 @@ export default async function handler(req, res) {
             });
         }
 
-        // 5. Guardar en Supabase (dispara automáticamente trigger_evaluar_resultado)
+        // 4. Guardar en Supabase y ejecutar escrutinio
         const { error: errInsert } = await supabase
             .from('resultados')
             .upsert(aInsertar, { onConflict: 'sorteo_id,fecha' });

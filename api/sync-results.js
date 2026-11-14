@@ -137,26 +137,26 @@ function obtenerEtiquetas3Premios(nombreSorteo) {
     const n = normalizar(nombreSorteo);
 
     if (n.includes('PRIMERA')) {
-        if (n.includes('11') || n.includes('DIA') || n.includes('12')) {
+        if (n.includes('11') || n.includes('DIA') || n.includes('12') || n.includes('AM')) {
             return ['LA PRIMERA DIA', 'PRIMERA DIA', 'LA PRIMERA 12:00', 'LA PRIMERA'];
         }
-        if (n.includes('6') || n.includes('7') || n.includes('8') || n.includes('NOCHE')) {
+        if (n.includes('6') || n.includes('7') || n.includes('8') || n.includes('NOCHE') || n.includes('PM')) {
             return ['PRIMERA NOCHE', 'LA PRIMERA NOCHE', 'LA PRIMERA 8:00'];
         }
     }
     if (n.includes('FLORIDA')) {
-        if (n.includes('12') || n.includes('1') || n.includes('DIA') || n.includes('TARDE')) {
+        if (n.includes('12') || n.includes('1') || n.includes('DIA') || n.includes('TARDE') || n.includes('AM')) {
             return ['FLORIDA DIA', 'FLORIDA TARDE', 'FLORIDA AM'];
         }
-        if (n.includes('6') || n.includes('8') || n.includes('9') || n.includes('NOCHE')) {
+        if (n.includes('6') || n.includes('8') || n.includes('9') || n.includes('NOCHE') || n.includes('PM')) {
             return ['FLORIDA NOCHE', 'FLORIDA PM'];
         }
     }
     if (n.includes('YORK')) {
-        if (n.includes('1') || n.includes('2') || n.includes('DIA') || n.includes('TARDE')) {
+        if (n.includes('1') || n.includes('2') || n.includes('DIA') || n.includes('TARDE') || n.includes('AM')) {
             return ['NEW YORK TARDE', 'NEW YORK DIA', 'NEW YORK AM'];
         }
-        if (n.includes('9') || n.includes('10') || n.includes('NOCHE')) {
+        if (n.includes('9') || n.includes('10') || n.includes('NOCHE') || n.includes('PM')) {
             return ['NEW YORK NOCHE', 'NEW YORK PM'];
         }
     }
@@ -258,7 +258,7 @@ function getTurnoCentroamerica(nombreSorteo) {
     if (n.includes('12') || n.includes('11') || n.includes('AM') || n.includes('DIA')) return '11AM';
     if (n.includes('4') || n.includes('3') || n.includes('TARDE')) return '3PM';
     if (n.includes('7') || n.includes('6')) return '6PM';
-    if (n.includes('10') || n.includes('9') || n.includes('NOCHE')) return '9PM';
+    if (n.includes('10') || n.includes('9') || n.includes('NOCHE') || n.includes('PM')) return '9PM';
     return '';
 }
 
@@ -272,7 +272,7 @@ function extraerTicaCompleto(textoCR, textoKingTica, textoYeluCr, nombreSorteo, 
     let etiquetasKing = [];
     let etiquetasYeluCr = [];
 
-    if (n.includes('2PM') || n.includes('2:00') || n.includes('DIA') || n.includes('1PM')) {
+    if (n.includes('2PM') || n.includes('2:00') || n.includes('DIA') || n.includes('1PM') || n.includes('AM')) {
         etiquetasCR = ['TICA DIA REVENTADOS', 'TICA DIA', 'TICA 12:55', 'TICA 1:00'];
         etiquetasMonazo = ['MONAZO TICA DIA', 'MONAZO DIA'];
         etiquetasKing = ['12:55', '1:00', 'TICA DIA', 'MEDIODIA', 'MEDIO DIA'];
@@ -282,7 +282,7 @@ function extraerTicaCompleto(textoCR, textoKingTica, textoYeluCr, nombreSorteo, 
         etiquetasMonazo = ['MONAZO TICA TARDE', 'MONAZO TARDE'];
         etiquetasKing = ['4:30', 'TICA TARDE'];
         etiquetasYeluCr = ['4:30PM', '4:30 PM', 'TARDE'];
-    } else if (n.includes('8:30') || n.includes('8PM') || n.includes('NOCHE') || n.includes('7:30')) {
+    } else if (n.includes('8:30') || n.includes('8PM') || n.includes('NOCHE') || n.includes('7:30') || n.includes('PM')) {
         etiquetasCR = ['TICA NOCHE REVENTADOS', 'TICA NOCHE', 'TICA 7:30'];
         etiquetasMonazo = ['MONAZO TICA NOCHE', 'MONAZO NOCHE'];
         etiquetasKing = ['7:30', 'TICA NOCHE'];
@@ -388,7 +388,6 @@ function extraerDeNacionalLoteriaHn(textoNacional, horas, infoFecha) {
     let p1 = null;
     let p23 = null;
 
-    // 1. Buscar Premia2 -> 2do y 3er premio (cortando antes del siguiente juego)
     for (const etqP of ['PREMIA2', 'PREMIA 2']) {
         let idxP = seccionHoy.indexOf(etqP);
         while (idxP !== -1 && !p23) {
@@ -410,7 +409,6 @@ function extraerDeNacionalLoteriaHn(textoNacional, horas, infoFecha) {
         if (p23) break;
     }
 
-    // 2. Buscar La Diaria -> 1er premio
     let idxD = seccionHoy.indexOf('LA DIARIA');
     while (idxD !== -1 && !p1) {
         let subD = seccionHoy.substring(idxD + 9, idxD + 950);
@@ -436,7 +434,6 @@ function extraerDeKingHonduras(textoKingHn, horas, infoFecha) {
     let p1 = null;
     let p23 = null;
 
-    // Formato A: Bloque por juego ("PREMIA 2" -> "3:00 PM" -> "XX - YY")
     for (const etq of ['PREMIA 2', 'PREMIA2']) {
         let idxP = textoKingHn.indexOf(etq);
         while (idxP !== -1 && !p23) {
@@ -457,7 +454,6 @@ function extraerDeKingHonduras(textoKingHn, horas, infoFecha) {
         if (p23) break;
     }
 
-    // Formato B: Bloque por hora ("3:00 PM" -> "PREMIA 2" -> "XX - YY")
     if (!p23) {
         for (const h of horas) {
             let idxH = textoKingHn.indexOf(h);
@@ -526,7 +522,7 @@ function extraerHondurasCompleto(fuentesHn, nombreSorteo, infoFecha) {
 }
 
 // ==========================================================
-// HANDLER PRINCIPAL DE VERCEL
+// HANDLER PRINCIPAL DE VERCEL (MAESTRO + MULTI-INQUILINO)
 // ==========================================================
 export default async function handler(req, res) {
     const diagnostico = [];
@@ -535,9 +531,10 @@ export default async function handler(req, res) {
         const infoFecha = getInfoFechaPanama();
         const { fechaISO, hora24 } = infoFecha;
 
+        // Leer sorteos de cuenta maestra (inquilino_id = null) y de TODOS los inquilinos
         const [{ data: sorteos }, { data: yaRegistrados }] = await Promise.all([
-            supabase.from('sorteos').select('id, nombre, estatus, hora_cierre'),
-            supabase.from('resultados').select('sorteo_id, p1, p2, p3').eq('fecha', fechaISO)
+            supabase.from('sorteos').select('id, nombre, estado, hora_cierre, inquilino_id'),
+            supabase.from('resultados').select('sorteo_id, p1, p2, p3, inquilino_id').eq('fecha', fechaISO)
         ]);
 
         if (!sorteos || sorteos.length === 0) {
@@ -568,6 +565,7 @@ export default async function handler(req, res) {
             if (aInsertar.some(i => i.sorteo_id === sorteo.id)) return true;
             aInsertar.push({
                 sorteo_id: sorteo.id,
+                inquilino_id: sorteo.inquilino_id || null,
                 fecha: fechaISO,
                 p1: p1Final,
                 p2: p2Final,
@@ -577,7 +575,9 @@ export default async function handler(req, res) {
                 tercero: p3Final,
                 updated_at: new Date().toISOString()
             });
-            diagnostico.push(`Detectado ${sorteo.nombre}: ${p1Final}-${p2Final || '--'}-${p3Final || '--'}`);
+
+            const etiquetaInq = sorteo.inquilino_id ? ` [Inquilino ${String(sorteo.inquilino_id).slice(0, 8)}]` : '';
+            diagnostico.push(`Detectado ${sorteo.nombre}${etiquetaInq}: ${p1Final}-${p2Final || '--'}-${p3Final || '--'}`);
             return Boolean(p1Final && p2Final && p3Final);
         };
 
@@ -687,14 +687,7 @@ export default async function handler(req, res) {
                 };
 
                 for (const s of pendientesHn) {
-                    const completo = registrarResultado(s, extraerHondurasCompleto(fuentesHn, s.nombre, infoFecha));
-                    if (!completo && fuentesHn.textoNacP2) {
-                        const seccion = fuentesHn.textoNacP2.split('DE AYER')[0];
-                        const idx3 = seccion.indexOf('3:00');
-                        if (idx3 !== -1) {
-                            diagnostico.push(`Muestra_NacP2_3PM: ${seccion.substring(Math.max(0, idx3 - 30), idx3 + 90)}`);
-                        }
-                    }
+                    registrarResultado(s, extraerHondurasCompleto(fuentesHn, s.nombre, infoFecha));
                 }
             }
         }
@@ -707,14 +700,14 @@ export default async function handler(req, res) {
             });
         }
 
-        // 3. Guardar en Supabase y disparar escrutinio automático
+        // 3. Guardar en Supabase (con inquilino_id correspondiente) y escrutar en paralelo
         const { error: errInsert } = await supabase
             .from('resultados')
             .upsert(aInsertar, { onConflict: 'sorteo_id,fecha' });
 
         if (errInsert) throw errInsert;
 
-        for (const item of aInsertar) {
+        await Promise.all(aInsertar.map(async (item) => {
             await supabase.from('sorteos').update({
                 p1: item.p1,
                 p2: item.p2,
@@ -730,7 +723,7 @@ export default async function handler(req, res) {
                     p_fecha: fechaISO
                 });
             } catch {}
-        }
+        }));
 
         return res.status(200).json({
             success: true,

@@ -217,7 +217,7 @@ function extraerDeLoteriasCR(textoNorm, etiquetas, fechaISO, cantidad = 1, digit
     for (const etq of etiquetas) {
         let idx = textoNorm.indexOf(etq);
         while (idx !== -1) {
-            const ventana = textoNorm.substring(idx + etq.length, idx + etq.length + 120);
+            const ventana = textoNorm.substring(idx + etq.length, idx + etq.length + 140);
             if (ventana.includes(fechaISO)) {
                 const limpio = limpiarFechasYHoras(ventana);
                 const nums = limpio.match(regexNum);
@@ -274,21 +274,22 @@ function extraerTicaCompleto(textoCR, textoKingTica, textoYeluCr, nombreSorteo, 
 
     if (n.includes('2PM') || n.includes('2:00') || n.includes('DIA') || n.includes('1PM') || n.includes('AM')) {
         etiquetasCR = ['TICA DIA REVENTADOS', 'TICA DIA', 'TICA 12:55', 'TICA 1:00'];
-        etiquetasMonazo = ['MONAZO TICA DIA', 'MONAZO DIA'];
+        etiquetasMonazo = ['MONAZO TICA DIA', '3 MONAZOS TICA DIA', 'MONAZOS TICA DIA', 'MONAZO DIA', 'MONAZO 12:55', 'MONAZO 1:00'];
         etiquetasKing = ['12:55', '1:00', 'TICA DIA', 'MEDIODIA', 'MEDIO DIA'];
         etiquetasYeluCr = ['12:55PM', '12:55 PM', '1:00PM', '1:00 PM', 'MEDIODIA'];
     } else if (n.includes('5:30') || n.includes('5PM') || n.includes('TARDE') || n.includes('3:00')) {
         etiquetasCR = ['TICA TARDE REVENTADOS', 'TICA TARDE', 'TICA 4:30'];
-        etiquetasMonazo = ['MONAZO TICA TARDE', 'MONAZO TARDE'];
+        etiquetasMonazo = ['MONAZO TICA TARDE', '3 MONAZOS TICA TARDE', 'MONAZOS TICA TARDE', 'MONAZO TARDE', 'MONAZO 4:30'];
         etiquetasKing = ['4:30', 'TICA TARDE'];
         etiquetasYeluCr = ['4:30PM', '4:30 PM', 'TARDE'];
     } else if (n.includes('8:30') || n.includes('8PM') || n.includes('NOCHE') || n.includes('7:30') || n.includes('PM')) {
         etiquetasCR = ['TICA NOCHE REVENTADOS', 'TICA NOCHE', 'TICA 7:30'];
-        etiquetasMonazo = ['MONAZO TICA NOCHE', 'MONAZO NOCHE'];
+        etiquetasMonazo = ['MONAZO TICA NOCHE', '3 MONAZOS TICA NOCHE', 'MONAZOS TICA NOCHE', 'MONAZO NOCHE', 'MONAZO 7:30'];
         etiquetasKing = ['7:30', 'TICA NOCHE'];
         etiquetasYeluCr = ['7:30PM', '7:30 PM', 'NOCHE'];
     }
 
+    // 1. 1er Premio (Tica Reventados / Nuevos Tiempos)
     let p1 = null;
     const numsCR = extraerDeLoteriasCR(textoCR, etiquetasCR, infoFecha.fechaISO, 1, 2);
     if (numsCR) {
@@ -310,12 +311,31 @@ function extraerTicaCompleto(textoCR, textoKingTica, textoYeluCr, nombreSorteo, 
         if (numsYelu) p1 = numsYelu[0];
     }
 
+    // 2. 2do y 3er Premio desde MONAZO TICA (3 dígitos: "600" -> p2 = "60", p3 = "00")
     let p2 = null;
     let p3 = null;
     const monazoArr = extraerDeLoteriasCR(textoCR, etiquetasMonazo, infoFecha.fechaISO, 1, 3);
     if (monazoArr && monazoArr[0].length === 3) {
         p2 = monazoArr[0].substring(0, 2);
         p3 = monazoArr[0].substring(1, 3);
+    }
+
+    // Respaldo para Monazo en KingArroba Tica Hoy (si aparece un número de 3 dígitos en el turno)
+    if ((!p2 || !p3) && textoKingTica && contieneFechaHoy(textoKingTica, infoFecha)) {
+        for (const etq of etiquetasKing) {
+            let idx = textoKingTica.indexOf(etq);
+            while (idx !== -1) {
+                const despues = limpiarFechasYHoras(textoKingTica.substring(idx + etq.length, idx + etq.length + 95));
+                const m3 = despues.match(/\b(\d{3})\b/);
+                if (m3) {
+                    p2 = m3[1].substring(0, 2);
+                    p3 = m3[1].substring(1, 3);
+                    break;
+                }
+                idx = textoKingTica.indexOf(etq, idx + etq.length);
+            }
+            if (p2 && p3) break;
+        }
     }
 
     if (p1 || (p2 && p3)) {
@@ -531,7 +551,6 @@ export default async function handler(req, res) {
         const infoFecha = getInfoFechaPanama();
         const { fechaISO, hora24 } = infoFecha;
 
-        // Leer sorteos de cuenta maestra (inquilino_id = null) y de TODOS los inquilinos
         const [{ data: sorteos }, { data: yaRegistrados }] = await Promise.all([
             supabase.from('sorteos').select('id, nombre, estado, hora_cierre, inquilino_id'),
             supabase.from('resultados').select('sorteo_id, p1, p2, p3, inquilino_id').eq('fecha', fechaISO)

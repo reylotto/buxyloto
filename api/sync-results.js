@@ -270,7 +270,7 @@ export default async function handler(req, res) {
 
         const bloquesTexto = fuentes
             .filter(f => f.texto)
-            .map(f => `=== FUENTE: ${f.nombre} ===\n${f.texto.slice(0, 22000)}`)
+            .map(f => `=== FUENTE: ${f.nombre} ===\n${f.texto.slice(0, 12000)}`)
             .join('\n\n');
 
         if (!bloquesTexto) {
@@ -358,6 +358,13 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
+        if (String(error.message).includes('429')) {
+            return res.status(200).json({
+                success: true,
+                message: 'Límite temporal de consultas IA alcanzado. Se reintentará automáticamente en el próximo ciclo.',
+                diagnostico
+            });
+        }
         return res.status(500).json({ success: false, message: error.message, diagnostico });
     }
 }

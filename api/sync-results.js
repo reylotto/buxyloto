@@ -63,7 +63,7 @@ function yaPasoHoraRealSorteo(sorteo, infoFecha) {
     return !sorteo.hora_cierre || infoFecha.hora24 >= sorteo.hora_cierre;
 }
 
-async function descargarFuente(nombre, url, timeoutMs = 5500) {
+async function descargarFuente(nombre, url, timeoutMs = 6500) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -71,16 +71,24 @@ async function descargarFuente(nombre, url, timeoutMs = 5500) {
             signal: controller.signal,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept': 'text/html,text/plain,application/xhtml+xml,*/*;q=0.8',
                 'Accept-Language': 'es-ES,es;q=0.9'
             }
         });
         if (!res.ok) return { nombre, texto: '', estado: `HTTP_${res.status}` };
-        const html = await res.text();
-        if (!html || html.includes('Just a moment...')) {
+        const raw = await res.text();
+        if (!raw || raw.includes('Just a moment...')) {
             return { nombre, texto: '', estado: 'BLOQUEO_CF' };
         }
-        return { nombre, texto: limpiarHtmlATexto(html), estado: 'HTTP_200' };
+        if (url.includes('r.jina.ai')) {
+            const limpioMd = raw
+                .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+            return { nombre, texto: limpioMd, estado: 'PROXY_200' };
+        }
+        return { nombre, texto: limpiarHtmlATexto(raw), estado: 'HTTP_200' };
     } catch (e) {
         return { nombre, texto: '', estado: e.name === 'AbortError' ? 'TIMEOUT' : 'ERROR_RED' };
     } finally {
@@ -106,8 +114,8 @@ REGLAS ESTRICTAS DE EXTRACCIÓN (SOLO PARA LA FECHA DE HOY):
 1. Si un sorteo aún no ha jugado hoy o solo aparece con fecha de ayer, devuelve null en sus premios. NUNCA uses resultados de ayer ni mezcles países o turnos horarios.
 2. SEPARACIÓN ESTRICTA DE FUENTES POR PAÍS (PROHIBIDO CRUZAR PAÍSES):
    - Para HONDURAS:
-     * p1 (La Diaria de Honduras): puedes leerlo de LOTERIAS_HONDURAS, KINGARROBA_HN, NACIONALLOTERIA_HN_IDX, YELU_HN_DIARIA o LOTERIAS_CR (únicamente bajo la etiqueta explícita "HONDURAS 11 AM" / "HONDURAS 3 PM" / "HONDURAS 9 PM").
-     * p2 y p3 (Premia 2 de Honduras): léelos EXCLUSIVAMENTE de LOTERIAS_HONDURAS, KINGARROBA_HN, NACIONALLOTERIA_HN_IDX, NACIONALLOTERIA_HN_P2 o YELU_HN_P2. JAMÁS tomes "PREMIA2" de LOTERIAS_CR para Honduras (en LOTERIAS_CR, "PREMIA2" es de Nicaragua).
+     * p1 (La Diaria de Honduras): léelo de LOTERIAS_HONDURAS, KINGARROBA_HN, NACIONALLOTERIA_HN_IDX, YELU_HN_DIARIA o LOTERIAS_CR (únicamente bajo la etiqueta explícita "HONDURAS 11 AM" / "HONDURAS 3 PM" / "HONDURAS 9 PM").
+     * p2 y p3 (Premia 2 de Honduras): léelos EXCLUSIVAMENTE de LOTERIAS_HONDURAS, LOTERIAS_HONDURAS_P2, KINGARROBA_HN, NACIONALLOTERIA_HN_IDX, NACIONALLOTERIA_HN_P2 o YELU_HN_P2. En LOTERIAS_HONDURAS_P2 verás bloques por hora ("11:00 AM", "3:00 PM", "9:00 PM") con dos números de 2 dígitos cada uno; toma esos dos números para p2 y p3. JAMÁS uses LOTERIAS_CR para p2/p3 de Honduras (en LOTERIAS_CR, "PREMIA2" es de Nicaragua).
      * Horarios Honduras (1 hora atrás respecto a Panamá): "HONDURAS 12PM" = sorteo 11:00 AM Honduras; "HONDURAS 4PM" = 3:00 PM Honduras; "HONDURAS 10PM" = 9:00 PM Honduras.
    - Para NICA (Nicaragua): Lee NUEVAYA_NICA y LOTERIAS_CR (etiquetas NICA / PREMIA2).
      * "NICA 12PM" = 11:00 AM Nicaragua (p1 = La Diaria 11:00 AM; p2 y p3 = los 2 números de Premia 2 11:00 AM).
@@ -228,6 +236,7 @@ export default async function handler(req, res) {
         if (/HONDURAS/.test(nombresPend)) {
             tareasDescarga.push(
                 descargarFuente('LOTERIAS_HONDURAS', 'https://r.jina.ai/https://loteriasdehonduras.com/'),
+                descargarFuente('LOTERIAS_HONDURAS_P2', 'https://r.jina.ai/https://loteriasdehonduras.com/premia-2/'),
                 descargarFuente('KINGARROBA_HN', 'https://www.kingarrobanumeros.com/honduras-hoy'),
                 descargarFuente('NACIONALLOTERIA_HN_IDX', 'https://www.nacionalloteria.com/honduras/index.php'),
                 descargarFuente('NACIONALLOTERIA_HN_P2', 'https://www.nacionalloteria.com/honduras/loto-premia2.php'),

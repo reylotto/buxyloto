@@ -129,7 +129,8 @@ function limpiarFechasYHoras(textoNorm) {
         .replace(/\b(?:ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC|JAN|APR|AUG|DEC)[A-Z]*\s+\d{1,2}(?:,?\s*\d{4})?\b/g, ' ')
         .replace(/\b(?:LUNES|MARTES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY|SUNDAY)\s*,?\s*\d{0,2}\b/g, ' ')
         .replace(/\b\d{1,2}:\d{2}\s*(?:A\.?M\.?|P\.?M\.?|M\.?D\.?)?\b/g, ' ')
-        .replace(/\b\d{1,2}\s*(?:A\.?M\.?|P\.?M\.?)\b/g, ' ');
+        .replace(/\b\d{1,2}\s*(?:A\.?M\.?|P\.?M\.?)\b/g, ' ')
+        .replace(/\b(?:POSICION|PREMIO)\s*\d+\b/g, ' ');
 }
 
 async function descargarPaginaAbierta(url, timeoutMs = 5500) {
@@ -251,7 +252,6 @@ function extraerDeLoteriasCRPreciso(textoNorm, etiquetas, fechaISO, digitos = 2,
                 continue;
             }
 
-            // Cortar antes de cualquier otra lotería Y antes de cualquier otro horario
             const tarjetaPropia = textoNorm
                 .substring(idx + etq.length, idx + etq.length + 115)
                 .split(DELIMITADORES_LOTERIAS)[0]
@@ -278,7 +278,6 @@ function buscarEnYelu(textoYelu, etiquetasHora, infoFecha, cantidad = 1) {
     for (const etq of etiquetasHora) {
         const idx = bloqueHoy.indexOf(etq);
         if (idx !== -1) {
-            // Cortar antes de que empiece otro horario en la tabla de Yelu
             const rawDespues = bloqueHoy
                 .substring(idx + etq.length, idx + etq.length + 70)
                 .split(DELIMITADORES_HORAS_CA)[0];
@@ -384,12 +383,10 @@ function extraerNicaDeNuevaYa(textoNuevaYa, nombreSorteo, infoFecha) {
     for (const h of horas) {
         let idx = textoNuevaYa.indexOf(h);
         while (idx !== -1) {
-            // Cortar estrictamente antes del siguiente horario (11:00 AM, 3:00 PM, 6:00 PM, 9:00 PM)
             const bloqueTurno = textoNuevaYa
                 .substring(idx + h.length, idx + h.length + 320)
                 .split(DELIMITADORES_HORAS_CA)[0];
 
-            // Formato de NuevaYa Nicaragua: "42 (LIBRA)"
             const matchDiaria = bloqueTurno.match(/\b(\d{2})\s*\([A-Z\s]+\)/);
             const matchPremia2 = bloqueTurno.match(/\b(\d{2})\s*[-\/]\s*(\d{2})\b/);
             if (matchDiaria) {
@@ -432,7 +429,7 @@ function extraerNicaCompleto(textoCR, textoNuevaYa, textoYeluNi, nombreSorteo, i
 }
 
 // ==========================================================
-// E. EXTRACTOR HONDURAS (NACIONALLOTERIA + KINGARROBA + YELU.HN + PORTAL CR)
+// E. EXTRACTOR HONDURAS (NACIONALLOTERIA + KINGARROBA + YELU.HN + LOTO.HN + PORTAL CR)
 // ==========================================================
 function extraerDeNacionalLoteriaHn(textoNacional, horas, infoFecha) {
     if (!textoNacional) return { p1: null, p23: null };
@@ -453,13 +450,11 @@ function extraerDeNacionalLoteriaHn(textoNacional, horas, infoFecha) {
                 const idxH = subP.indexOf(h);
                 if (idxH !== -1) {
                     const raw = subP
-                        .substring(idxH + h.length, idxH + h.length + 75)
+                        .substring(idxH + h.length, idxH + h.length + 80)
                         .split(DELIMITADORES_HORAS_CA)[0];
-                    const mGuion = raw.match(/\b(\d{2})\s*[-\/•|\s]+\s*(\d{2})\b/);
                     const limpio = limpiarFechasYHoras(raw);
                     const nums = limpio.match(/\b\d{2}\b/g);
                     if (nums && nums.length >= 2) { p23 = [nums[0], nums[1]]; break; }
-                    if (mGuion) { p23 = [mGuion[1], mGuion[2]]; break; }
                 }
             }
             idxP = seccionHoy.indexOf(etqP, idxP + etqP.length);
@@ -504,7 +499,7 @@ function extraerDeKingHonduras(textoKingHn, horas, infoFecha) {
                 const idxH = sub.indexOf(h);
                 if (idxH !== -1) {
                     const raw = sub
-                        .substring(idxH + h.length, idxH + h.length + 75)
+                        .substring(idxH + h.length, idxH + h.length + 80)
                         .split(DELIMITADORES_HORAS_CA)[0];
                     const nums = limpiarFechasYHoras(raw).match(/\b\d{2}\b/g);
                     if (nums && nums.length >= 2) { p23 = [nums[0], nums[1]]; break; }
@@ -524,7 +519,7 @@ function extraerDeKingHonduras(textoKingHn, horas, infoFecha) {
                     .split(DELIMITADORES_HORAS_CA)[0];
                 const idxP = subH.search(/\bPREMIA\s*2\b/);
                 if (idxP !== -1) {
-                    const raw = subH.substring(idxP + 7, idxP + 80);
+                    const raw = subH.substring(idxP + 7, idxP + 85);
                     const nums = limpiarFechasYHoras(raw).match(/\b\d{2}\b/g);
                     if (nums && nums.length >= 2) { p23 = [nums[0], nums[1]]; break; }
                 }
@@ -563,6 +558,7 @@ function extraerHondurasCompleto(fuentesHn, nombreSorteo, infoFecha) {
     const nacIdxRes = extraerDeNacionalLoteriaHn(fuentesHn.textoNacIdx, cfg.horas, infoFecha);
     const nacP2Res = extraerDeNacionalLoteriaHn(fuentesHn.textoNacP2, cfg.horas, infoFecha);
     const kingHnRes = extraerDeKingHonduras(fuentesHn.textoKingHn, cfg.horas, infoFecha);
+    const lotoHnRes = extraerDeKingHonduras(fuentesHn.textoLotoHn, cfg.horas, infoFecha);
 
     const crP1Str = extraerDeLoteriasCRPreciso(fuentesHn.textoCR, cfg.crP1, infoFecha.fechaISO, 2, 1);
     const crP23Arr = extraerDeLoteriasCRPreciso(fuentesHn.textoCR, cfg.crP23, infoFecha.fechaISO, 2, 2);
@@ -577,6 +573,7 @@ function extraerHondurasCompleto(fuentesHn, nombreSorteo, infoFecha) {
         nacIdxRes.p23 ||
         nacP2Res.p23 ||
         kingHnRes.p23 ||
+        lotoHnRes.p23 ||
         buscarEnYelu(fuentesHn.textoYeluPremia2, cfg.horas, infoFecha, 2);
 
     if (p1Arr || p23Arr) {
@@ -728,12 +725,13 @@ export default async function handler(req, res) {
             // HONDURAS
             const pendientesHn = pendientesCA.filter(x => normalizar(x.nombre).includes('HONDURAS'));
             if (pendientesHn.length > 0) {
-                const [resNacIdx, resNacP2, resKingHn, resYeluP1, resYeluP23] = await Promise.all([
+                const [resNacIdx, resNacP2, resKingHn, resYeluP1, resYeluP23, resLotoHn] = await Promise.all([
                     descargarPaginaAbierta('https://www.nacionalloteria.com/honduras/index.php'),
                     descargarPaginaAbierta('https://www.nacionalloteria.com/honduras/loto-premia2.php'),
                     descargarPaginaAbierta('https://www.kingarrobanumeros.com/honduras-hoy'),
                     descargarPaginaAbierta('https://www.yelu.hn/lottery/results/la-diaria'),
-                    descargarPaginaAbierta('https://www.yelu.hn/lottery/results/premia-dos')
+                    descargarPaginaAbierta('https://www.yelu.hn/lottery/results/premia-dos'),
+                    descargarPaginaAbierta('https://loto.hn/')
                 ]);
 
                 diagnostico.push(
@@ -741,7 +739,8 @@ export default async function handler(req, res) {
                     `nac_hn_p2: ${resNacP2.estado}`,
                     `king_hn_hoy: ${resKingHn.estado}`,
                     `yelu_diaria: ${resYeluP1.estado}`,
-                    `yelu_premia2: ${resYeluP23.estado}`
+                    `yelu_premia2: ${resYeluP23.estado}`,
+                    `loto_hn: ${resLotoHn.estado}`
                 );
 
                 const fuentesHn = {
@@ -750,7 +749,8 @@ export default async function handler(req, res) {
                     textoNacP2: resNacP2.html ? normalizar(limpiarHtmlATexto(resNacP2.html)) : '',
                     textoKingHn: resKingHn.html ? normalizar(limpiarHtmlATexto(resKingHn.html)) : '',
                     textoYeluDiaria: resYeluP1.html ? normalizar(limpiarHtmlATexto(resYeluP1.html)) : '',
-                    textoYeluPremia2: resYeluP23.html ? normalizar(limpiarHtmlATexto(resYeluP23.html)) : ''
+                    textoYeluPremia2: resYeluP23.html ? normalizar(limpiarHtmlATexto(resYeluP23.html)) : '',
+                    textoLotoHn: resLotoHn.html ? normalizar(limpiarHtmlATexto(resLotoHn.html)) : ''
                 };
 
                 for (const s of pendientesHn) {

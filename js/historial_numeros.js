@@ -110,8 +110,8 @@ window.cargarHistorialNumeros = async function() {
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
         
-        // 🔥 3. BLINDAR CONSULTA PRINCIPAL DE TICKETS ESTRICTO
-        let queryTickets = supabase.from('tickets').select('id').gte('created_at', startOfDay).lte('created_at', endOfDay);
+        // 🔥 3. BLINDAR CONSULTA PRINCIPAL DE TICKETS ESTRICTO (incluye sorteo_nombre para respaldo)
+        let queryTickets = supabase.from('tickets').select('id, sorteo_id, sorteo_nombre').gte('created_at', startOfDay).lte('created_at', endOfDay);
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             queryTickets = queryTickets.eq('inquilino_id', inquilinoId);
         } else {
@@ -121,7 +121,6 @@ window.cargarHistorialNumeros = async function() {
         if (rol.includes('supervisor')) {
             const zonaSup = String(sesion.zona || '').trim().toLowerCase();
             
-            // 🔥 BLINDAR SUB-CONSULTA DE BANCAS ESTRICTO (SUPERVISOR)
             let queryBancasSup = supabase.from('bancas').select('id, zona');
             if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
                 queryBancasSup = queryBancasSup.eq('inquilino_id', inquilinoId);
@@ -136,7 +135,6 @@ window.cargarHistorialNumeros = async function() {
         } else if (!rol.includes('admin') && !rol.includes('supervisor')) {
             const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
             
-            // 🔥 BLINDAR SUB-CONSULTA DE BANCAS ESTRICTO (CAJERO)
             let queryBancasCaj = supabase.from('bancas').select('id').or(`nombre_banca.eq.${nombreUsuario},vendedor_nombre.eq.${nombreUsuario}`);
             if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
                 queryBancasCaj = queryBancasCaj.eq('inquilino_id', inquilinoId);
@@ -149,12 +147,18 @@ window.cargarHistorialNumeros = async function() {
             queryTickets = queryTickets.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
         }
 
-        const { data: ticketsData } = await queryTickets;
+        const [{ data: ticketsData }, { data: sorteosCatalogo }] = await Promise.all([
+            queryTickets,
+            supabase.from('sorteos').select('id, nombre')
+        ]);
+
+        const mapaTickets = new Map((ticketsData || []).map(t => [String(t.id), t]));
+        const mapaSorteosId = new Map((sorteosCatalogo || []).map(s => [String(s.id), String(s.nombre).toUpperCase()]));
         const idsTicketsPermitidos = new Set((ticketsData || []).map(t => String(t.id)));
 
         const { data: jugadasData, error: errJugadas } = await supabase
             .from('jugadas')
-            .select('sorteo_nombre, tipo, numero, monto, estatus, estado, ticket_id')
+            .select('sorteo_id, sorteo_nombre, tipo, numero, monto, estatus, estado, ticket_id')
             .gte('created_at', startOfDay)
             .lte('created_at', endOfDay);
 
@@ -166,7 +170,15 @@ window.cargarHistorialNumeros = async function() {
         jugadasPermitidas.forEach(j => {
             if (String(j.estatus || j.estado).toLowerCase() === 'cancelado') return;
 
-            const sorteoNombre = String(j.sorteo_nombre || 'GENERAL').toUpperCase();
+            const ticketPadre = mapaTickets.get(String(j.ticket_id));
+            const nombreResuelto =
+                (j.sorteo_nombre && j.sorteo_nombre.toUpperCase() !== 'GENERAL' ? j.sorteo_nombre : null) ||
+                mapaSorteosId.get(String(j.sorteo_id)) ||
+                (ticketPadre && ticketPadre.sorteo_nombre) ||
+                mapaSorteosId.get(String(ticketPadre?.sorteo_id)) ||
+                'SIN SORTEO';
+
+            const sorteoNombre = String(nombreResuelto).trim().toUpperCase();
             const tipoJ = String(j.tipo || 'chance').toLowerCase();
             let numJ = String(j.numero || '').trim();
             const montoJ = parseFloat(j.monto || 0);

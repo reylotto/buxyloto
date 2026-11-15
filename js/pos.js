@@ -592,9 +592,9 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
                 monto: parseFloat(j.monto) || 0,
                 tipo: String(j.tipo || 'directo').toLowerCase(),
                 sorteo_id: j.sorteo_id || ticketCreado.sorteo_id || null,
+                sorteo_nombre: String(j.sorteo_nombre || ticketCreado.sorteo_nombre || 'SORTEO').toUpperCase(),
                 denominacion: j.denominacion || j.monto
             };
-            // 🔥 INYECTAR INQUILINO A LA JUGADA
             if (esInquilino) jugadaObj.inquilino_id = inquilinoId;
             return jugadaObj;
         });

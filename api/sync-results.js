@@ -16,7 +16,8 @@ function limpiarHtmlATexto(html) {
         .replace(/<footer[\s\S]*?<\/footer>/gi, ' ')
         .replace(/<script[\s\S]*?<\/script>/gi, ' ')
         .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-        .replace(/alt=["']([^"']+)["']/gi, ' $1 ')
+        .replace(/(?:alt|title|data-number|data-num|data-ball|data-value)=["']([^"']+)["']/gi, ' $1 ')
+        .replace(/<img[^>]+src=["'][^"']*?\/(\d{2})\.(?:png|jpg|jpeg|svg|webp)[^"']*["'][^>]*>/gi, ' $1 ')
         .replace(/<[^>]+>/g, ' ')
         .replace(/&nbsp;/gi, ' ')
         .replace(/[\u2013\u2014]/g, '-')
@@ -114,8 +115,8 @@ REGLAS ESTRICTAS DE EXTRACCIÓN (SOLO PARA LA FECHA DE HOY):
 1. Si un sorteo aún no ha jugado hoy o solo aparece con fecha de ayer, devuelve null en sus premios. NUNCA uses resultados de ayer ni mezcles países o turnos horarios.
 2. SEPARACIÓN ESTRICTA DE FUENTES POR PAÍS (PROHIBIDO CRUZAR PAÍSES):
    - Para HONDURAS:
-     * p1 (La Diaria de Honduras): léelo de LOTERIAS_HONDURAS, KINGARROBA_HN, NACIONALLOTERIA_HN_IDX, YELU_HN_DIARIA o LOTERIAS_CR (únicamente bajo la etiqueta explícita "HONDURAS 11 AM" / "HONDURAS 3 PM" / "HONDURAS 9 PM").
-     * p2 y p3 (Premia 2 de Honduras): léelos EXCLUSIVAMENTE de LOTERIAS_HONDURAS, LOTERIAS_HONDURAS_P2, KINGARROBA_HN, NACIONALLOTERIA_HN_IDX, NACIONALLOTERIA_HN_P2 o YELU_HN_P2. En LOTERIAS_HONDURAS_P2 verás bloques por hora ("11:00 AM", "3:00 PM", "9:00 PM") con dos números de 2 dígitos cada uno; toma esos dos números para p2 y p3. JAMÁS uses LOTERIAS_CR para p2/p3 de Honduras (en LOTERIAS_CR, "PREMIA2" es de Nicaragua).
+     * p1 (La Diaria de Honduras): léelo de LOTERIAS_HONDURAS_DIRECTO, LOTERIAS_HONDURAS_MD, KINGARROBA_HN o LOTERIAS_CR (únicamente bajo la etiqueta explícita "HONDURAS 11 AM" / "HONDURAS 3 PM" / "HONDURAS 9 PM").
+     * p2 y p3 (Premia 2 de Honduras): léelos EXCLUSIVAMENTE de LOTERIAS_HONDURAS_DIRECTO, LOTERIAS_HONDURAS_P2_DIRECTO, LOTERIAS_HONDURAS_MD, KINGARROBA_HN, NACIONALLOTERIA_HN_P2 o YELU_HN_P2. Busca la fecha de hoy ("${infoFecha.dia}-${infoFecha.mes}" o "${infoFecha.diaNum} Nov") junto a "Premia 2 11:00 AM" (toma los 2 números para HONDURAS 12PM), "Premia 2 3:00 PM" (toma los 2 números para HONDURAS 4PM) y "Premia 2 9:00 PM" (toma los 2 números para HONDURAS 10PM). JAMÁS uses LOTERIAS_CR para p2/p3 de Honduras (en LOTERIAS_CR, "PREMIA2" es de Nicaragua).
      * Horarios Honduras (1 hora atrás respecto a Panamá): "HONDURAS 12PM" = sorteo 11:00 AM Honduras; "HONDURAS 4PM" = 3:00 PM Honduras; "HONDURAS 10PM" = 9:00 PM Honduras.
    - Para NICA (Nicaragua): Lee NUEVAYA_NICA y LOTERIAS_CR (etiquetas NICA / PREMIA2).
      * "NICA 12PM" = 11:00 AM Nicaragua (p1 = La Diaria 11:00 AM; p2 y p3 = los 2 números de Premia 2 11:00 AM).
@@ -208,7 +209,14 @@ export default async function handler(req, res) {
             return Boolean(reg && reg.p1 && reg.p2 && reg.p3);
         };
 
-        const pendientes = sorteos.filter(s => !estaCompleto(s) && yaPasoHoraRealSorteo(s, infoFecha));
+        const esSorteoManualPanama = (sorteo) => {
+            const n = normalizar(sorteo.nombre);
+            return /\bLNB\b|NACIONAL|DOMINICAL|MIERCOL|GORDITO|ZODIACO|PANAMA/.test(n);
+        };
+
+        const pendientes = sorteos.filter(
+            s => !esSorteoManualPanama(s) && !estaCompleto(s) && yaPasoHoraRealSorteo(s, infoFecha)
+        );
 
         if (pendientes.length === 0) {
             return res.status(200).json({
@@ -235,12 +243,11 @@ export default async function handler(req, res) {
         }
         if (/HONDURAS/.test(nombresPend)) {
             tareasDescarga.push(
-                descargarFuente('LOTERIAS_HONDURAS', 'https://r.jina.ai/https://loteriasdehonduras.com/'),
-                descargarFuente('LOTERIAS_HONDURAS_P2', 'https://r.jina.ai/https://loteriasdehonduras.com/premia-2/'),
+                descargarFuente('LOTERIAS_HONDURAS_DIRECTO', 'https://loteriasdehonduras.com/'),
+                descargarFuente('LOTERIAS_HONDURAS_P2_DIRECTO', 'https://loteriasdehonduras.com/premia-2/'),
+                descargarFuente('LOTERIAS_HONDURAS_MD', 'https://r.jina.ai/https://loteriasdehonduras.com/', 9000),
                 descargarFuente('KINGARROBA_HN', 'https://www.kingarrobanumeros.com/honduras-hoy'),
-                descargarFuente('NACIONALLOTERIA_HN_IDX', 'https://www.nacionalloteria.com/honduras/index.php'),
                 descargarFuente('NACIONALLOTERIA_HN_P2', 'https://www.nacionalloteria.com/honduras/loto-premia2.php'),
-                descargarFuente('YELU_HN_DIARIA', 'https://www.yelu.hn/lottery/results/la-diaria'),
                 descargarFuente('YELU_HN_P2', 'https://www.yelu.hn/lottery/results/premia-dos')
             );
         }

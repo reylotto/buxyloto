@@ -36,13 +36,15 @@ function getInfoFechaPanama() {
     const ahora = new Date();
     const fechaISO = ahora.toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); // YYYY-MM-DD
     const hora24 = ahora.toLocaleTimeString('en-GB', { timeZone: 'America/Panama', hour12: false }); // HH:MM:SS
-    const horaNY24 = ahora.toLocaleTimeString('en-GB', { timeZone: 'America/New_York', hour12: false }); // HH:MM:SS en NY/Florida
+    const horaNY24 = ahora.toLocaleTimeString('en-GB', { timeZone: 'America/New_York', hour12: false }); // ET (NY/Florida)
+    const horaRD24 = ahora.toLocaleTimeString('en-GB', { timeZone: 'America/Santo_Domingo', hour12: false }); // AST (Anguilla/RD)
     const [anio, mes, dia] = fechaISO.split('-');
     const idxMes = parseInt(mes, 10) - 1;
     return {
         fechaISO,
         hora24,
         horaNY24,
+        horaRD24,
         anio,
         dia,
         mes,
@@ -71,6 +73,13 @@ function yaPasoHoraRealSorteo(sorteo, infoFecha) {
         if (n.includes('9') || n.includes('10') || n.includes('11') || n.includes('NOCHE') || n.includes('PM')) {
             return infoFecha.horaNY24 >= '22:30:00';
         }
+    }
+
+    if (n.includes('ANGUILLA')) {
+        if (n.includes('9AM') || n.includes('10')) return infoFecha.horaRD24 >= '10:05:00';
+        if (n.includes('12') || n.includes('1PM') || n.includes('TARDE')) return infoFecha.horaRD24 >= '13:05:00';
+        if (n.includes('5') || n.includes('6')) return infoFecha.horaRD24 >= '18:05:00';
+        if (n.includes('8') || n.includes('9PM') || n.includes('NOCHE')) return infoFecha.horaRD24 >= '21:05:00';
     }
 
     return !sorteo.hora_cierre || infoFecha.hora24 >= sorteo.hora_cierre;
@@ -192,17 +201,18 @@ function obtenerEtiquetas3Premios(nombreSorteo) {
         }
     }
     if (n.includes('ANGUILLA')) {
+        // Horarios oficiales de Anguilla (AST): 10:00 AM, 1:00 PM, 6:00 PM, 9:00 PM
         if (n.includes('9AM') || n.includes('10')) {
             return ['ANGUILLA 10:00', 'ANGUILLA 10AM', 'ANGUILLA MANANA'];
         }
         if (n.includes('12') || n.includes('1PM') || n.includes('TARDE')) {
-            return ['ANGUILLA 1:00', 'ANGUILLA 1PM', 'ANGUILLA 12:00', 'ANGUILLA 12PM', 'ANGUILLA TARDE'];
+            return ['ANGUILLA 1:00', 'ANGUILLA 1PM', 'ANGUILLA TARDE'];
         }
         if (n.includes('5') || n.includes('6')) {
-            return ['ANGUILLA 6:00', 'ANGUILLA 6PM', 'ANGUILLA 5:00', 'ANGUILLA 5PM'];
+            return ['ANGUILLA 6:00', 'ANGUILLA 6PM'];
         }
         if (n.includes('8') || n.includes('9PM') || n.includes('NOCHE')) {
-            return ['ANGUILLA 9:00', 'ANGUILLA 9PM', 'ANGUILLA 8:00', 'ANGUILLA 8PM', 'ANGUILLA NOCHE'];
+            return ['ANGUILLA 9:00', 'ANGUILLA 9PM', 'ANGUILLA NOCHE'];
         }
     }
     return [n];
@@ -432,15 +442,13 @@ function extraerNicaCompleto(textoCR, textoNuevaYa, textoYeluNi, nombreSorteo, i
 // ==========================================================
 // E. EXTRACTOR HONDURAS (LOTERIASDEHONDURAS.COM + NACIONALLOTERIA + KINGARROBA + YELU.HN)
 // ==========================================================
-// Extractor directo para https://loteriasdehonduras.com/
-// Formato de tarjeta: "14-11 Premia 2 9:00 PM 69 48" y "14-11 La Diaria 9:00 PM 18 Ángel 3X 4"
 function extraerDeLoteriasDeHondurasCom(textoLdh, horas, infoFecha) {
     if (!textoLdh) return { p1: null, p23: null };
 
     let p1 = null;
     let p23 = null;
 
-    // 1. Buscar Premia 2 <hora> validando que la tarjeta tenga la fecha de hoy (ej. 14-11)
+    // 1. Buscar Premia 2 <hora> validando que la tarjeta tenga fecha de hoy (15-11 o 15 Nov)
     for (const etqP of ['PREMIA 2', 'PREMIA2']) {
         for (const h of horas) {
             const titulo = `${etqP} ${h}`;
@@ -448,7 +456,7 @@ function extraerDeLoteriasDeHondurasCom(textoLdh, horas, infoFecha) {
             while (idx !== -1 && !p23) {
                 const contextoAntes = textoLdh.substring(Math.max(0, idx - 120), idx);
                 const contextoDespues = textoLdh
-                    .substring(idx + titulo.length, idx + titulo.length + 95)
+                    .substring(idx + titulo.length, idx + titulo.length + 110)
                     .split(DELIMITADORES_LOTERIAS)[0]
                     .split(DELIMITADORES_HORAS_CA)[0];
 
@@ -474,7 +482,7 @@ function extraerDeLoteriasDeHondurasCom(textoLdh, horas, infoFecha) {
         while (idx !== -1 && !p1) {
             const contextoAntes = textoLdh.substring(Math.max(0, idx - 120), idx);
             const contextoDespues = textoLdh
-                .substring(idx + titulo.length, idx + titulo.length + 95)
+                .substring(idx + titulo.length, idx + titulo.length + 110)
                 .split(DELIMITADORES_LOTERIAS)[0]
                 .split(DELIMITADORES_HORAS_CA)[0];
 
@@ -599,10 +607,7 @@ function extraerHondurasCompleto(fuentesHn, nombreSorteo, infoFecha) {
     const cfg = mapa[turno];
     if (!cfg) return null;
 
-    // 1. Fuente principal verificada: loteriasdehonduras.com
     const ldhRes = extraerDeLoteriasDeHondurasCom(fuentesHn.textoLdh, cfg.horas, infoFecha);
-
-    // 2. Respaldos secundarios
     const nacIdxRes = extraerDeNacionalLoteriaHn(fuentesHn.textoNacIdx, cfg.horas, infoFecha);
     const nacP2Res = extraerDeNacionalLoteriaHn(fuentesHn.textoNacP2, cfg.horas, infoFecha);
     const kingHnRes = extraerDeKingHonduras(fuentesHn.textoKingHn, cfg.horas, infoFecha);

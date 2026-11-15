@@ -456,13 +456,13 @@ function extraerDeLoteriasDeHondurasCom(textoLdh, horas, infoFecha) {
     let p1 = null;
     let p23 = null;
 
-    // 1. Buscar tarjetas de PREMIA 2 (la hora puede venir pegada o unos caracteres después)
+    // 1. Recorrer TODAS las apariciones de PREMIA 2 / PREMIA2 (saltando el menú superior)
     for (const etqP of ['PREMIA 2', 'PREMIA2']) {
         let idx = textoLdh.indexOf(etqP);
         while (idx !== -1 && !p23) {
-            const contextoAntes = textoLdh.substring(Math.max(0, idx - 120), idx);
+            const contextoAntes = textoLdh.substring(Math.max(0, idx - 140), idx);
             const bloqueTarjeta = textoLdh
-                .substring(idx + etqP.length, idx + etqP.length + 220)
+                .substring(idx + etqP.length, idx + etqP.length + 240)
                 .split(DELIMITADORES_LOTERIAS)[0];
 
             const tieneHora = horas.some(h => bloqueTarjeta.includes(h));
@@ -479,12 +479,12 @@ function extraerDeLoteriasDeHondurasCom(textoLdh, horas, infoFecha) {
         if (p23) break;
     }
 
-    // 2. Buscar tarjetas de LA DIARIA
+    // 2. Recorrer TODAS las apariciones de LA DIARIA
     let idxD = textoLdh.indexOf('LA DIARIA');
     while (idxD !== -1 && !p1) {
-        const contextoAntes = textoLdh.substring(Math.max(0, idxD - 120), idxD);
+        const contextoAntes = textoLdh.substring(Math.max(0, idxD - 140), idxD);
         const bloqueTarjeta = textoLdh
-            .substring(idxD + 9, idxD + 220)
+            .substring(idxD + 9, idxD + 240)
             .split(DELIMITADORES_LOTERIAS)[0];
 
         const tieneHora = horas.some(h => bloqueTarjeta.includes(h));

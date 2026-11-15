@@ -14,7 +14,7 @@ const MESES_EN = [
     'july', 'august', 'september', 'october', 'november', 'december'
 ];
 
-const DELIMITADORES_LOTERIAS = /\b(?:ANGUILLA|FLORIDA|NEW\s*YORK|LA\s*PRIMERA|PRIMERA\s*NOCHE|QUINIELA|NACIONAL|LEIDSA|LOTEKA|REAL|KING\s*LOTTERY|DOMI|TICA|NICA|HONDURAS|MONAZO|PEGA\s*3|PREMIA\s*2|PREMIA2|LA\s*DIARIA|TRIPLETA|JUGA\s*3|TERMINACION)\b/;
+const DELIMITADORES_LOTERIAS = /\b(?:ANGUILLA|FLORIDA|NEW\s*YORK|LA\s*PRIMERA|PRIMERA\s*NOCHE|QUINIELA|NACIONAL|LEIDSA|LOTEKA|REAL|KING\s*LOTTERY|DOMI|TICA|NICA|HONDURAS|MONAZO|PEGA\s*3|PREMIA\s*2|PREMIA2|LA\s*DIARIA|TRIPLETA|JUGA\s*3|SUPER\s*PREMIO|TERMINACION)\b/;
 const DELIMITADORES_HORAS_CA = /\b(?:11:00|3:00|6:00|9:00|11\s*AM|3\s*PM|6\s*PM|9\s*PM|SORTEOS\s+ANTERIORES|RESULTADOS\s+ANTERIORES)\b/;
 
 function normalizar(texto) {
@@ -429,8 +429,70 @@ function extraerNicaCompleto(textoCR, textoNuevaYa, textoYeluNi, nombreSorteo, i
 }
 
 // ==========================================================
-// E. EXTRACTOR HONDURAS (NACIONALLOTERIA + KINGARROBA + YELU.HN + LOTO.HN + PORTAL CR)
+// E. EXTRACTOR HONDURAS (LOTERIASDEHONDURAS.COM + NACIONALLOTERIA + KINGARROBA + YELU.HN)
 // ==========================================================
+// Extractor directo para https://loteriasdehonduras.com/
+// Formato de tarjeta: "14-11 Premia 2 9:00 PM 69 48" y "14-11 La Diaria 9:00 PM 18 Ángel 3X 4"
+function extraerDeLoteriasDeHondurasCom(textoLdh, horas, infoFecha) {
+    if (!textoLdh) return { p1: null, p23: null };
+
+    let p1 = null;
+    let p23 = null;
+
+    // 1. Buscar Premia 2 <hora> validando que la tarjeta tenga la fecha de hoy (ej. 14-11)
+    for (const etqP of ['PREMIA 2', 'PREMIA2']) {
+        for (const h of horas) {
+            const titulo = `${etqP} ${h}`;
+            let idx = textoLdh.indexOf(titulo);
+            while (idx !== -1 && !p23) {
+                const contextoAntes = textoLdh.substring(Math.max(0, idx - 35), idx);
+                const contextoDespues = textoLdh
+                    .substring(idx + titulo.length, idx + titulo.length + 75)
+                    .split(DELIMITADORES_LOTERIAS)[0]
+                    .split(DELIMITADORES_HORAS_CA)[0];
+
+                if (contieneFechaHoy(contextoAntes + ' ' + contextoDespues, infoFecha)) {
+                    const limpio = limpiarFechasYHoras(contextoDespues);
+                    const nums = limpio.match(/\b\d{2}\b/g);
+                    if (nums && nums.length >= 2) {
+                        p23 = [nums[0], nums[1]];
+                        break;
+                    }
+                }
+                idx = textoLdh.indexOf(titulo, idx + titulo.length);
+            }
+            if (p23) break;
+        }
+        if (p23) break;
+    }
+
+    // 2. Buscar La Diaria <hora> validando fecha de hoy
+    for (const h of horas) {
+        const titulo = `LA DIARIA ${h}`;
+        let idx = textoLdh.indexOf(titulo);
+        while (idx !== -1 && !p1) {
+            const contextoAntes = textoLdh.substring(Math.max(0, idx - 35), idx);
+            const contextoDespues = textoLdh
+                .substring(idx + titulo.length, idx + titulo.length + 75)
+                .split(DELIMITADORES_LOTERIAS)[0]
+                .split(DELIMITADORES_HORAS_CA)[0];
+
+            if (contieneFechaHoy(contextoAntes + ' ' + contextoDespues, infoFecha)) {
+                const limpio = limpiarFechasYHoras(contextoDespues);
+                const m = limpio.match(/\b(\d{2})\b/);
+                if (m) {
+                    p1 = m[1];
+                    break;
+                }
+            }
+            idx = textoLdh.indexOf(titulo, idx + titulo.length);
+        }
+        if (p1) break;
+    }
+
+    return { p1, p23 };
+}
+
 function extraerDeNacionalLoteriaHn(textoNacional, horas, infoFecha) {
     if (!textoNacional) return { p1: null, p23: null };
 
@@ -510,25 +572,6 @@ function extraerDeKingHonduras(textoKingHn, horas, infoFecha) {
         if (p23) break;
     }
 
-    if (!p23) {
-        for (const h of horas) {
-            let idxH = textoKingHn.indexOf(h);
-            while (idxH !== -1 && !p23) {
-                const subH = textoKingHn
-                    .substring(idxH + h.length, idxH + h.length + 450)
-                    .split(DELIMITADORES_HORAS_CA)[0];
-                const idxP = subH.search(/\bPREMIA\s*2\b/);
-                if (idxP !== -1) {
-                    const raw = subH.substring(idxP + 7, idxP + 85);
-                    const nums = limpiarFechasYHoras(raw).match(/\b\d{2}\b/g);
-                    if (nums && nums.length >= 2) { p23 = [nums[0], nums[1]]; break; }
-                }
-                idxH = textoKingHn.indexOf(h, idxH + h.length);
-            }
-            if (p23) break;
-        }
-    }
-
     return { p1, p23 };
 }
 
@@ -555,25 +598,28 @@ function extraerHondurasCompleto(fuentesHn, nombreSorteo, infoFecha) {
     const cfg = mapa[turno];
     if (!cfg) return null;
 
+    // 1. Fuente principal verificada: loteriasdehonduras.com
+    const ldhRes = extraerDeLoteriasDeHondurasCom(fuentesHn.textoLdh, cfg.horas, infoFecha);
+
+    // 2. Respaldos secundarios
     const nacIdxRes = extraerDeNacionalLoteriaHn(fuentesHn.textoNacIdx, cfg.horas, infoFecha);
     const nacP2Res = extraerDeNacionalLoteriaHn(fuentesHn.textoNacP2, cfg.horas, infoFecha);
     const kingHnRes = extraerDeKingHonduras(fuentesHn.textoKingHn, cfg.horas, infoFecha);
-    const lotoHnRes = extraerDeKingHonduras(fuentesHn.textoLotoHn, cfg.horas, infoFecha);
-
     const crP1Str = extraerDeLoteriasCRPreciso(fuentesHn.textoCR, cfg.crP1, infoFecha.fechaISO, 2, 1);
     const crP23Arr = extraerDeLoteriasCRPreciso(fuentesHn.textoCR, cfg.crP23, infoFecha.fechaISO, 2, 2);
 
     const p1Arr =
+        (ldhRes.p1 ? [ldhRes.p1] : null) ||
         (crP1Str ? [crP1Str] : null) ||
         (nacIdxRes.p1 ? [nacIdxRes.p1] : null) ||
         buscarEnYelu(fuentesHn.textoYeluDiaria, cfg.horas, infoFecha, 1);
 
     const p23Arr =
+        ldhRes.p23 ||
         (Array.isArray(crP23Arr) ? crP23Arr : null) ||
         nacIdxRes.p23 ||
         nacP2Res.p23 ||
         kingHnRes.p23 ||
-        lotoHnRes.p23 ||
         buscarEnYelu(fuentesHn.textoYeluPremia2, cfg.horas, infoFecha, 2);
 
     if (p1Arr || p23Arr) {
@@ -722,39 +768,54 @@ export default async function handler(req, res) {
                 }
             }
 
-            // HONDURAS
+            // HONDURAS (loteriasdehonduras.com como fuente principal + respaldos)
             const pendientesHn = pendientesCA.filter(x => normalizar(x.nombre).includes('HONDURAS'));
             if (pendientesHn.length > 0) {
-                const [resNacIdx, resNacP2, resKingHn, resYeluP1, resYeluP23, resLotoHn] = await Promise.all([
-                    descargarPaginaAbierta('https://www.nacionalloteria.com/honduras/index.php'),
-                    descargarPaginaAbierta('https://www.nacionalloteria.com/honduras/loto-premia2.php'),
-                    descargarPaginaAbierta('https://www.kingarrobanumeros.com/honduras-hoy'),
-                    descargarPaginaAbierta('https://www.yelu.hn/lottery/results/la-diaria'),
-                    descargarPaginaAbierta('https://www.yelu.hn/lottery/results/premia-dos'),
-                    descargarPaginaAbierta('https://loto.hn/')
-                ]);
-
-                diagnostico.push(
-                    `nac_hn_idx: ${resNacIdx.estado}`,
-                    `nac_hn_p2: ${resNacP2.estado}`,
-                    `king_hn_hoy: ${resKingHn.estado}`,
-                    `yelu_diaria: ${resYeluP1.estado}`,
-                    `yelu_premia2: ${resYeluP23.estado}`,
-                    `loto_hn: ${resLotoHn.estado}`
-                );
+                const resLdh = await descargarPaginaAbierta('https://loteriasdehonduras.com/');
+                diagnostico.push(`loteriasdehonduras.com: ${resLdh.estado}`);
 
                 const fuentesHn = {
                     textoCR,
-                    textoNacIdx: resNacIdx.html ? normalizar(limpiarHtmlATexto(resNacIdx.html)) : '',
-                    textoNacP2: resNacP2.html ? normalizar(limpiarHtmlATexto(resNacP2.html)) : '',
-                    textoKingHn: resKingHn.html ? normalizar(limpiarHtmlATexto(resKingHn.html)) : '',
-                    textoYeluDiaria: resYeluP1.html ? normalizar(limpiarHtmlATexto(resYeluP1.html)) : '',
-                    textoYeluPremia2: resYeluP23.html ? normalizar(limpiarHtmlATexto(resYeluP23.html)) : '',
-                    textoLotoHn: resLotoHn.html ? normalizar(limpiarHtmlATexto(resLotoHn.html)) : ''
+                    textoLdh: resLdh.html ? normalizar(limpiarHtmlATexto(resLdh.html)) : '',
+                    textoNacIdx: '',
+                    textoNacP2: '',
+                    textoKingHn: '',
+                    textoYeluDiaria: '',
+                    textoYeluPremia2: ''
                 };
 
+                const faltantesHn = [];
                 for (const s of pendientesHn) {
-                    registrarResultado(s, extraerHondurasCompleto(fuentesHn, s.nombre, infoFecha));
+                    const okLdh = registrarResultado(s, extraerHondurasCompleto(fuentesHn, s.nombre, infoFecha));
+                    if (!okLdh) faltantesHn.push(s);
+                }
+
+                if (faltantesHn.length > 0) {
+                    const [resNacIdx, resNacP2, resKingHn, resYeluP1, resYeluP23] = await Promise.all([
+                        descargarPaginaAbierta('https://www.nacionalloteria.com/honduras/index.php'),
+                        descargarPaginaAbierta('https://www.nacionalloteria.com/honduras/loto-premia2.php'),
+                        descargarPaginaAbierta('https://www.kingarrobanumeros.com/honduras-hoy'),
+                        descargarPaginaAbierta('https://www.yelu.hn/lottery/results/la-diaria'),
+                        descargarPaginaAbierta('https://www.yelu.hn/lottery/results/premia-dos')
+                    ]);
+
+                    diagnostico.push(
+                        `nac_hn_idx: ${resNacIdx.estado}`,
+                        `nac_hn_p2: ${resNacP2.estado}`,
+                        `king_hn_hoy: ${resKingHn.estado}`,
+                        `yelu_diaria: ${resYeluP1.estado}`,
+                        `yelu_premia2: ${resYeluP23.estado}`
+                    );
+
+                    fuentesHn.textoNacIdx = resNacIdx.html ? normalizar(limpiarHtmlATexto(resNacIdx.html)) : '';
+                    fuentesHn.textoNacP2 = resNacP2.html ? normalizar(limpiarHtmlATexto(resNacP2.html)) : '';
+                    fuentesHn.textoKingHn = resKingHn.html ? normalizar(limpiarHtmlATexto(resKingHn.html)) : '';
+                    fuentesHn.textoYeluDiaria = resYeluP1.html ? normalizar(limpiarHtmlATexto(resYeluP1.html)) : '';
+                    fuentesHn.textoYeluPremia2 = resYeluP23.html ? normalizar(limpiarHtmlATexto(resYeluP23.html)) : '';
+
+                    for (const s of faltantesHn) {
+                        registrarResultado(s, extraerHondurasCompleto(fuentesHn, s.nombre, infoFecha));
+                    }
                 }
             }
         }

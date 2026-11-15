@@ -11,6 +11,9 @@ function normalizar(texto) {
 
 function limpiarHtmlATexto(html) {
     return html
+        .replace(/<nav[\s\S]*?<\/nav>/gi, ' ')
+        .replace(/<header[\s\S]*?<\/header>/gi, ' ')
+        .replace(/<footer[\s\S]*?<\/footer>/gi, ' ')
         .replace(/<script[\s\S]*?<\/script>/gi, ' ')
         .replace(/<style[\s\S]*?<\/style>/gi, ' ')
         .replace(/<[^>]+>/g, ' ')
@@ -26,7 +29,8 @@ function getInfoFechaPanama() {
     const hora24 = ahora.toLocaleTimeString('en-GB', { timeZone: 'America/Panama', hour12: false });
     const horaNY24 = ahora.toLocaleTimeString('en-GB', { timeZone: 'America/New_York', hour12: false });
     const horaRD24 = ahora.toLocaleTimeString('en-GB', { timeZone: 'America/Santo_Domingo', hour12: false });
-    return { fechaISO, hora24, horaNY24, horaRD24 };
+    const [anio, mes, dia] = fechaISO.split('-');
+    return { fechaISO, hora24, horaNY24, horaRD24, anio, mes, dia, diaNum: String(parseInt(dia, 10)) };
 }
 
 function yaPasoHoraRealSorteo(sorteo, infoFecha) {
@@ -94,19 +98,20 @@ async function extraerConGemini(sorteosPendientes, bloquesTexto, infoFecha) {
     }));
 
     const prompt = `Eres un extractor experto de resultados oficiales de loterías para el sistema BuxyLoto.
-Fecha de hoy (hora Panamá): ${infoFecha.fechaISO} (Hora actual Panamá: ${infoFecha.hora24}, Hora RD/Anguilla: ${infoFecha.horaRD24}, Hora NY/Florida: ${infoFecha.horaNY24}).
+Fecha de hoy (hora Panamá): ${infoFecha.fechaISO} (en los portales web la fecha de hoy puede aparecer escrita como "${infoFecha.fechaISO}", "${infoFecha.dia}-${infoFecha.mes}", "${infoFecha.dia}/${infoFecha.mes}", "${infoFecha.diaNum} Nov", "Nov ${infoFecha.diaNum}" o "${infoFecha.diaNum} de noviembre").
+Hora actual Panamá: ${infoFecha.hora24}, Hora RD/Anguilla: ${infoFecha.horaRD24}, Hora NY/Florida: ${infoFecha.horaNY24}.
 
-REGLAS ESTRICTAS DE EXTRACCIÓN (SOLO PARA LA FECHA ${infoFecha.fechaISO}):
-1. Si un sorteo aún no ha jugado hoy o no aparece con fecha de hoy (${infoFecha.fechaISO}), devuelve null en sus premios. NUNCA uses resultados de ayer ni mezcles países o turnos horarios.
+REGLAS ESTRICTAS DE EXTRACCIÓN (SOLO PARA LA FECHA DE HOY):
+1. Si un sorteo aún no ha jugado hoy o solo aparece con fecha de ayer, devuelve null en sus premios. NUNCA uses resultados de ayer ni mezcles países o turnos horarios.
 2. SEPARACIÓN ESTRICTA DE FUENTES POR PAÍS (PROHIBIDO CRUZAR PAÍSES):
-   - Para HONDURAS: Lee EXCLUSIVAMENTE las fuentes llamadas LOTERIAS_HONDURAS, KINGARROBA_HN, NACIONALLOTERIA_HN_IDX, NACIONALLOTERIA_HN_P2 y YELU_HN_P2. NUNCA uses LOTERIAS_CR ni NUEVAYA_NICA para Honduras (en LOTERIAS_CR, "PREMIA2" pertenece a Nicaragua, NO a Honduras).
-     * "HONDURAS 12PM" = sorteo 11:00 AM Honduras: p1 = La Diaria 11:00 AM, p2 = primer número de Premia 2 11:00 AM, p3 = segundo número de Premia 2 11:00 AM.
-     * "HONDURAS 4PM" = sorteo 3:00 PM Honduras: p1 = La Diaria 3:00 PM, p2 y p3 = los 2 números de Premia 2 3:00 PM.
-     * "HONDURAS 10PM" = sorteo 9:00 PM Honduras: p1 = La Diaria 9:00 PM, p2 y p3 = los 2 números de Premia 2 9:00 PM.
-   - Para NICA (Nicaragua): Lee EXCLUSIVAMENTE NUEVAYA_NICA y LOTERIAS_CR (etiquetas NICA / PREMIA2).
+   - Para HONDURAS:
+     * p1 (La Diaria de Honduras): puedes leerlo de LOTERIAS_HONDURAS, KINGARROBA_HN, NACIONALLOTERIA_HN_IDX, YELU_HN_DIARIA o LOTERIAS_CR (únicamente bajo la etiqueta explícita "HONDURAS 11 AM" / "HONDURAS 3 PM" / "HONDURAS 9 PM").
+     * p2 y p3 (Premia 2 de Honduras): léelos EXCLUSIVAMENTE de LOTERIAS_HONDURAS, KINGARROBA_HN, NACIONALLOTERIA_HN_IDX, NACIONALLOTERIA_HN_P2 o YELU_HN_P2. JAMÁS tomes "PREMIA2" de LOTERIAS_CR para Honduras (en LOTERIAS_CR, "PREMIA2" es de Nicaragua).
+     * Horarios Honduras (1 hora atrás respecto a Panamá): "HONDURAS 12PM" = sorteo 11:00 AM Honduras; "HONDURAS 4PM" = 3:00 PM Honduras; "HONDURAS 10PM" = 9:00 PM Honduras.
+   - Para NICA (Nicaragua): Lee NUEVAYA_NICA y LOTERIAS_CR (etiquetas NICA / PREMIA2).
      * "NICA 12PM" = 11:00 AM Nicaragua (p1 = La Diaria 11:00 AM; p2 y p3 = los 2 números de Premia 2 11:00 AM).
      * "NICA 4PM" = 3:00 PM Nicaragua; "NICA 7PM" = 6:00 PM Nicaragua; "NICA 10PM" = 9:00 PM Nicaragua.
-   - Para TICA (Costa Rica): Lee EXCLUSIVAMENTE LOTERIAS_CR.
+   - Para TICA (Costa Rica): Lee LOTERIAS_CR.
      * p1 = Tica Reventados / Nuevos Tiempos del turno; si hay 3 Monazos (3 dígitos XYZ), p2 = XY y p3 = YZ.
    - Para ANGUILLA (1 hora adelante respecto a Panamá): Lee ENLOTERIA y KINGARROBA.
      * "ANGUILLA 9AM" = Anguilla 10:00 AM (3 premios: p1, p2, p3).
@@ -213,7 +218,7 @@ export default async function handler(req, res) {
                 descargarFuente('KINGARROBA', 'https://www.kingarrobanumeros.com/resultados')
             );
         }
-        if (/TICA|NICA/.test(nombresPend)) {
+        if (/TICA|NICA|HONDURAS/.test(nombresPend)) {
             tareasDescarga.push(descargarFuente('LOTERIAS_CR', 'https://loteriascostarica.com/'));
         }
         if (/NICA/.test(nombresPend)) {
@@ -225,6 +230,7 @@ export default async function handler(req, res) {
                 descargarFuente('KINGARROBA_HN', 'https://www.kingarrobanumeros.com/honduras-hoy'),
                 descargarFuente('NACIONALLOTERIA_HN_IDX', 'https://www.nacionalloteria.com/honduras/index.php'),
                 descargarFuente('NACIONALLOTERIA_HN_P2', 'https://www.nacionalloteria.com/honduras/loto-premia2.php'),
+                descargarFuente('YELU_HN_DIARIA', 'https://www.yelu.hn/lottery/results/la-diaria'),
                 descargarFuente('YELU_HN_P2', 'https://www.yelu.hn/lottery/results/premia-dos')
             );
         }

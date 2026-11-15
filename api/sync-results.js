@@ -814,6 +814,12 @@ export default async function handler(req, res) {
                         resGuruP2.html ? normalizar(limpiarHtmlATexto(resGuruP2.html)) : ''
                     ].join(' ')
                 };
+                const idxMuestraLdh = fuentesHn.textoLdh.indexOf('PREMIA');
+                const idxMuestraNac = fuentesHn.textoNacP2.indexOf('PREMIA');
+                diagnostico.push(
+                    `MUESTRA_LDH: ${idxMuestraLdh !== -1 ? fuentesHn.textoLdh.substring(Math.max(0, idxMuestraLdh - 40), idxMuestraLdh + 180) : 'NO_PREMIA'}`,
+                    `MUESTRA_NAC: ${idxMuestraNac !== -1 ? fuentesHn.textoNacP2.substring(Math.max(0, idxMuestraNac - 40), idxMuestraNac + 180) : 'NO_PREMIA'}`
+                );
 
                 for (const s of pendientesHn) {
                     registrarResultado(s, extraerHondurasCompleto(fuentesHn, s.nombre, infoFecha));

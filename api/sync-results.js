@@ -162,29 +162,40 @@ ${bloquesTexto}`;
         }
     });
 
-    const modelos = ['gemini-3-flash-preview', 'gemini-2.5-flash', 'gemini-2.0-flash'];
-    let ultimoError = '';
+    const modelos = ['gemini-3-flash-preview', 'gemini-2.5-flash-lite'];
+    const errores = [];
 
     for (const modelo of modelos) {
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${geminiApiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: bodyPayload
-            }
-        );
+        for (let intento = 0; intento < 2; intento++) {
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${geminiApiKey}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: bodyPayload
+                }
+            );
 
-        if (response.ok) {
-            const data = await response.json();
-            const rawJson = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{"resultados":[]}';
-            const parsed = JSON.parse(rawJson);
-            return parsed.resultados || [];
+            if (response.ok) {
+                const data = await response.json();
+                const rawJson = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{"resultados":[]}';
+                const parsed = JSON.parse(rawJson);
+                return parsed.resultados || [];
+            }
+
+            const detalle = (await response.text()).slice(0, 140);
+            errores.push(`${modelo} (${response.status}): ${detalle}`);
+
+            // Si es límite temporal por minuto (429) o sobrecarga (503), espera 2.5s y reintenta
+            if ((response.status === 429 || response.status === 503) && intento === 0) {
+                await new Promise(r => setTimeout(r, 2500));
+                continue;
+            }
+            break;
         }
-        ultimoError = `${modelo} (${response.status}): ${(await response.text()).slice(0, 140)}`;
     }
 
-    throw new Error(`Error Gemini API: ${ultimoError}`);
+    throw new Error(`Error Gemini API: ${errores.join(' | ')}`);
 }
 
 export default async function handler(req, res) {

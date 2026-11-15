@@ -97,23 +97,22 @@ async function extraerConGemini(sorteosPendientes, bloquesTexto, infoFecha) {
 Fecha de hoy (hora Panamá): ${infoFecha.fechaISO} (Hora actual Panamá: ${infoFecha.hora24}, Hora RD/Anguilla: ${infoFecha.horaRD24}, Hora NY/Florida: ${infoFecha.horaNY24}).
 
 REGLAS ESTRICTAS DE EXTRACCIÓN (SOLO PARA LA FECHA ${infoFecha.fechaISO}):
-1. Si un sorteo aún no ha jugado hoy o no aparece con fecha de hoy (${infoFecha.fechaISO}), devuelve null en sus premios. NUNCA uses resultados de ayer ni mezcles turnos horarios.
-2. Mapeo de horarios y premios (todos los premios son de 2 dígitos, ejemplo "05", "85"):
-   - HONDURAS (1 hora atrás respecto a Panamá):
-     * "HONDURAS 12PM" corresponde al sorteo de las 11:00 AM Honduras: p1 = La Diaria 11:00 AM, p2 = primer número de Premia 2 11:00 AM, p3 = segundo número de Premia 2 11:00 AM.
-     * "HONDURAS 4PM" corresponde a 3:00 PM Honduras: p1 = La Diaria 3:00 PM, p2 y p3 = los 2 números de Premia 2 3:00 PM.
-     * "HONDURAS 10PM" corresponde a 9:00 PM Honduras: p1 = La Diaria 9:00 PM, p2 y p3 = los 2 números de Premia 2 9:00 PM.
-   - NICA (1 hora atrás respecto a Panamá):
+1. Si un sorteo aún no ha jugado hoy o no aparece con fecha de hoy (${infoFecha.fechaISO}), devuelve null en sus premios. NUNCA uses resultados de ayer ni mezcles países o turnos horarios.
+2. SEPARACIÓN ESTRICTA DE FUENTES POR PAÍS (PROHIBIDO CRUZAR PAÍSES):
+   - Para HONDURAS: Lee EXCLUSIVAMENTE las fuentes llamadas LOTERIAS_HONDURAS, KINGARROBA_HN, NACIONALLOTERIA_HN_IDX, NACIONALLOTERIA_HN_P2 y YELU_HN_P2. NUNCA uses LOTERIAS_CR ni NUEVAYA_NICA para Honduras (en LOTERIAS_CR, "PREMIA2" pertenece a Nicaragua, NO a Honduras).
+     * "HONDURAS 12PM" = sorteo 11:00 AM Honduras: p1 = La Diaria 11:00 AM, p2 = primer número de Premia 2 11:00 AM, p3 = segundo número de Premia 2 11:00 AM.
+     * "HONDURAS 4PM" = sorteo 3:00 PM Honduras: p1 = La Diaria 3:00 PM, p2 y p3 = los 2 números de Premia 2 3:00 PM.
+     * "HONDURAS 10PM" = sorteo 9:00 PM Honduras: p1 = La Diaria 9:00 PM, p2 y p3 = los 2 números de Premia 2 9:00 PM.
+   - Para NICA (Nicaragua): Lee EXCLUSIVAMENTE NUEVAYA_NICA y LOTERIAS_CR (etiquetas NICA / PREMIA2).
      * "NICA 12PM" = 11:00 AM Nicaragua (p1 = La Diaria 11:00 AM; p2 y p3 = los 2 números de Premia 2 11:00 AM).
      * "NICA 4PM" = 3:00 PM Nicaragua; "NICA 7PM" = 6:00 PM Nicaragua; "NICA 10PM" = 9:00 PM Nicaragua.
-   - TICA (Costa Rica):
+   - Para TICA (Costa Rica): Lee EXCLUSIVAMENTE LOTERIAS_CR.
      * p1 = Tica Reventados / Nuevos Tiempos del turno; si hay 3 Monazos (3 dígitos XYZ), p2 = XY y p3 = YZ.
-   - ANGUILLA (1 hora adelante respecto a Panamá):
+   - Para ANGUILLA (1 hora adelante respecto a Panamá): Lee ENLOTERIA y KINGARROBA.
      * "ANGUILLA 9AM" = Anguilla 10:00 AM (3 premios: p1, p2, p3).
-     * "ANGUILLA 12PM" = Anguilla 1:00 PM (3 premios: p1, p2, p3). NUNCA uses el de las 10:00 AM ni 12:00 PM para este turno.
+     * "ANGUILLA 12PM" = Anguilla 1:00 PM (3 premios: p1, p2, p3). NUNCA uses el de las 10:00 AM ni 12:00 PM.
      * "ANGUILLA 5PM" = Anguilla 6:00 PM; "ANGUILLA 8PM" = Anguilla 9:00 PM.
-   - LA PRIMERA / FLORIDA / NEW YORK:
-     * Extrae los 3 premios (1ro, 2do, 3ro) del turno correspondiente (Día/Tarde vs Noche).
+   - Para LA PRIMERA / FLORIDA / NEW YORK: Lee ENLOTERIA y KINGARROBA (3 premios: 1ro, 2do, 3ro del turno).
 
 SORTEOS A BUSCAR:
 ${JSON.stringify(listaSorteos)}
@@ -205,7 +204,6 @@ export default async function handler(req, res) {
             });
         }
 
-        // Descargar en paralelo las fuentes web necesarias según los sorteos pendientes
         const nombresPend = pendientes.map(s => normalizar(s.nombre)).join(' ');
         const tareasDescarga = [];
 
@@ -215,7 +213,7 @@ export default async function handler(req, res) {
                 descargarFuente('KINGARROBA', 'https://www.kingarrobanumeros.com/resultados')
             );
         }
-        if (/TICA|NICA|HONDURAS/.test(nombresPend)) {
+        if (/TICA|NICA/.test(nombresPend)) {
             tareasDescarga.push(descargarFuente('LOTERIAS_CR', 'https://loteriascostarica.com/'));
         }
         if (/NICA/.test(nombresPend)) {
@@ -224,6 +222,7 @@ export default async function handler(req, res) {
         if (/HONDURAS/.test(nombresPend)) {
             tareasDescarga.push(
                 descargarFuente('LOTERIAS_HONDURAS', 'https://loteriasdehonduras.com/'),
+                descargarFuente('KINGARROBA_HN', 'https://www.kingarrobanumeros.com/honduras-hoy'),
                 descargarFuente('NACIONALLOTERIA_HN_IDX', 'https://www.nacionalloteria.com/honduras/index.php'),
                 descargarFuente('NACIONALLOTERIA_HN_P2', 'https://www.nacionalloteria.com/honduras/loto-premia2.php'),
                 descargarFuente('YELU_HN_P2', 'https://www.yelu.hn/lottery/results/premia-dos')
@@ -237,7 +236,7 @@ export default async function handler(req, res) {
 
         const bloquesTexto = fuentes
             .filter(f => f.texto)
-            .map(f => `=== FUENTE: ${f.nombre} ===\n${f.texto.slice(0, 14000)}`)
+            .map(f => `=== FUENTE: ${f.nombre} ===\n${f.texto.slice(0, 22000)}`)
             .join('\n\n');
 
         if (!bloquesTexto) {

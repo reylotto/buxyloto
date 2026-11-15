@@ -14,8 +14,7 @@ const MESES_EN = [
     'july', 'august', 'september', 'october', 'november', 'december'
 ];
 
-// Nombres de otras loterías para cortar la ventana de lectura y evitar mezclar tarjetas
-const DELIMITADORES_LOTERIAS = /\b(?:ANGUILLA|FLORIDA|NEW\s*YORK|LA\s*PRIMERA|PRIMERA\s*NOCHE|QUINIELA|NACIONAL|LEIDSA|LOTEKA|REAL|KING\s*LOTTERY|DOMI|TICA|NICA|HONDURAS|MONAZO|PEGA\s*3|PREMIA\s*2|PREMIA2|LA\s*DIARIA|TRIPLETA)\b/;
+const DELIMITADORES_LOTERIAS = /\b(?:ANGUILLA|FLORIDA|NEW\s*YORK|LA\s*PRIMERA|PRIMERA\s*NOCHE|QUINIELA|NACIONAL|LEIDSA|LOTEKA|REAL|KING\s*LOTTERY|DOMI|TICA|NICA|HONDURAS|MONAZO|PEGA\s*3|PREMIA\s*2|PREMIA2|LA\s*DIARIA|TRIPLETA|JUGA\s*3|TERMINACION)\b/;
 
 function normalizar(texto) {
     return texto ? texto.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
@@ -52,7 +51,6 @@ function getInfoFechaPanama() {
     };
 }
 
-// Verifica si ya pasó la hora real del sorteo (ajustándose automáticamente al cambio de horario de EE. UU.)
 function yaPasoHoraRealSorteo(sorteo, infoFecha) {
     const n = normalizar(sorteo.nombre);
 
@@ -239,7 +237,6 @@ function extraer3PremiosAbierto(html, nombreSorteo, infoFecha) {
 // ==========================================================
 // B. UTILIDADES CENTROAMÉRICA (PORTAL CR + YELU)
 // ==========================================================
-// Valida la fecha ÚNICAMENTE dentro de la propia tarjeta (después de la etiqueta y antes de otra lotería)
 function extraerDeLoteriasCRPreciso(textoNorm, etiquetas, fechaISO, digitos = 2, cantidad = 1) {
     if (!textoNorm) return null;
     const regexNum = digitos === 3 ? /\b\d{3}\b/g : /\b\d{2}\b/g;
@@ -247,12 +244,21 @@ function extraerDeLoteriasCRPreciso(textoNorm, etiquetas, fechaISO, digitos = 2,
     for (const etq of etiquetas) {
         let idx = textoNorm.indexOf(etq);
         while (idx !== -1) {
+            // Exigir límite de palabra para no confundir "NICA 11 AM" con otro fragmento
+            const charAntes = idx > 0 ? textoNorm[idx - 1] : ' ';
+            if (/[A-Z0-9]/.test(charAntes)) {
+                idx = textoNorm.indexOf(etq, idx + etq.length);
+                continue;
+            }
+
             const tarjetaPropia = textoNorm
-                .substring(idx + etq.length, idx + etq.length + 130)
+                .substring(idx + etq.length, idx + etq.length + 115)
                 .split(DELIMITADORES_LOTERIAS)[0];
 
             if (tarjetaPropia.includes(fechaISO)) {
-                const limpio = limpiarFechasYHoras(tarjetaPropia);
+                // La fecha debe ir DESPUÉS de los números en loteriascostarica.com
+                const textoAntesDeFecha = tarjetaPropia.split(fechaISO)[0];
+                const limpio = limpiarFechasYHoras(textoAntesDeFecha);
                 const nums = limpio.match(regexNum);
                 if (nums && nums.length >= cantidad) {
                     return cantidad === 1 ? nums[0] : nums.slice(0, cantidad);
@@ -356,32 +362,10 @@ function extraerTicaCompleto(textoCR, textoKingTica, textoYeluCr, nombreSorteo, 
 }
 
 // ==========================================================
-// D. EXTRACTOR NICA (PORTAL CR + RESPALDO NUEVAYA)
+// D. EXTRACTOR NICA (NUEVAYA + YELU.NI + PORTAL CR)
 // ==========================================================
-function extraerNicaDePortalCR(textoNorm, nombreSorteo, fechaISO) {
-    const turno = getTurnoCentroamerica(nombreSorteo);
-    const mapa = {
-        '11AM': { nica: ['NICA 11 AM', 'NICA 11AM'], premia: ['PREMIA2 11 AM', 'PREMIA2 11AM'] },
-        '3PM':  { nica: ['NICA 3 PM', 'NICA 3PM'],   premia: ['PREMIA2 3 PM', 'PREMIA2 3PM'] },
-        '6PM':  { nica: ['NICA 6 PM', 'NICA 6PM'],   premia: ['PREMIA2 6 PM', 'PREMIA2 6PM'] },
-        '9PM':  { nica: ['NICA 9 PM', 'NICA 9PM'],   premia: ['PREMIA2 9 PM', 'PREMIA2 9PM'] }
-    };
-    const cfg = mapa[turno];
-    if (!cfg) return null;
-
-    const p1 = extraerDeLoteriasCRPreciso(textoNorm, cfg.nica, fechaISO, 2, 1);
-    const p23Arr = extraerDeLoteriasCRPreciso(textoNorm, cfg.premia, fechaISO, 2, 2);
-
-    if (p1 && Array.isArray(p23Arr) && p23Arr.length >= 2) {
-        return { p1, p2: p23Arr[0], p3: p23Arr[1] };
-    }
-    return null;
-}
-
-function extraerNicaRespaldoNuevaYa(html, nombreSorteo, infoFecha) {
-    if (!html) return null;
-    const texto = normalizar(limpiarHtmlATexto(html));
-    if (!contieneFechaHoy(texto, infoFecha)) return null;
+function extraerNicaDeNuevaYa(textoNuevaYa, nombreSorteo, infoFecha) {
+    if (!textoNuevaYa || !contieneFechaHoy(textoNuevaYa, infoFecha)) return null;
 
     const turno = getTurnoCentroamerica(nombreSorteo);
     const mapaHoras = {
@@ -393,16 +377,52 @@ function extraerNicaRespaldoNuevaYa(html, nombreSorteo, infoFecha) {
     const horas = mapaHoras[turno] || [];
 
     for (const h of horas) {
-        let idx = texto.indexOf(h);
+        let idx = textoNuevaYa.indexOf(h);
         while (idx !== -1) {
-            const bloque = texto.substring(idx, idx + 650);
-            const matchDiaria = bloque.match(/\b(\d{2})\s*\(/);
-            const matchPremia2 = bloque.match(/\b(\d{2})\s*-\s*(\d{2})\b/);
-            if (matchDiaria && matchPremia2) {
-                return { p1: matchDiaria[1], p2: matchPremia2[1], p3: matchPremia2[2] };
+            const bloque = textoNuevaYa.substring(idx + h.length, idx + h.length + 520);
+            // Formato característico de NuevaYa Nicaragua: "42 (LIBRA)" o "42 (MADRE)"
+            const matchDiaria = bloque.match(/\b(\d{2})\s*\([A-Z\s]+\)/);
+            const matchPremia2 = bloque.match(/\b(\d{2})\s*[-\/]\s*(\d{2})\b/);
+            if (matchDiaria) {
+                return {
+                    p1: matchDiaria[1],
+                    p2: matchPremia2 ? matchPremia2[1] : null,
+                    p3: matchPremia2 ? matchPremia2[2] : null
+                };
             }
-            idx = texto.indexOf(h, idx + h.length);
+            idx = textoNuevaYa.indexOf(h, idx + h.length);
         }
+    }
+    return null;
+}
+
+function extraerNicaCompleto(textoCR, textoNuevaYa, textoYeluNi, nombreSorteo, infoFecha) {
+    const turno = getTurnoCentroamerica(nombreSorteo);
+    const mapa = {
+        '11AM': { nica: ['NICA 11 AM', 'NICA 11AM'], premia: ['PREMIA2 11 AM', 'PREMIA2 11AM'], horas: ['11:00 AM', '11:00AM'] },
+        '3PM':  { nica: ['NICA 3 PM', 'NICA 3PM'],   premia: ['PREMIA2 3 PM', 'PREMIA2 3PM'],   horas: ['3:00 PM', '3:00PM'] },
+        '6PM':  { nica: ['NICA 6 PM', 'NICA 6PM'],   premia: ['PREMIA2 6 PM', 'PREMIA2 6PM'],   horas: ['6:00 PM', '6:00PM'] },
+        '9PM':  { nica: ['NICA 9 PM', 'NICA 9PM'],   premia: ['PREMIA2 9 PM', 'PREMIA2 9PM'],   horas: ['9:00 PM', '9:00PM'] }
+    };
+    const cfg = mapa[turno];
+    if (!cfg) return null;
+
+    // 1. Fuente directa de Nicaragua (NuevaYa con signo zodiacal XX (SIGNO))
+    const resNY = extraerNicaDeNuevaYa(textoNuevaYa, nombreSorteo, infoFecha);
+
+    // 2. Portal CR (asegurando que la fecha esté después de los números y antes de otra lotería)
+    const crP1 = extraerDeLoteriasCRPreciso(textoCR, cfg.nica, infoFecha.fechaISO, 2, 1);
+    const crP23 = extraerDeLoteriasCRPreciso(textoCR, cfg.premia, infoFecha.fechaISO, 2, 2);
+
+    // 3. Yelu Nicaragua
+    const yeluP1Arr = buscarEnYelu(textoYeluNi, cfg.horas, infoFecha, 1);
+
+    const p1 = (resNY && resNY.p1) || crP1 || (yeluP1Arr ? yeluP1Arr[0] : null);
+    const p2 = (resNY && resNY.p2) || (Array.isArray(crP23) ? crP23[0] : null);
+    const p3 = (resNY && resNY.p3) || (Array.isArray(crP23) ? crP23[1] : null);
+
+    if (p1 || (p2 && p3)) {
+        return { p1, p2, p3 };
     }
     return null;
 }
@@ -428,7 +448,7 @@ function extraerDeNacionalLoteriaHn(textoNacional, horas, infoFecha) {
             for (const h of horas) {
                 const idxH = subP.indexOf(h);
                 if (idxH !== -1) {
-                    const raw = subP.substring(idxH + h.length, idxH + h.length + 65);
+                    const raw = subP.substring(idxH + h.length, idxH + h.length + 75);
                     const mGuion = raw.match(/\b(\d{2})\s*[-\/•|]\s*(\d{2})\b/);
                     if (mGuion) { p23 = [mGuion[1], mGuion[2]]; break; }
                     const nums = limpiarFechasYHoras(raw).match(/\b\d{2}\b/g);
@@ -473,7 +493,7 @@ function extraerDeKingHonduras(textoKingHn, horas, infoFecha) {
             for (const h of horas) {
                 const idxH = sub.indexOf(h);
                 if (idxH !== -1) {
-                    const raw = sub.substring(idxH + h.length, idxH + h.length + 65);
+                    const raw = sub.substring(idxH + h.length, idxH + h.length + 75);
                     const mGuion = raw.match(/\b(\d{2})\s*[-\/•|]\s*(\d{2})\b/);
                     if (mGuion) { p23 = [mGuion[1], mGuion[2]]; break; }
                     const nums = limpiarFechasYHoras(raw).match(/\b\d{2}\b/g);
@@ -489,10 +509,10 @@ function extraerDeKingHonduras(textoKingHn, horas, infoFecha) {
         for (const h of horas) {
             let idxH = textoKingHn.indexOf(h);
             while (idxH !== -1 && !p23) {
-                const subH = textoKingHn.substring(idxH + h.length, idxH + h.length + 400);
+                const subH = textoKingHn.substring(idxH + h.length, idxH + h.length + 450);
                 const idxP = subH.search(/\bPREMIA\s*2\b/);
                 if (idxP !== -1) {
-                    const raw = subH.substring(idxP + 7, idxP + 75);
+                    const raw = subH.substring(idxP + 7, idxP + 80);
                     const mGuion = raw.match(/\b(\d{2})\s*[-\/•|]\s*(\d{2})\b/);
                     if (mGuion) { p23 = [mGuion[1], mGuion[2]]; break; }
                     const nums = limpiarFechasYHoras(raw).match(/\b\d{2}\b/g);
@@ -679,19 +699,19 @@ export default async function handler(req, res) {
                 }
             }
 
-            // NICA
+            // NICA (NuevaYa + Yelu.ni + Portal CR)
             const pendientesNica = pendientesCA.filter(x => normalizar(x.nombre).includes('NICA'));
             if (pendientesNica.length > 0) {
+                const [resNY, resYeluNi] = await Promise.all([
+                    descargarPaginaAbierta('https://nuevaya.com.ni/loto-diaria-de-nicaragua/'),
+                    descargarPaginaAbierta('https://www.yelu.ni/lottery/results/la-diaria')
+                ]);
+                diagnostico.push(`nuevaya.com.ni: ${resNY.estado}`, `yelu_ni: ${resYeluNi.estado}`);
+                const textoNuevaYa = resNY.html ? normalizar(limpiarHtmlATexto(resNY.html)) : '';
+                const textoYeluNi = resYeluNi.html ? normalizar(limpiarHtmlATexto(resYeluNi.html)) : '';
+
                 for (const s of pendientesNica) {
-                    registrarResultado(s, extraerNicaDePortalCR(textoCR, s.nombre, fechaISO));
-                }
-                const faltanNica = pendientesNica.filter(p => !aInsertar.some(i => i.sorteo_id === p.id));
-                if (faltanNica.length > 0) {
-                    const { html: htmlNY, estado: estadoNY } = await descargarPaginaAbierta('https://nuevaya.com.ni/loto-diaria-de-nicaragua/');
-                    diagnostico.push(`nuevaya.com.ni: ${estadoNY}`);
-                    for (const s of faltanNica) {
-                        registrarResultado(s, extraerNicaRespaldoNuevaYa(htmlNY, s.nombre, infoFecha));
-                    }
+                    registrarResultado(s, extraerNicaCompleto(textoCR, textoNuevaYa, textoYeluNi, s.nombre, infoFecha));
                 }
             }
 

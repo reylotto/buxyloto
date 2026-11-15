@@ -142,7 +142,7 @@ function limpiarFechasYHoras(textoNorm) {
         .replace(/\b(?:POSICION|PREMIO)\s*\d+\b/g, ' ');
 }
 
-async function descargarPaginaAbierta(url, timeoutMs = 5500) {
+async function descargarPaginaAbierta(url, timeoutMs = 5500, usarProxySiFalla = false) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -156,14 +156,23 @@ async function descargarPaginaAbierta(url, timeoutMs = 5500) {
             }
         });
         if (!res.ok) {
+            if (usarProxySiFalla) {
+                return await descargarPaginaAbierta(`https://r.jina.ai/${url}`, 7000, false);
+            }
             return { html: null, estado: `HTTP_${res.status}` };
         }
         const html = await res.text();
         if (!html || html.includes('Just a moment...') || html.includes('cf-browser-verification')) {
+            if (usarProxySiFalla) {
+                return await descargarPaginaAbierta(`https://r.jina.ai/${url}`, 7000, false);
+            }
             return { html: null, estado: 'BLOQUEO_CF' };
         }
-        return { html, estado: 'HTTP_200' };
+        return { html, estado: url.includes('r.jina.ai') ? 'PROXY_200' : 'HTTP_200' };
     } catch (e) {
+        if (usarProxySiFalla) {
+            return await descargarPaginaAbierta(`https://r.jina.ai/${url}`, 7000, false);
+        }
         return { html: null, estado: e.name === 'AbortError' ? 'TIMEOUT' : 'ERROR_RED' };
     } finally {
         clearTimeout(timer);
@@ -201,7 +210,6 @@ function obtenerEtiquetas3Premios(nombreSorteo) {
         }
     }
     if (n.includes('ANGUILLA')) {
-        // Horarios oficiales de Anguilla (AST): 10:00 AM, 1:00 PM, 6:00 PM, 9:00 PM
         if (n.includes('9AM') || n.includes('10')) {
             return ['ANGUILLA 10:00', 'ANGUILLA 10AM', 'ANGUILLA MANANA'];
         }
@@ -440,7 +448,7 @@ function extraerNicaCompleto(textoCR, textoNuevaYa, textoYeluNi, nombreSorteo, i
 }
 
 // ==========================================================
-// E. EXTRACTOR HONDURAS (LOTERIASDEHONDURAS.COM + NACIONALLOTERIA + KINGARROBA + YELU.HN)
+// E. EXTRACTOR HONDURAS (LOTERIASDEHONDURAS.COM + PROXY + NACIONALLOTERIA + KINGARROBA + YELU.HN)
 // ==========================================================
 function extraerDeLoteriasDeHondurasCom(textoLdh, horas, infoFecha) {
     if (!textoLdh) return { p1: null, p23: null };
@@ -448,15 +456,15 @@ function extraerDeLoteriasDeHondurasCom(textoLdh, horas, infoFecha) {
     let p1 = null;
     let p23 = null;
 
-    // 1. Buscar Premia 2 <hora> (acepta fecha 15-11 antes o 15 Nov después)
+    // 1. Buscar Premia 2 <hora>
     for (const etqP of ['PREMIA 2', 'PREMIA2']) {
         for (const h of horas) {
             const titulo = `${etqP} ${h}`;
             let idx = textoLdh.indexOf(titulo);
             while (idx !== -1 && !p23) {
-                const contextoAntes = textoLdh.substring(Math.max(0, idx - 120), idx);
+                const contextoAntes = textoLdh.substring(Math.max(0, idx - 150), idx);
                 const contextoDespues = textoLdh
-                    .substring(idx + titulo.length, idx + titulo.length + 140)
+                    .substring(idx + titulo.length, idx + titulo.length + 180)
                     .split(DELIMITADORES_LOTERIAS)[0]
                     .split(DELIMITADORES_HORAS_CA)[0];
 
@@ -480,9 +488,9 @@ function extraerDeLoteriasDeHondurasCom(textoLdh, horas, infoFecha) {
         const titulo = `LA DIARIA ${h}`;
         let idx = textoLdh.indexOf(titulo);
         while (idx !== -1 && !p1) {
-            const contextoAntes = textoLdh.substring(Math.max(0, idx - 120), idx);
+            const contextoAntes = textoLdh.substring(Math.max(0, idx - 150), idx);
             const contextoDespues = textoLdh
-                .substring(idx + titulo.length, idx + titulo.length + 140)
+                .substring(idx + titulo.length, idx + titulo.length + 180)
                 .split(DELIMITADORES_LOTERIAS)[0]
                 .split(DELIMITADORES_HORAS_CA)[0];
 
@@ -774,12 +782,12 @@ export default async function handler(req, res) {
                 }
             }
 
-            // HONDURAS (múltiples fuentes en paralelo para máxima velocidad y cobertura)
+            // HONDURAS (múltiples fuentes en paralelo + proxy r.jina.ai)
             const pendientesHn = pendientesCA.filter(x => normalizar(x.nombre).includes('HONDURAS'));
             if (pendientesHn.length > 0) {
                 const [resLdh, resLdhP2, resNacIdx, resNacP2, resKingHn, resYeluP1, resYeluP23, resGuruP2] = await Promise.all([
-                    descargarPaginaAbierta('https://loteriasdehonduras.com/'),
-                    descargarPaginaAbierta('https://loteriasdehonduras.com/premia-2/'),
+                    descargarPaginaAbierta('https://loteriasdehonduras.com/', 5500, true),
+                    descargarPaginaAbierta('https://loteriasdehonduras.com/premia-2/', 5500, true),
                     descargarPaginaAbierta('https://www.nacionalloteria.com/honduras/index.php'),
                     descargarPaginaAbierta('https://www.nacionalloteria.com/honduras/loto-premia2.php'),
                     descargarPaginaAbierta('https://www.kingarrobanumeros.com/honduras-hoy'),

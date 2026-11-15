@@ -453,20 +453,22 @@ function extraerNicaCompleto(textoCR, textoNuevaYa, textoYeluNi, nombreSorteo, i
 function extraerDeLoteriasDeHondurasCom(textoLdh, horas, infoFecha) {
     if (!textoLdh) return { p1: null, p23: null };
 
+    // La portada de loteriasdehonduras.com muestra únicamente los resultados del día activo
+    const paginaEsDeHoy = contieneFechaHoy(textoLdh, infoFecha);
     let p1 = null;
     let p23 = null;
 
-    // 1. Recorrer TODAS las apariciones de PREMIA 2 / PREMIA2 (saltando el menú superior)
+    // 1. Buscar tarjetas de PREMIA 2 / PREMIA2 con 2 números de 2 dígitos
     for (const etqP of ['PREMIA 2', 'PREMIA2']) {
         let idx = textoLdh.indexOf(etqP);
         while (idx !== -1 && !p23) {
             const contextoAntes = textoLdh.substring(Math.max(0, idx - 140), idx);
             const bloqueTarjeta = textoLdh
-                .substring(idx + etqP.length, idx + etqP.length + 240)
+                .substring(idx + etqP.length, idx + etqP.length + 260)
                 .split(DELIMITADORES_LOTERIAS)[0];
 
             const tieneHora = horas.some(h => bloqueTarjeta.includes(h));
-            if (tieneHora && contieneFechaHoy(contextoAntes + ' ' + bloqueTarjeta, infoFecha)) {
+            if (tieneHora && (paginaEsDeHoy || contieneFechaHoy(contextoAntes + ' ' + bloqueTarjeta, infoFecha))) {
                 const limpio = limpiarFechasYHoras(bloqueTarjeta);
                 const nums = limpio.match(/\b\d{2}\b/g);
                 if (nums && nums.length >= 2) {
@@ -479,16 +481,16 @@ function extraerDeLoteriasDeHondurasCom(textoLdh, horas, infoFecha) {
         if (p23) break;
     }
 
-    // 2. Recorrer TODAS las apariciones de LA DIARIA
+    // 2. Buscar tarjetas de LA DIARIA con 1 número de 2 dígitos
     let idxD = textoLdh.indexOf('LA DIARIA');
     while (idxD !== -1 && !p1) {
         const contextoAntes = textoLdh.substring(Math.max(0, idxD - 140), idxD);
         const bloqueTarjeta = textoLdh
-            .substring(idxD + 9, idxD + 240)
+            .substring(idxD + 9, idxD + 260)
             .split(DELIMITADORES_LOTERIAS)[0];
 
         const tieneHora = horas.some(h => bloqueTarjeta.includes(h));
-        if (tieneHora && contieneFechaHoy(contextoAntes + ' ' + bloqueTarjeta, infoFecha)) {
+        if (tieneHora && (paginaEsDeHoy || contieneFechaHoy(contextoAntes + ' ' + bloqueTarjeta, infoFecha))) {
             const limpio = limpiarFechasYHoras(bloqueTarjeta);
             const m = limpio.match(/\b(\d{2})\b/);
             if (m) {
@@ -774,18 +776,17 @@ export default async function handler(req, res) {
                 }
             }
 
-            // HONDURAS (múltiples fuentes en paralelo + proxy r.jina.ai)
+           // HONDURAS (múltiples fuentes en paralelo + proxy r.jina.ai)
             const pendientesHn = pendientesCA.filter(x => normalizar(x.nombre).includes('HONDURAS'));
             if (pendientesHn.length > 0) {
-                const [resLdh, resLdhP2, resNacIdx, resNacP2, resKingHn, resYeluP1, resYeluP23, resGuruP2] = await Promise.all([
+                const [resLdh, resLdhP2, resNacIdx, resNacP2, resKingHn, resYeluP1, resYeluP23] = await Promise.all([
                     descargarPaginaAbierta('https://loteriasdehonduras.com/', 5500, true),
                     descargarPaginaAbierta('https://loteriasdehonduras.com/premia-2/', 5500, true),
                     descargarPaginaAbierta('https://www.nacionalloteria.com/honduras/index.php'),
                     descargarPaginaAbierta('https://www.nacionalloteria.com/honduras/loto-premia2.php'),
                     descargarPaginaAbierta('https://www.kingarrobanumeros.com/honduras-hoy'),
                     descargarPaginaAbierta('https://www.yelu.hn/lottery/results/la-diaria'),
-                    descargarPaginaAbierta('https://www.yelu.hn/lottery/results/premia-dos'),
-                    descargarPaginaAbierta('https://loterias.guru/honduras/premia-2')
+                    descargarPaginaAbierta('https://www.yelu.hn/lottery/results/premia-dos')
                 ]);
 
                 diagnostico.push(
@@ -795,8 +796,7 @@ export default async function handler(req, res) {
                     `nac_hn_p2: ${resNacP2.estado}`,
                     `king_hn: ${resKingHn.estado}`,
                     `yelu_diaria: ${resYeluP1.estado}`,
-                    `yelu_premia2: ${resYeluP23.estado}`,
-                    `guru_p2: ${resGuruP2.estado}`
+                    `yelu_premia2: ${resYeluP23.estado}`
                 );
 
                 const fuentesHn = {
@@ -809,17 +809,8 @@ export default async function handler(req, res) {
                     textoNacP2: resNacP2.html ? normalizar(limpiarHtmlATexto(resNacP2.html)) : '',
                     textoKingHn: resKingHn.html ? normalizar(limpiarHtmlATexto(resKingHn.html)) : '',
                     textoYeluDiaria: resYeluP1.html ? normalizar(limpiarHtmlATexto(resYeluP1.html)) : '',
-                    textoYeluPremia2: [
-                        resYeluP23.html ? normalizar(limpiarHtmlATexto(resYeluP23.html)) : '',
-                        resGuruP2.html ? normalizar(limpiarHtmlATexto(resGuruP2.html)) : ''
-                    ].join(' ')
+                    textoYeluPremia2: resYeluP23.html ? normalizar(limpiarHtmlATexto(resYeluP23.html)) : ''
                 };
-                const idxMuestraLdh = fuentesHn.textoLdh.indexOf('PREMIA');
-                const idxMuestraNac = fuentesHn.textoNacP2.indexOf('PREMIA');
-                diagnostico.push(
-                    `MUESTRA_LDH: ${idxMuestraLdh !== -1 ? fuentesHn.textoLdh.substring(Math.max(0, idxMuestraLdh - 40), idxMuestraLdh + 180) : 'NO_PREMIA'}`,
-                    `MUESTRA_NAC: ${idxMuestraNac !== -1 ? fuentesHn.textoNacP2.substring(Math.max(0, idxMuestraNac - 40), idxMuestraNac + 180) : 'NO_PREMIA'}`
-                );
 
                 for (const s of pendientesHn) {
                     registrarResultado(s, extraerHondurasCompleto(fuentesHn, s.nombre, infoFecha));

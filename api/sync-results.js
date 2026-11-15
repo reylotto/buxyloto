@@ -456,55 +456,47 @@ function extraerDeLoteriasDeHondurasCom(textoLdh, horas, infoFecha) {
     let p1 = null;
     let p23 = null;
 
-    // 1. Buscar Premia 2 <hora>
+    // 1. Buscar tarjetas de PREMIA 2 (la hora puede venir pegada o unos caracteres después)
     for (const etqP of ['PREMIA 2', 'PREMIA2']) {
-        for (const h of horas) {
-            const titulo = `${etqP} ${h}`;
-            let idx = textoLdh.indexOf(titulo);
-            while (idx !== -1 && !p23) {
-                const contextoAntes = textoLdh.substring(Math.max(0, idx - 150), idx);
-                const contextoDespues = textoLdh
-                    .substring(idx + titulo.length, idx + titulo.length + 180)
-                    .split(DELIMITADORES_LOTERIAS)[0]
-                    .split(DELIMITADORES_HORAS_CA)[0];
+        let idx = textoLdh.indexOf(etqP);
+        while (idx !== -1 && !p23) {
+            const contextoAntes = textoLdh.substring(Math.max(0, idx - 120), idx);
+            const bloqueTarjeta = textoLdh
+                .substring(idx + etqP.length, idx + etqP.length + 220)
+                .split(DELIMITADORES_LOTERIAS)[0];
 
-                if (contieneFechaHoy(contextoAntes + ' ' + contextoDespues, infoFecha)) {
-                    const limpio = limpiarFechasYHoras(contextoDespues);
-                    const nums = limpio.match(/\b\d{2}\b/g);
-                    if (nums && nums.length >= 2) {
-                        p23 = [nums[0], nums[1]];
-                        break;
-                    }
+            const tieneHora = horas.some(h => bloqueTarjeta.includes(h));
+            if (tieneHora && contieneFechaHoy(contextoAntes + ' ' + bloqueTarjeta, infoFecha)) {
+                const limpio = limpiarFechasYHoras(bloqueTarjeta);
+                const nums = limpio.match(/\b\d{2}\b/g);
+                if (nums && nums.length >= 2) {
+                    p23 = [nums[0], nums[1]];
+                    break;
                 }
-                idx = textoLdh.indexOf(titulo, idx + titulo.length);
             }
-            if (p23) break;
+            idx = textoLdh.indexOf(etqP, idx + etqP.length);
         }
         if (p23) break;
     }
 
-    // 2. Buscar La Diaria <hora>
-    for (const h of horas) {
-        const titulo = `LA DIARIA ${h}`;
-        let idx = textoLdh.indexOf(titulo);
-        while (idx !== -1 && !p1) {
-            const contextoAntes = textoLdh.substring(Math.max(0, idx - 150), idx);
-            const contextoDespues = textoLdh
-                .substring(idx + titulo.length, idx + titulo.length + 180)
-                .split(DELIMITADORES_LOTERIAS)[0]
-                .split(DELIMITADORES_HORAS_CA)[0];
+    // 2. Buscar tarjetas de LA DIARIA
+    let idxD = textoLdh.indexOf('LA DIARIA');
+    while (idxD !== -1 && !p1) {
+        const contextoAntes = textoLdh.substring(Math.max(0, idxD - 120), idxD);
+        const bloqueTarjeta = textoLdh
+            .substring(idxD + 9, idxD + 220)
+            .split(DELIMITADORES_LOTERIAS)[0];
 
-            if (contieneFechaHoy(contextoAntes + ' ' + contextoDespues, infoFecha)) {
-                const limpio = limpiarFechasYHoras(contextoDespues);
-                const m = limpio.match(/\b(\d{2})\b/);
-                if (m) {
-                    p1 = m[1];
-                    break;
-                }
+        const tieneHora = horas.some(h => bloqueTarjeta.includes(h));
+        if (tieneHora && contieneFechaHoy(contextoAntes + ' ' + bloqueTarjeta, infoFecha)) {
+            const limpio = limpiarFechasYHoras(bloqueTarjeta);
+            const m = limpio.match(/\b(\d{2})\b/);
+            if (m) {
+                p1 = m[1];
+                break;
             }
-            idx = textoLdh.indexOf(titulo, idx + titulo.length);
         }
-        if (p1) break;
+        idxD = textoLdh.indexOf('LA DIARIA', idxD + 9);
     }
 
     return { p1, p23 };
@@ -598,17 +590,17 @@ function extraerHondurasCompleto(fuentesHn, nombreSorteo, infoFecha) {
         '11AM': {
             crP1: ['HONDURAS 11 AM', 'HONDURAS 11AM', 'HONDURAS DIA'],
             crP23: ['PREMIA2 HONDURAS 11 AM', 'PREMIA 2 HONDURAS 11 AM'],
-            horas: ['11:00 AM', '11:00AM', '11:00', '11 AM', '11AM']
+            horas: ['11:00 AM', '11:00AM', '11:00 A.M.', '11:00', '11 AM', '11AM']
         },
         '3PM': {
             crP1: ['HONDURAS 3 PM', 'HONDURAS 3PM', 'HONDURAS TARDE'],
             crP23: ['PREMIA2 HONDURAS 3 PM', 'PREMIA 2 HONDURAS 3 PM'],
-            horas: ['3:00 PM', '3:00PM', '3:00', '3 PM', '3PM']
+            horas: ['3:00 PM', '3:00PM', '3:00 P.M.', '3:00', '3 PM', '3PM']
         },
         '9PM': {
             crP1: ['HONDURAS 9 PM', 'HONDURAS 9PM', 'HONDURAS NOCHE'],
             crP23: ['PREMIA2 HONDURAS 9 PM', 'PREMIA 2 HONDURAS 9 PM'],
-            horas: ['9:00 PM', '9:00PM', '9:00', '9 PM', '9PM']
+            horas: ['9:00 PM', '9:00PM', '9:00 P.M.', '9:00', '9 PM', '9PM']
         }
     };
 

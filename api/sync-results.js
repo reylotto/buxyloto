@@ -15,6 +15,7 @@ const MESES_EN = [
 ];
 
 const DELIMITADORES_LOTERIAS = /\b(?:ANGUILLA|FLORIDA|NEW\s*YORK|LA\s*PRIMERA|PRIMERA\s*NOCHE|QUINIELA|NACIONAL|LEIDSA|LOTEKA|REAL|KING\s*LOTTERY|DOMI|TICA|NICA|HONDURAS|MONAZO|PEGA\s*3|PREMIA\s*2|PREMIA2|LA\s*DIARIA|TRIPLETA|JUGA\s*3|TERMINACION)\b/;
+const DELIMITADORES_HORAS_CA = /\b(?:11:00|3:00|6:00|9:00|11\s*AM|3\s*PM|6\s*PM|9\s*PM|SORTEOS\s+ANTERIORES|RESULTADOS\s+ANTERIORES)\b/;
 
 function normalizar(texto) {
     return texto ? texto.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
@@ -244,19 +245,19 @@ function extraerDeLoteriasCRPreciso(textoNorm, etiquetas, fechaISO, digitos = 2,
     for (const etq of etiquetas) {
         let idx = textoNorm.indexOf(etq);
         while (idx !== -1) {
-            // Exigir límite de palabra para no confundir "NICA 11 AM" con otro fragmento
             const charAntes = idx > 0 ? textoNorm[idx - 1] : ' ';
             if (/[A-Z0-9]/.test(charAntes)) {
                 idx = textoNorm.indexOf(etq, idx + etq.length);
                 continue;
             }
 
+            // Cortar antes de cualquier otra lotería Y antes de cualquier otro horario
             const tarjetaPropia = textoNorm
                 .substring(idx + etq.length, idx + etq.length + 115)
-                .split(DELIMITADORES_LOTERIAS)[0];
+                .split(DELIMITADORES_LOTERIAS)[0]
+                .split(DELIMITADORES_HORAS_CA)[0];
 
             if (tarjetaPropia.includes(fechaISO)) {
-                // La fecha debe ir DESPUÉS de los números en loteriascostarica.com
                 const textoAntesDeFecha = tarjetaPropia.split(fechaISO)[0];
                 const limpio = limpiarFechasYHoras(textoAntesDeFecha);
                 const nums = limpio.match(regexNum);
@@ -271,13 +272,17 @@ function extraerDeLoteriasCRPreciso(textoNorm, etiquetas, fechaISO, digitos = 2,
 }
 
 function buscarEnYelu(textoYelu, etiquetasHora, infoFecha, cantidad = 1) {
-    const bloqueHoy = extraerSeccionDesdeFechaHoy(textoYelu, infoFecha, 500);
+    const bloqueHoy = extraerSeccionDesdeFechaHoy(textoYelu, infoFecha, 600);
     if (!bloqueHoy) return null;
 
     for (const etq of etiquetasHora) {
         const idx = bloqueHoy.indexOf(etq);
         if (idx !== -1) {
-            const rawDespues = bloqueHoy.substring(idx + etq.length, idx + etq.length + 50);
+            // Cortar antes de que empiece otro horario en la tabla de Yelu
+            const rawDespues = bloqueHoy
+                .substring(idx + etq.length, idx + etq.length + 70)
+                .split(DELIMITADORES_HORAS_CA)[0];
+
             if (cantidad === 2) {
                 const mGuion = rawDespues.match(/\b(\d{2})\s*[-\/•|]\s*(\d{2})\b/);
                 if (mGuion) return [mGuion[1], mGuion[2]];
@@ -362,7 +367,7 @@ function extraerTicaCompleto(textoCR, textoKingTica, textoYeluCr, nombreSorteo, 
 }
 
 // ==========================================================
-// D. EXTRACTOR NICA (NUEVAYA + YELU.NI + PORTAL CR)
+// D. EXTRACTOR NICA (AISLADO ESTRICTAMENTE POR BLOQUE HORARIO)
 // ==========================================================
 function extraerNicaDeNuevaYa(textoNuevaYa, nombreSorteo, infoFecha) {
     if (!textoNuevaYa || !contieneFechaHoy(textoNuevaYa, infoFecha)) return null;
@@ -379,10 +384,14 @@ function extraerNicaDeNuevaYa(textoNuevaYa, nombreSorteo, infoFecha) {
     for (const h of horas) {
         let idx = textoNuevaYa.indexOf(h);
         while (idx !== -1) {
-            const bloque = textoNuevaYa.substring(idx + h.length, idx + h.length + 520);
-            // Formato característico de NuevaYa Nicaragua: "42 (LIBRA)" o "42 (MADRE)"
-            const matchDiaria = bloque.match(/\b(\d{2})\s*\([A-Z\s]+\)/);
-            const matchPremia2 = bloque.match(/\b(\d{2})\s*[-\/]\s*(\d{2})\b/);
+            // Cortar estrictamente antes del siguiente horario (11:00 AM, 3:00 PM, 6:00 PM, 9:00 PM)
+            const bloqueTurno = textoNuevaYa
+                .substring(idx + h.length, idx + h.length + 320)
+                .split(DELIMITADORES_HORAS_CA)[0];
+
+            // Formato de NuevaYa Nicaragua: "42 (LIBRA)"
+            const matchDiaria = bloqueTurno.match(/\b(\d{2})\s*\([A-Z\s]+\)/);
+            const matchPremia2 = bloqueTurno.match(/\b(\d{2})\s*[-\/]\s*(\d{2})\b/);
             if (matchDiaria) {
                 return {
                     p1: matchDiaria[1],
@@ -407,14 +416,9 @@ function extraerNicaCompleto(textoCR, textoNuevaYa, textoYeluNi, nombreSorteo, i
     const cfg = mapa[turno];
     if (!cfg) return null;
 
-    // 1. Fuente directa de Nicaragua (NuevaYa con signo zodiacal XX (SIGNO))
     const resNY = extraerNicaDeNuevaYa(textoNuevaYa, nombreSorteo, infoFecha);
-
-    // 2. Portal CR (asegurando que la fecha esté después de los números y antes de otra lotería)
     const crP1 = extraerDeLoteriasCRPreciso(textoCR, cfg.nica, infoFecha.fechaISO, 2, 1);
     const crP23 = extraerDeLoteriasCRPreciso(textoCR, cfg.premia, infoFecha.fechaISO, 2, 2);
-
-    // 3. Yelu Nicaragua
     const yeluP1Arr = buscarEnYelu(textoYeluNi, cfg.horas, infoFecha, 1);
 
     const p1 = (resNY && resNY.p1) || crP1 || (yeluP1Arr ? yeluP1Arr[0] : null);
@@ -448,11 +452,14 @@ function extraerDeNacionalLoteriaHn(textoNacional, horas, infoFecha) {
             for (const h of horas) {
                 const idxH = subP.indexOf(h);
                 if (idxH !== -1) {
-                    const raw = subP.substring(idxH + h.length, idxH + h.length + 75);
-                    const mGuion = raw.match(/\b(\d{2})\s*[-\/•|]\s*(\d{2})\b/);
-                    if (mGuion) { p23 = [mGuion[1], mGuion[2]]; break; }
-                    const nums = limpiarFechasYHoras(raw).match(/\b\d{2}\b/g);
+                    const raw = subP
+                        .substring(idxH + h.length, idxH + h.length + 75)
+                        .split(DELIMITADORES_HORAS_CA)[0];
+                    const mGuion = raw.match(/\b(\d{2})\s*[-\/•|\s]+\s*(\d{2})\b/);
+                    const limpio = limpiarFechasYHoras(raw);
+                    const nums = limpio.match(/\b\d{2}\b/g);
                     if (nums && nums.length >= 2) { p23 = [nums[0], nums[1]]; break; }
+                    if (mGuion) { p23 = [mGuion[1], mGuion[2]]; break; }
                 }
             }
             idxP = seccionHoy.indexOf(etqP, idxP + etqP.length);
@@ -468,7 +475,10 @@ function extraerDeNacionalLoteriaHn(textoNacional, horas, infoFecha) {
         for (const h of horas) {
             const idxH = subD.indexOf(h);
             if (idxH !== -1) {
-                const limpio = limpiarFechasYHoras(subD.substring(idxH + h.length, idxH + h.length + 55));
+                const raw = subD
+                    .substring(idxH + h.length, idxH + h.length + 55)
+                    .split(DELIMITADORES_HORAS_CA)[0];
+                const limpio = limpiarFechasYHoras(raw);
                 const m = limpio.match(/\b(\d{2})\b/);
                 if (m) { p1 = m[1]; break; }
             }
@@ -493,9 +503,9 @@ function extraerDeKingHonduras(textoKingHn, horas, infoFecha) {
             for (const h of horas) {
                 const idxH = sub.indexOf(h);
                 if (idxH !== -1) {
-                    const raw = sub.substring(idxH + h.length, idxH + h.length + 75);
-                    const mGuion = raw.match(/\b(\d{2})\s*[-\/•|]\s*(\d{2})\b/);
-                    if (mGuion) { p23 = [mGuion[1], mGuion[2]]; break; }
+                    const raw = sub
+                        .substring(idxH + h.length, idxH + h.length + 75)
+                        .split(DELIMITADORES_HORAS_CA)[0];
                     const nums = limpiarFechasYHoras(raw).match(/\b\d{2}\b/g);
                     if (nums && nums.length >= 2) { p23 = [nums[0], nums[1]]; break; }
                 }
@@ -509,12 +519,12 @@ function extraerDeKingHonduras(textoKingHn, horas, infoFecha) {
         for (const h of horas) {
             let idxH = textoKingHn.indexOf(h);
             while (idxH !== -1 && !p23) {
-                const subH = textoKingHn.substring(idxH + h.length, idxH + h.length + 450);
+                const subH = textoKingHn
+                    .substring(idxH + h.length, idxH + h.length + 450)
+                    .split(DELIMITADORES_HORAS_CA)[0];
                 const idxP = subH.search(/\bPREMIA\s*2\b/);
                 if (idxP !== -1) {
                     const raw = subH.substring(idxP + 7, idxP + 80);
-                    const mGuion = raw.match(/\b(\d{2})\s*[-\/•|]\s*(\d{2})\b/);
-                    if (mGuion) { p23 = [mGuion[1], mGuion[2]]; break; }
                     const nums = limpiarFechasYHoras(raw).match(/\b\d{2}\b/g);
                     if (nums && nums.length >= 2) { p23 = [nums[0], nums[1]]; break; }
                 }
@@ -699,7 +709,7 @@ export default async function handler(req, res) {
                 }
             }
 
-            // NICA (NuevaYa + Yelu.ni + Portal CR)
+            // NICA
             const pendientesNica = pendientesCA.filter(x => normalizar(x.nombre).includes('NICA'));
             if (pendientesNica.length > 0) {
                 const [resNY, resYeluNi] = await Promise.all([

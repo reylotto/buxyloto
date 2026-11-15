@@ -121,49 +121,56 @@ ${JSON.stringify(listaSorteos)}
 TEXTO EXTRAÍDO DE LOS PORTALES WEB HOY:
 ${bloquesTexto}`;
 
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash:generateContent?key=${geminiApiKey}`,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    temperature: 0,
-                    responseMimeType: 'application/json',
-                    responseSchema: {
-                        type: 'OBJECT',
-                        properties: {
-                            resultados: {
-                                type: 'ARRAY',
-                                items: {
-                                    type: 'OBJECT',
-                                    properties: {
-                                        id: { type: 'STRING' },
-                                        p1: { type: 'STRING', nullable: true },
-                                        p2: { type: 'STRING', nullable: true },
-                                        p3: { type: 'STRING', nullable: true }
-                                    },
-                                    required: ['id', 'p1', 'p2', 'p3']
-                                }
-                            }
-                        },
-                        required: ['resultados']
+    const bodyPayload = JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+            temperature: 0,
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: 'OBJECT',
+                properties: {
+                    resultados: {
+                        type: 'ARRAY',
+                        items: {
+                            type: 'OBJECT',
+                            properties: {
+                                id: { type: 'STRING' },
+                                p1: { type: 'STRING', nullable: true },
+                                p2: { type: 'STRING', nullable: true },
+                                p3: { type: 'STRING', nullable: true }
+                            },
+                            required: ['id', 'p1', 'p2', 'p3']
+                        }
                     }
-                }
-            })
+                },
+                required: ['resultados']
+            }
         }
-    );
+    });
 
-    if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Error Gemini API (${response.status}): ${errText.slice(0, 180)}`);
+    const modelos = ['gemini-3-flash-preview', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+    let ultimoError = '';
+
+    for (const modelo of modelos) {
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${geminiApiKey}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: bodyPayload
+            }
+        );
+
+        if (response.ok) {
+            const data = await response.json();
+            const rawJson = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{"resultados":[]}';
+            const parsed = JSON.parse(rawJson);
+            return parsed.resultados || [];
+        }
+        ultimoError = `${modelo} (${response.status}): ${(await response.text()).slice(0, 140)}`;
     }
 
-    const data = await response.json();
-    const rawJson = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{"resultados":[]}';
-    const parsed = JSON.parse(rawJson);
-    return parsed.resultados || [];
+    throw new Error(`Error Gemini API: ${ultimoError}`);
 }
 
 export default async function handler(req, res) {

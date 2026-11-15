@@ -142,7 +142,8 @@ async function descargarPaginaAbierta(url, timeoutMs = 5500) {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'es-ES,es;q=0.9'
+                'Accept-Language': 'es-ES,es;q=0.9',
+                'Referer': 'https://www.google.com/'
             }
         });
         if (!res.ok) {
@@ -445,9 +446,9 @@ function extraerDeLoteriasDeHondurasCom(textoLdh, horas, infoFecha) {
             const titulo = `${etqP} ${h}`;
             let idx = textoLdh.indexOf(titulo);
             while (idx !== -1 && !p23) {
-                const contextoAntes = textoLdh.substring(Math.max(0, idx - 35), idx);
+                const contextoAntes = textoLdh.substring(Math.max(0, idx - 120), idx);
                 const contextoDespues = textoLdh
-                    .substring(idx + titulo.length, idx + titulo.length + 75)
+                    .substring(idx + titulo.length, idx + titulo.length + 95)
                     .split(DELIMITADORES_LOTERIAS)[0]
                     .split(DELIMITADORES_HORAS_CA)[0];
 
@@ -471,9 +472,9 @@ function extraerDeLoteriasDeHondurasCom(textoLdh, horas, infoFecha) {
         const titulo = `LA DIARIA ${h}`;
         let idx = textoLdh.indexOf(titulo);
         while (idx !== -1 && !p1) {
-            const contextoAntes = textoLdh.substring(Math.max(0, idx - 35), idx);
+            const contextoAntes = textoLdh.substring(Math.max(0, idx - 120), idx);
             const contextoDespues = textoLdh
-                .substring(idx + titulo.length, idx + titulo.length + 75)
+                .substring(idx + titulo.length, idx + titulo.length + 95)
                 .split(DELIMITADORES_LOTERIAS)[0]
                 .split(DELIMITADORES_HORAS_CA)[0];
 
@@ -771,12 +772,23 @@ export default async function handler(req, res) {
             // HONDURAS (loteriasdehonduras.com como fuente principal + respaldos)
             const pendientesHn = pendientesCA.filter(x => normalizar(x.nombre).includes('HONDURAS'));
             if (pendientesHn.length > 0) {
-                const resLdh = await descargarPaginaAbierta('https://loteriasdehonduras.com/');
-                diagnostico.push(`loteriasdehonduras.com: ${resLdh.estado}`);
+                const [resLdh, resLdhP2] = await Promise.all([
+                    descargarPaginaAbierta('https://loteriasdehonduras.com/'),
+                    descargarPaginaAbierta('https://loteriasdehonduras.com/premia-2/')
+                ]);
+                diagnostico.push(
+                    `loteriasdehonduras.com: ${resLdh.estado}`,
+                    `loteriasdehonduras_p2: ${resLdhP2.estado}`
+                );
+
+                const textoLdhCombinado = [
+                    resLdh.html ? normalizar(limpiarHtmlATexto(resLdh.html)) : '',
+                    resLdhP2.html ? normalizar(limpiarHtmlATexto(resLdhP2.html)) : ''
+                ].join(' ');
 
                 const fuentesHn = {
                     textoCR,
-                    textoLdh: resLdh.html ? normalizar(limpiarHtmlATexto(resLdh.html)) : '',
+                    textoLdh: textoLdhCombinado,
                     textoNacIdx: '',
                     textoNacP2: '',
                     textoKingHn: '',

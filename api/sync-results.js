@@ -16,6 +16,7 @@ function limpiarHtmlATexto(html) {
         .replace(/<footer[\s\S]*?<\/footer>/gi, ' ')
         .replace(/<script[\s\S]*?<\/script>/gi, ' ')
         .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/alt=["']([^"']+)["']/gi, ' $1 ')
         .replace(/<[^>]+>/g, ' ')
         .replace(/&nbsp;/gi, ' ')
         .replace(/[\u2013\u2014]/g, '-')
@@ -226,7 +227,7 @@ export default async function handler(req, res) {
         }
         if (/HONDURAS/.test(nombresPend)) {
             tareasDescarga.push(
-                descargarFuente('LOTERIAS_HONDURAS', 'https://loteriasdehonduras.com/'),
+                descargarFuente('LOTERIAS_HONDURAS', 'https://r.jina.ai/https://loteriasdehonduras.com/'),
                 descargarFuente('KINGARROBA_HN', 'https://www.kingarrobanumeros.com/honduras-hoy'),
                 descargarFuente('NACIONALLOTERIA_HN_IDX', 'https://www.nacionalloteria.com/honduras/index.php'),
                 descargarFuente('NACIONALLOTERIA_HN_P2', 'https://www.nacionalloteria.com/honduras/loto-premia2.php'),

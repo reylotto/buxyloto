@@ -14,6 +14,9 @@ const MESES_EN = [
     'july', 'august', 'september', 'october', 'november', 'december'
 ];
 
+// Nombres de otras loterías para cortar la ventana de lectura y evitar mezclar tarjetas
+const DELIMITADORES_LOTERIAS = /\b(?:ANGUILLA|FLORIDA|NEW\s*YORK|LA\s*PRIMERA|PRIMERA\s*NOCHE|QUINIELA|NACIONAL|LEIDSA|LOTEKA|REAL|KING\s*LOTTERY|DOMI|TICA|NICA|HONDURAS|MONAZO|PEGA\s*3|PREMIA\s*2|PREMIA2|LA\s*DIARIA)\b/;
+
 function normalizar(texto) {
     return texto ? texto.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
 }
@@ -33,11 +36,13 @@ function getInfoFechaPanama() {
     const ahora = new Date();
     const fechaISO = ahora.toLocaleDateString('en-CA', { timeZone: 'America/Panama' }); // YYYY-MM-DD
     const hora24 = ahora.toLocaleTimeString('en-GB', { timeZone: 'America/Panama', hour12: false }); // HH:MM:SS
+    const horaNY24 = ahora.toLocaleTimeString('en-GB', { timeZone: 'America/New_York', hour12: false }); // HH:MM:SS en NY/Florida
     const [anio, mes, dia] = fechaISO.split('-');
     const idxMes = parseInt(mes, 10) - 1;
     return {
         fechaISO,
         hora24,
+        horaNY24,
         anio,
         dia,
         mes,
@@ -45,6 +50,31 @@ function getInfoFechaPanama() {
         mesNombre: MESES_ES[idxMes],
         mesNombreEn: MESES_EN[idxMes]
     };
+}
+
+// Verifica si ya pasó la hora real del sorteo (ajustándose automáticamente al cambio de horario de EE. UU.)
+function yaPasoHoraRealSorteo(sorteo, infoFecha) {
+    const n = normalizar(sorteo.nombre);
+
+    if (n.includes('FLORIDA')) {
+        if (n.includes('12') || n.includes('1') || n.includes('DIA') || n.includes('TARDE') || n.includes('AM')) {
+            return infoFecha.horaNY24 >= '13:30:00'; // 1:30 PM ET (12:30 PM o 1:30 PM Panamá según estación)
+        }
+        if (n.includes('6') || n.includes('8') || n.includes('9') || n.includes('10') || n.includes('NOCHE') || n.includes('PM')) {
+            return infoFecha.horaNY24 >= '21:45:00'; // 9:45 PM ET (8:45 PM o 9:45 PM Panamá según estación)
+        }
+    }
+
+    if (n.includes('YORK')) {
+        if (n.includes('1') || n.includes('2') || n.includes('DIA') || n.includes('TARDE') || n.includes('AM')) {
+            return infoFecha.horaNY24 >= '14:30:00'; // 2:30 PM ET
+        }
+        if (n.includes('9') || n.includes('10') || n.includes('11') || n.includes('NOCHE') || n.includes('PM')) {
+            return infoFecha.horaNY24 >= '22:30:00'; // 10:30 PM ET (9:30 PM o 10:30 PM Panamá según estación)
+        }
+    }
+
+    return !sorteo.hora_cierre || infoFecha.hora24 >= sorteo.hora_cierre;
 }
 
 function obtenerVariantesFecha(infoFecha) {
@@ -148,7 +178,7 @@ function obtenerEtiquetas3Premios(nombreSorteo) {
         if (n.includes('12') || n.includes('1') || n.includes('DIA') || n.includes('TARDE') || n.includes('AM')) {
             return ['FLORIDA DIA', 'FLORIDA TARDE', 'FLORIDA AM'];
         }
-        if (n.includes('6') || n.includes('8') || n.includes('9') || n.includes('NOCHE') || n.includes('PM')) {
+        if (n.includes('6') || n.includes('8') || n.includes('9') || n.includes('10') || n.includes('NOCHE') || n.includes('PM')) {
             return ['FLORIDA NOCHE', 'FLORIDA PM'];
         }
     }
@@ -156,7 +186,7 @@ function obtenerEtiquetas3Premios(nombreSorteo) {
         if (n.includes('1') || n.includes('2') || n.includes('DIA') || n.includes('TARDE') || n.includes('AM')) {
             return ['NEW YORK TARDE', 'NEW YORK DIA', 'NEW YORK AM'];
         }
-        if (n.includes('9') || n.includes('10') || n.includes('NOCHE') || n.includes('PM')) {
+        if (n.includes('9') || n.includes('10') || n.includes('11') || n.includes('NOCHE') || n.includes('PM')) {
             return ['NEW YORK NOCHE', 'NEW YORK PM'];
         }
     }
@@ -186,16 +216,16 @@ function extraer3PremiosAbierto(html, nombreSorteo, infoFecha) {
     for (const etq of etiquetas) {
         let idx = texto.indexOf(etq);
         while (idx !== -1) {
-            const cabeceraPropia = texto.substring(idx + etq.length, idx + etq.length + 55);
-            if (buscaDiaPrimera && etq === 'LA PRIMERA' && cabeceraPropia.startsWith(' NOCHE')) {
+            // Cortar estrictamente antes de que empiece cualquier otra lotería en el HTML
+            let bloqueTarjeta = texto.substring(idx + etq.length, idx + etq.length + 130);
+            if (buscaDiaPrimera && etq === 'LA PRIMERA' && bloqueTarjeta.startsWith(' NOCHE')) {
                 idx = texto.indexOf(etq, idx + etq.length);
                 continue;
             }
+            bloqueTarjeta = bloqueTarjeta.split(DELIMITADORES_LOTERIAS)[0];
 
-            if (contieneFechaHoy(cabeceraPropia, infoFecha)) {
-                const despuesLimpio = limpiarFechasYHoras(
-                    texto.substring(idx + etq.length, idx + etq.length + 130)
-                );
+            if (contieneFechaHoy(bloqueTarjeta, infoFecha)) {
+                const despuesLimpio = limpiarFechasYHoras(bloqueTarjeta);
                 const nums = despuesLimpio.match(/\b\d{2}\b/g);
                 if (nums && nums.length >= 3) {
                     return { p1: nums[0], p2: nums[1], p3: nums[2] };
@@ -212,19 +242,19 @@ function extraer3PremiosAbierto(html, nombreSorteo, infoFecha) {
 // ==========================================================
 function extraerDeLoteriasCRPreciso(textoNorm, etiquetas, fechaISO, digitos = 2) {
     if (!textoNorm) return null;
-    const regexNum = digitos === 3 ? /\b\d{3}\b/ : /\b\d{2}\b/;
+    const regexNum = digitos === 3 ? /\b(\d{3})\b/ : /\b(\d{2})\b/;
 
     for (const etq of etiquetas) {
         let idx = textoNorm.indexOf(etq);
         while (idx !== -1) {
-            // Validar que la etiqueta esté acompañada de la fecha de hoy en su entorno cercano
             const entornoPrevio = textoNorm.substring(Math.max(0, idx - 45), idx);
-            const entornoPosterior = textoNorm.substring(idx, idx + 140);
-            
+            let entornoPosterior = textoNorm.substring(idx + etq.length, idx + etq.length + 140);
+            entornoPosterior = entornoPosterior.split(DELIMITADORES_LOTERIAS)[0];
+
             if (entornoPrevio.includes(fechaISO) || entornoPosterior.includes(fechaISO)) {
-                const limpio = limpiarFechasYHoras(entornoPosterior.replace(etq, ''));
+                const limpio = limpiarFechasYHoras(entornoPosterior);
                 const m = limpio.match(regexNum);
-                if (m) {
+                if (m && m[1]) {
                     return m[1];
                 }
             }
@@ -292,9 +322,9 @@ function extraerTicaCompleto(textoCR, textoKingTica, textoYeluCr, nombreSorteo, 
         etiquetasYeluCr = ['7:30PM', '7:30 PM', 'NOCHE'];
     }
 
-    // 1. 1er Premio (Tica Reventados / Nuevos Tiempos) de forma estricta
+    // 1. 1er Premio (Tica Reventados / Nuevos Tiempos)
     let p1 = extraerDeLoteriasCRPreciso(textoCR, etiquetasCR, infoFecha.fechaISO, 2);
-    
+
     if (!p1 && textoKingTica && contieneFechaHoy(textoKingTica, infoFecha)) {
         for (const etq of etiquetasKing) {
             let idx = textoKingTica.indexOf(etq);
@@ -312,7 +342,7 @@ function extraerTicaCompleto(textoCR, textoKingTica, textoYeluCr, nombreSorteo, 
         if (numsYelu) p1 = numsYelu[0];
     }
 
-    // 2. 2do y 3er Premio desde MONAZO TICA (3 dígitos precisos)
+    // 2. 2do y 3er Premio desde MONAZO TICA (3 dígitos: "600" -> p2 = "60", p3 = "00")
     let p2 = null;
     let p3 = null;
     const monazoStr = extraerDeLoteriasCRPreciso(textoCR, etiquetasMonazo, infoFecha.fechaISO, 3);
@@ -346,9 +376,10 @@ function extraerNicaDePortalCR(textoNorm, nombreSorteo, fechaISO) {
     for (const etqP of cfg.premia) {
         let idx = textoNorm.indexOf(etqP);
         while (idx !== -1) {
-            const entorno = textoNorm.substring(Math.max(0, idx - 45), idx + 140);
-            if (entorno.includes(fechaISO)) {
-                const limpio = limpiarFechasYHoras(entorno.replace(etqP, ''));
+            const entornoPrev = textoNorm.substring(Math.max(0, idx - 45), idx);
+            const entornoPost = textoNorm.substring(idx + etqP.length, idx + etqP.length + 140).split(DELIMITADORES_LOTERIAS)[0];
+            if (entornoPrev.includes(fechaISO) || entornoPost.includes(fechaISO)) {
+                const limpio = limpiarFechasYHoras(entornoPost);
                 const nums = limpio.match(/\b\d{2}\b/g);
                 if (nums && nums.length >= 2) {
                     p23Arr.push(nums[0], nums[1]);
@@ -396,7 +427,7 @@ function extraerNicaRespaldoNuevaYa(html, nombreSorteo, infoFecha) {
 }
 
 // ==========================================================
-// E. EXTRACTOR HONDURAS (NACIONALLOTERIA + KINGARROBA + YELU.HN)
+// E. EXTRACTOR HONDURAS (NACIONALLOTERIA + KINGARROBA + YELU.HN + PORTAL CR)
 // ==========================================================
 function extraerDeNacionalLoteriaHn(textoNacional, horas, infoFecha) {
     if (!textoNacional) return { p1: null, p23: null };
@@ -519,8 +550,9 @@ function extraerHondurasCompleto(fuentesHn, nombreSorteo, infoFecha) {
     const nacP2Res = extraerDeNacionalLoteriaHn(fuentesHn.textoNacP2, cfg.horas, infoFecha);
     const kingHnRes = extraerDeKingHonduras(fuentesHn.textoKingHn, cfg.horas, infoFecha);
 
+    const crP1Str = extraerDeLoteriasCRPreciso(fuentesHn.textoCR, cfg.crP1, infoFecha.fechaISO, 2);
     const p1Arr =
-        extraerDeLoteriasCRPreciso(fuentesHn.textoCR, cfg.crP1, infoFecha.fechaISO, 2) ? [extraerDeLoteriasCRPreciso(fuentesHn.textoCR, cfg.crP1, infoFecha.fechaISO, 2)] : null ||
+        (crP1Str ? [crP1Str] : null) ||
         (nacIdxRes.p1 ? [nacIdxRes.p1] : null) ||
         buscarEnYelu(fuentesHn.textoYeluDiaria, cfg.horas, infoFecha, 1);
 
@@ -548,7 +580,7 @@ export default async function handler(req, res) {
 
     try {
         const infoFecha = getInfoFechaPanama();
-        const { fechaISO, hora24 } = infoFecha;
+        const { fechaISO } = infoFecha;
 
         const [{ data: sorteos }, { data: yaRegistrados }] = await Promise.all([
             supabase.from('sorteos').select('id, nombre, estado, hora_cierre, inquilino_id'),
@@ -603,7 +635,7 @@ export default async function handler(req, res) {
         const pendientesPortal = sorteos.filter(s =>
             !estaCompleto(s) &&
             ['PRIMERA', 'ANGUILLA', 'FLORIDA', 'YORK'].some(r => normalizar(s.nombre).includes(r)) &&
-            (!s.hora_cierre || hora24 >= s.hora_cierre)
+            yaPasoHoraRealSorteo(s, infoFecha)
         );
 
         if (pendientesPortal.length > 0) {
@@ -630,7 +662,7 @@ export default async function handler(req, res) {
         const pendientesCA = sorteos.filter(s =>
             !estaCompleto(s) &&
             ['TICA', 'NICA', 'HONDURAS'].some(r => normalizar(s.nombre).includes(r)) &&
-            (!s.hora_cierre || hora24 >= s.hora_cierre)
+            yaPasoHoraRealSorteo(s, infoFecha)
         );
 
         if (pendientesCA.length > 0) {
@@ -718,7 +750,7 @@ export default async function handler(req, res) {
             });
         }
 
-        // 3. Guardar en Supabase y escrutar en paralelo
+        // 3. Guardar en Supabase (con inquilino_id correspondiente) y escrutar en paralelo
         const { error: errInsert } = await supabase
             .from('resultados')
             .upsert(aInsertar, { onConflict: 'sorteo_id,fecha' });

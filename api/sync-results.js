@@ -64,7 +64,7 @@ function yaPasoHoraRealSorteo(sorteo, infoFecha) {
     return !sorteo.hora_cierre || infoFecha.hora24 >= sorteo.hora_cierre;
 }
 
-async function descargarFuente(nombre, url, timeoutMs = 6500) {
+async function descargarFuente(nombre, url, timeoutMs = 7000) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -113,16 +113,17 @@ Hora actual Panamá: ${infoFecha.hora24}, Hora RD/Anguilla: ${infoFecha.horaRD24
 
 REGLAS ESTRICTAS DE EXTRACCIÓN (SOLO PARA LA FECHA DE HOY):
 1. Si un sorteo aún no ha jugado hoy o solo aparece con fecha de ayer, devuelve null en sus premios. NUNCA uses resultados de ayer ni mezcles países o turnos horarios.
-2. SEPARACIÓN ESTRICTA DE FUENTES POR PAÍS (PROHIBIDO CRUZAR PAÍSES):
+2. SEPARACIÓN ESTRICTA DE FUENTES POR PAÍS (PROHIBIDO CRUZAR PAÍSES O INVENTAR):
    - Para HONDURAS:
      * p1 (La Diaria de Honduras): léelo de LOTERIAS_HONDURAS_DIRECTO, LOTERIAS_HONDURAS_MD, KINGARROBA_HN o LOTERIAS_CR (únicamente bajo la etiqueta explícita "HONDURAS 11 AM" / "HONDURAS 3 PM" / "HONDURAS 9 PM").
-     * p2 y p3 (Premia 2 de Honduras): léelos EXCLUSIVAMENTE de LOTERIAS_HONDURAS_DIRECTO, LOTERIAS_HONDURAS_P2_DIRECTO, LOTERIAS_HONDURAS_MD, KINGARROBA_HN, NACIONALLOTERIA_HN_P2 o YELU_HN_P2. Busca la fecha de hoy ("${infoFecha.dia}-${infoFecha.mes}" o "${infoFecha.diaNum} Nov") junto a "Premia 2 11:00 AM" (toma los 2 números para HONDURAS 12PM), "Premia 2 3:00 PM" (toma los 2 números para HONDURAS 4PM) y "Premia 2 9:00 PM" (toma los 2 números para HONDURAS 10PM). JAMÁS uses LOTERIAS_CR para p2/p3 de Honduras (en LOTERIAS_CR, "PREMIA2" es de Nicaragua).
+     * p2 y p3 (Premia 2 de Honduras): léelos EXCLUSIVAMENTE de LOTERIAS_HONDURAS_DIRECTO, LOTERIAS_HONDURAS_P2_DIRECTO, LOTERIAS_HONDURAS_MD, LOTERIAS_HONDURAS_P2_MD, KINGARROBA_HN, NACIONALLOTERIA_HN_P2 o YELU_HN_P2. Busca la fecha de hoy ("${infoFecha.dia}-${infoFecha.mes}" o "${infoFecha.diaNum} Nov") junto a "Premia 2 11:00 AM" (toma los 2 números de 2 dígitos para HONDURAS 12PM), "Premia 2 3:00 PM" (toma los 2 números de 2 dígitos para HONDURAS 4PM) y "Premia 2 9:00 PM" (toma los 2 números de 2 dígitos para HONDURAS 10PM). JAMÁS uses LOTERIAS_CR para p2/p3 de Honduras (en LOTERIAS_CR, "PREMIA2" es de Nicaragua).
      * Horarios Honduras (1 hora atrás respecto a Panamá): "HONDURAS 12PM" = sorteo 11:00 AM Honduras; "HONDURAS 4PM" = 3:00 PM Honduras; "HONDURAS 10PM" = 9:00 PM Honduras.
    - Para NICA (Nicaragua): Lee NUEVAYA_NICA y LOTERIAS_CR (etiquetas NICA / PREMIA2).
      * "NICA 12PM" = 11:00 AM Nicaragua (p1 = La Diaria 11:00 AM; p2 y p3 = los 2 números de Premia 2 11:00 AM).
      * "NICA 4PM" = 3:00 PM Nicaragua; "NICA 7PM" = 6:00 PM Nicaragua; "NICA 10PM" = 9:00 PM Nicaragua.
-   - Para TICA (Costa Rica): Lee LOTERIAS_CR.
-     * p1 = Tica Reventados / Nuevos Tiempos del turno; si hay 3 Monazos (3 dígitos XYZ), p2 = XY y p3 = YZ.
+   - Para TICA (Costa Rica): Lee EXCLUSIVAMENTE LOTERIAS_CR para el turno correspondiente (Mediodía / Tarde / Noche).
+     * p1 = número de 2 dígitos de Nuevos Tiempos / Reventados de ese turno exacto.
+     * p2 y p3 = ÚNICAMENTE salen del número de 3 dígitos (XYZ) de "3 Monazos" de ese MISMO turno exacto, donde p2 = primeros dos dígitos (XY) y p3 = últimos dos dígitos (YZ). Por ejemplo, si 3 Monazos Noche es "482", p2 = "48" y p3 = "82". PROHIBIDO tomar números de Lotto, Chances u otro turno para p2/p3 de Tica; si 3 Monazos de ese turno aún no está publicado hoy, devuelve p2: null y p3: null.
    - Para ANGUILLA (1 hora adelante respecto a Panamá): Lee ENLOTERIA y KINGARROBA.
      * "ANGUILLA 9AM" = Anguilla 10:00 AM (3 premios: p1, p2, p3).
      * "ANGUILLA 12PM" = Anguilla 1:00 PM (3 premios: p1, p2, p3). NUNCA uses el de las 10:00 AM ni 12:00 PM.
@@ -186,7 +187,6 @@ ${bloquesTexto}`;
             const detalle = (await response.text()).slice(0, 140);
             errores.push(`${modelo} (${response.status}): ${detalle}`);
 
-            // Si es límite temporal por minuto (429) o sobrecarga (503), espera 2.5s y reintenta
             if ((response.status === 429 || response.status === 503) && intento === 0) {
                 await new Promise(r => setTimeout(r, 2500));
                 continue;
@@ -257,6 +257,7 @@ export default async function handler(req, res) {
                 descargarFuente('LOTERIAS_HONDURAS_DIRECTO', 'https://loteriasdehonduras.com/'),
                 descargarFuente('LOTERIAS_HONDURAS_P2_DIRECTO', 'https://loteriasdehonduras.com/premia-2/'),
                 descargarFuente('LOTERIAS_HONDURAS_MD', 'https://r.jina.ai/https://loteriasdehonduras.com/', 9000),
+                descargarFuente('LOTERIAS_HONDURAS_P2_MD', 'https://r.jina.ai/https://loteriasdehonduras.com/premia-2/', 9000),
                 descargarFuente('KINGARROBA_HN', 'https://www.kingarrobanumeros.com/honduras-hoy'),
                 descargarFuente('NACIONALLOTERIA_HN_P2', 'https://www.nacionalloteria.com/honduras/loto-premia2.php'),
                 descargarFuente('YELU_HN_P2', 'https://www.yelu.hn/lottery/results/premia-dos')
@@ -270,7 +271,11 @@ export default async function handler(req, res) {
 
         const bloquesTexto = fuentes
             .filter(f => f.texto)
-            .map(f => `=== FUENTE: ${f.nombre} ===\n${f.texto.slice(0, 12000)}`)
+            .map(f => {
+                // Para páginas exclusivas de Premia 2 Honduras o Markdown, dar más margen sin cortar las tarjetas
+                const limite = f.nombre.includes('HONDURAS') ? 16000 : 12000;
+                return `=== FUENTE: ${f.nombre} ===\n${f.texto.slice(0, limite)}`;
+            })
             .join('\n\n');
 
         if (!bloquesTexto) {

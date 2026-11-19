@@ -163,11 +163,11 @@ ${bloquesTexto}`;
         }
     });
 
-    const modelos = ['gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-pro'];
+    const modelos = ['gemini-3.1-flash-lite-preview', 'gemini-3-flash-preview', 'gemini-3.1-pro-preview'];
     const errores = [];
 
     for (const modelo of modelos) {
-        for (let intento = 0; intento < 2; intento++) {
+        for (let intento = 0; intento < 3; intento++) {
             const response = await fetch(
                 `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${geminiApiKey}`,
                 {
@@ -187,8 +187,8 @@ ${bloquesTexto}`;
             const detalle = (await response.text()).slice(0, 140);
             errores.push(`${modelo} (${response.status}): ${detalle}`);
 
-            if ((response.status === 429 || response.status === 503) && intento === 0) {
-                await new Promise(r => setTimeout(r, 2500));
+            if ((response.status === 429 || response.status === 503) && intento < 2) {
+                await new Promise(r => setTimeout(r, 2000 * (intento + 1)));
                 continue;
             }
             break;
@@ -363,10 +363,10 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
-        if (String(error.message).includes('429')) {
+        if (String(error.message).includes('429') || String(error.message).includes('503')) {
             return res.status(200).json({
                 success: true,
-                message: 'Límite temporal de consultas IA alcanzado. Se reintentará automáticamente en el próximo ciclo.',
+                message: 'Servidores de IA ocupados temporalmente. Se reintentará automáticamente en el próximo ciclo.',
                 diagnostico
             });
         }

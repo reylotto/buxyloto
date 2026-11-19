@@ -163,7 +163,7 @@ ${bloquesTexto}`;
         }
     });
 
-    const modelos = ['gemini-3-flash-preview', 'gemini-2.5-flash-lite'];
+    const modelos = ['gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-pro'];
     const errores = [];
 
     for (const modelo of modelos) {

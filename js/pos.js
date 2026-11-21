@@ -15,27 +15,26 @@ import {
 
 import { validarJugadaLNB } from './loteriaNacionalPanama.js';
 
-// Estado global de la venta activa
 window.modoJuegoActual = window.modoJuegoActual || 'directo';
 window.jugadasActuales = window.jugadasActuales || [];
 window.ultimoMontoIngresado = window.ultimoMontoIngresado || null;
-
-// Exponer la función globalmente para su uso desde cualquier parte del flujo del POS
 window.anularTicketCancelado = anularTicketCancelado;
 
-// Timer global para refresco en tiempo real
 let timerRefrescoPOS = null;
+let posModuleInitialized = false;
 
 // ----------------------------------------------------------
 // 1. INICIALIZACIÓN DEL MÓDULO POS
 // ----------------------------------------------------------
 export function initPOSModule() {
+    if (posModuleInitialized) return;
+    posModuleInitialized = true;
+
     console.log("🚀 Módulo POS Inicializado correctamente con Soporte LNB Panamá (Billete/Chance).");
     ejecutarCargaConReintento();
     cargarSorteosPOS();
     activarEventosPOS();
 
-    // Refresco automático en vivo cada 30 segundos
     if (timerRefrescoPOS) clearInterval(timerRefrescoPOS);
     timerRefrescoPOS = setInterval(() => {
         cargarSorteosPOS();
@@ -52,17 +51,39 @@ function ejecutarCargaConReintento(intentos = 0) {
 }
 
 // ----------------------------------------------------------
-// 2. CONTROL DE MODALIDAD Y LÍMITE DE DÍGITOS
+// 2. AUTO-DETECCIÓN DE MODALIDAD Y FORMATEO DE DÍGITOS
 // ----------------------------------------------------------
 export function obtenerLimiteActualPOS() {
-    const modo = (window.modoJuegoActual || 'directo').toLowerCase();
-    if (modo.includes('billete')) return 4;
-    if (modo.includes('chance')) return 2;
-    if (modo.includes('pale') || modo.includes('palé')) return 4;
-    if (modo.includes('tripleta')) return 6;
-    return 2;
+    return 6; // Permite hasta 6 dígitos libres (Directo=2, Palé/Billete=4, Tripleta=6)
 }
 window.obtenerLimiteActualPOS = obtenerLimiteActualPOS;
+
+export function actualizarAutoDeteccionPOS(valorActual) {
+    const raw = String(valorActual || '').replace(/\D/g, '').substring(0, 6);
+    let detectedMod = 'directo';
+    if (raw.length > 4) detectedMod = 'tripleta';
+    else if (raw.length > 2) detectedMod = 'pale';
+
+    window.modoJuegoActual = detectedMod;
+    if (window.CurrentCart) window.CurrentCart.mod = detectedMod;
+
+    // Actualizar botones visuales de modalidad automáticamente
+    document.querySelectorAll('.pos-mod-btn').forEach(b => {
+        const m = b.getAttribute('data-mod');
+        if (m === detectedMod) {
+            b.classList.add('active', 'bg-emerald-600', 'text-slate-950', 'border-emerald-500');
+            b.classList.remove('bg-slate-700', 'text-slate-300', 'border-slate-600');
+        } else {
+            b.classList.remove('active', 'bg-emerald-600', 'text-slate-950', 'border-emerald-500');
+            b.classList.add('bg-slate-700', 'text-slate-300', 'border-slate-600');
+        }
+    });
+
+    if (raw.length <= 2) return raw;
+    if (raw.length <= 4) return raw.substring(0, 2) + '-' + raw.substring(2);
+    return raw.substring(0, 2) + '-' + raw.substring(2, 4) + '-' + raw.substring(4, 6);
+}
+window.actualizarAutoDeteccionPOS = actualizarAutoDeteccionPOS;
 
 export function setModoPOS(modo) {
     const m = String(modo).toLowerCase();
@@ -70,45 +91,14 @@ export function setModoPOS(modo) {
 
     const inputNum = document.getElementById('pos-input-numbers') || document.querySelector('input[placeholder*="Número"]');
     if (inputNum) {
-        inputNum.value = '';
-        if (m.includes('billete') || m.includes('pale') || m.includes('palé')) inputNum.maxLength = 4;
-        else if (m.includes('tripleta')) inputNum.maxLength = 6;
-        else inputNum.maxLength = 2; // Directo o Chance
+        inputNum.maxLength = 8; // 6 dígitos + 2 guiones
     }
 }
 window.setModoPOS = setModoPOS;
 
 export function validarJugadaCompleta(num, modo) {
     const digitos = String(num || '').replace(/\D/g, '');
-    const m = (modo || window.modoJuegoActual || 'directo').toLowerCase();
-    
-    if (m.includes('billete')) {
-        if (digitos.length !== 4) {
-            alert("⚠️ JUGADA INCOMPLETA: Un Billete de Lotería Nacional (Pick 4) debe tener EXACTAMENTE 4 dígitos.");
-            return false;
-        }
-    } else if (m.includes('chance')) {
-        if (digitos.length !== 2) {
-            alert("⚠️ JUGADA INCOMPLETA: Un Chance de Lotería Nacional (Pick 2) debe tener EXACTAMENTE 2 dígitos.");
-            return false;
-        }
-    } else if (m.includes('pale') || m.includes('palé')) {
-        if (digitos.length !== 4) {
-            alert("⚠️ JUGADA INCOMPLETA: Un Palé debe tener EXACTAMENTE 4 dígitos.");
-            return false;
-        }
-    } else if (m.includes('tripleta')) {
-        if (digitos.length !== 6) {
-            alert("⚠️ JUGADA INCOMPLETA: Una Tripleta debe tener EXACTAMENTE 6 dígitos.");
-            return false;
-        }
-    } else {
-        if (digitos.length !== 2) {
-            alert("⚠️ JUGADA INCOMPLETA: Un Directo debe tener EXACTAMENTE 2 dígitos.");
-            return false;
-        }
-    }
-    return true;
+    return digitos.length === 2 || digitos.length === 4 || digitos.length === 6;
 }
 window.validarJugadaCompleta = validarJugadaCompleta;
 
@@ -125,18 +115,18 @@ export async function cargarListaVendedores() {
 
         let query = supabase.from('bancas').select('*').eq('estatus', 'activo');
 
-        // 🔥 CANDADO ESTRICTO MULTI-TENANT: VENTA DELEGADA AISLADA
         const inquilinoId = localStorage.getItem('inquilino_id');
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
-            query = query.eq('inquilino_id', inquilinoId); // El inquilino solo ve sus bancas
+            query = query.eq('inquilino_id', inquilinoId);
         } else {
-            query = query.is('inquilino_id', null); // 🔥 TÚ (ADMIN GLOBAL) SOLO VES LAS TUYAS
+            query = query.is('inquilino_id', null);
         }
 
         const { data: bancasActivas, error } = await query;
         if (error) throw error;
 
         if (bancasActivas && bancasActivas.length > 0) {
+            const valorPrevio = selectVendedor.value;
             window._bancasCache = bancasActivas;
             selectVendedor.innerHTML = '<option value="">-- Registrar a mi nombre (Administrador) --</option>';
             bancasActivas.forEach(b => {
@@ -148,6 +138,7 @@ export async function cargarListaVendedores() {
                 option.textContent = `🏪 ${nombreBanca} (${operador})`;
                 selectVendedor.appendChild(option);
             });
+            if (valorPrevio) selectVendedor.value = valorPrevio;
             return true;
         } else {
             selectVendedor.innerHTML = '<option value="">-- Registrar a mi nombre (Administrador) --</option>';
@@ -232,27 +223,31 @@ export function esSorteoAbiertoParaVenta(sorteo) {
 window.esSorteoAbiertoParaVenta = esSorteoAbiertoParaVenta;
 
 // ----------------------------------------------------------
-// 5. CARGA DINÁMICA DE SORTEOS EN POS
+// 5. CARGA DINÁMICA DE SORTEOS EN POS (PRESERVA SELECCIÓN)
 // ----------------------------------------------------------
 export async function cargarSorteosPOS() {
     try {
         const supabase = window.supabaseClient || window.supabase || (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
         if (!supabase) return;
 
+        const contCheckboxes = document.getElementById('pos-loterias-checkboxes');
+        if (!contCheckboxes) return;
+
+        // Guardar qué sorteos tenía marcados el usuario antes de refrescar
+        const idsSeleccionadosPrevios = new Set(
+            Array.from(contCheckboxes.querySelectorAll('input[name="pos-sorteos-selected"]:checked')).map(cb => String(cb.value))
+        );
+
         let querySorteosPOS = supabase.from('sorteos').select('*');
 
-        // 🔥 CANDADO ESTRICTO MULTI-TENANT: SORTEOS DEL POS
         const inquilinoId = localStorage.getItem('inquilino_id');
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
             querySorteosPOS = querySorteosPOS.eq('inquilino_id', inquilinoId);
         } else {
-            querySorteosPOS = querySorteosPOS.is('inquilino_id', null); // 🔥 TÚ (ADMIN GLOBAL) SOLO VES TUS SORTEOS
+            querySorteosPOS = querySorteosPOS.is('inquilino_id', null);
         }
 
         const { data: sorteos, error } = await querySorteosPOS.order('id', { ascending: true });
-
-        const contCheckboxes = document.getElementById('pos-loterias-checkboxes');
-        if (!contCheckboxes) return;
 
         contCheckboxes.innerHTML = '';
 
@@ -273,11 +268,12 @@ export async function cargarSorteosPOS() {
         sorteosDisponibles.forEach(s => {
             const horaAp = s.horario_apertura || s.hora_apertura || '06:00';
             const horaCi = s.horario_cierre || s.hora_cierre || '--';
+            const estabaMarcado = idsSeleccionadosPrevios.has(String(s.id)) ? 'checked' : '';
 
             const label = document.createElement('label');
             label.className = 'flex items-center gap-2 bg-slate-800 p-2.5 rounded-lg border border-slate-700 cursor-pointer hover:border-emerald-500 transition-colors select-none';
             label.innerHTML = `
-                <input type="checkbox" name="pos-sorteos-selected" value="${s.id}" data-nombre="${s.nombre}" class="w-4 h-4 text-emerald-500 rounded border-slate-600 focus:ring-emerald-500">
+                <input type="checkbox" name="pos-sorteos-selected" value="${s.id}" data-nombre="${s.nombre}" ${estabaMarcado} class="w-4 h-4 text-emerald-500 rounded border-slate-600 focus:ring-emerald-500">
                 <div class="flex flex-col">
                     <span class="text-xs font-bold text-white">${s.nombre}</span>
                     <span class="text-[10px] text-slate-400">🕒 ${horaAp} - ${horaCi}</span>
@@ -286,8 +282,7 @@ export async function cargarSorteosPOS() {
             contCheckboxes.appendChild(label);
         });
 
-        contCheckboxes.removeEventListener('change', actualizarResumenSorteos);
-        contCheckboxes.addEventListener('change', actualizarResumenSorteos);
+        contCheckboxes.onchange = actualizarResumenSorteos;
         actualizarResumenSorteos();
 
     } catch (err) {
@@ -342,7 +337,6 @@ export function agregarJugadaAlCarrito() {
 
     const numLen = numero.replace(/\D/g, '').length;
 
-    // 💡 AUTO-DETECCIÓN GLOBAL POR CANTIDAD DE DÍGITOS
     if (numLen !== 2 && numLen !== 4 && numLen !== 6) {
         alert("⚠️ LONGITUD INVÁLIDA: Ingrese 2 dígitos (Directo/Chance), 4 dígitos (Palé/Billete) o 6 dígitos (Tripleta).");
         inputNum.focus();
@@ -360,13 +354,12 @@ export function agregarJugadaAlCarrito() {
         let tipoFinal = '';
         const esLNB = nombreSorteo.includes('LNB') || nombreSorteo.includes('NACIONAL') || nombreSorteo.includes('DOMINICAL') || nombreSorteo.includes('MIERCOLITO') || nombreSorteo.includes('GORDITO');
 
-        // 🧠 REGLA INTELIGENTE SEGÚN EL SORTEO Y LA CANTIDAD DE DÍGITOS
         if (esLNB) {
             if (numLen === 2) tipoFinal = 'chance';
             else if (numLen === 4) tipoFinal = 'billete';
             else {
                 errores.push(`⚠️ ${nombreSorteo} solo acepta 2 dígitos (Chance) o 4 dígitos (Billete).`);
-                return; // Ignora esta jugada para LNB pero continúa con los otros sorteos
+                return;
             }
         } else {
             if (numLen === 2) tipoFinal = 'directo';
@@ -385,7 +378,6 @@ export function agregarJugadaAlCarrito() {
         });
     });
 
-    // Mostrar errores si algún sorteo no soportaba la longitud
     if (errores.length > 0) {
         alert(errores.join('\n'));
         if (jugadasValidas.length === 0) {
@@ -394,11 +386,11 @@ export function agregarJugadaAlCarrito() {
         }
     }
 
-    // Agregar solo las que pasaron las reglas
     window.jugadasActuales.push(...jugadasValidas);
 
     inputNum.value = '';
     inputMnt.value = window.ultimoMontoIngresado.toFixed(2);
+    actualizarAutoDeteccionPOS('');
     inputNum.focus();
 
     renderizarCarrito();
@@ -487,6 +479,7 @@ export function vaciarCarrito() {
     const inputMnt = document.getElementById('pos-input-amount') || document.querySelector('input[placeholder*="Monto"]');
     if (inputNum) inputNum.value = '';
     if (inputMnt) inputMnt.value = '';
+    actualizarAutoDeteccionPOS('');
 
     renderizarCarrito();
 }
@@ -549,7 +542,6 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             } catch (e) {}
         }
 
-        // 🔥 OBTENER EL INQUILINO
         const inquilinoId = localStorage.getItem('inquilino_id');
         const esInquilino = (inquilinoId && inquilinoId !== 'null' && String(inquilinoId).trim() !== '');
 
@@ -570,7 +562,6 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
             banca_nombre: nombreBanca
         };
         
-        // 🔥 INYECTAR INQUILINO AL TICKET
         if (esInquilino) payloadTicket.inquilino_id = inquilinoId;
 
         const { data: ticketData, error: ticketError } = await supabase
@@ -608,8 +599,7 @@ export async function guardarTicketEnSupabase(enviarPorWhatsApp = false) {
         }
 
         if (typeof vaciarCarrito === 'function') vaciarCarrito();
-        document.querySelectorAll('input[name="pos-sorteos-selected"]').forEach(cb => cb.checked = false);
-        if (typeof actualizarResumenSorteos === 'function') actualizarResumenSorteos();
+        // Mantiene los sorteos seleccionados para poder seguir vendiendo rápido
 
         const ticketParaImprimir = {
             ...ticketCreado,
@@ -657,6 +647,13 @@ export function activarEventosPOS() {
 
     const inputNum = document.getElementById('pos-input-numbers') || document.querySelector('input[placeholder*="Número"]');
     const inputMnt = document.getElementById('pos-input-amount') || document.querySelector('input[placeholder*="Monto"]');
+
+    if (inputNum) {
+        inputNum.maxLength = 8;
+        inputNum.oninput = (e) => {
+            e.target.value = actualizarAutoDeteccionPOS(e.target.value);
+        };
+    }
 
     const manejarEnter = (e) => {
         if (e.key === 'Enter') {
@@ -707,7 +704,7 @@ export function activarEventosPOS() {
 window.activarEventosPOS = activarEventosPOS;
 
 // ----------------------------------------------------------
-// 9. TECLADO NUMÉRICO TÁCTIL
+// 9. TECLADO NUMÉRICO TÁCTIL CON AUTO-DETECCIÓN
 // ----------------------------------------------------------
 let ultimoToqueTeclado = 0;
 
@@ -722,37 +719,37 @@ if (!window.posKeypadGlobalHandlerInit) {
         e.stopPropagation();
 
         const ahora = Date.now();
-        if (ahora - ultimoToqueTeclado < 220) return;
+        if (ahora - ultimoToqueTeclado < 150) return;
         ultimoToqueTeclado = ahora;
 
         const inputNum = document.getElementById('pos-input-numbers') || document.querySelector('input[placeholder*="Número"]');
         if (!inputNum) return;
 
         if (btn.id === 'btn-pos-clear-input') {
-            inputNum.value = '';
+            inputNum.value = actualizarAutoDeteccionPOS('');
             return;
         }
 
-        const maxDigitos = obtenerLimiteActualPOS();
         const action = btn.dataset.action;
         const val = btn.textContent.trim();
-        const soloNumeros = inputNum.value.replace(/\D/g, '');
+        let soloNumeros = inputNum.value.replace(/\D/g, '');
 
         if (action === 'backspace') {
-            inputNum.value = inputNum.value.slice(0, -1);
+            soloNumeros = soloNumeros.slice(0, -1);
+            inputNum.value = actualizarAutoDeteccionPOS(soloNumeros);
         } else if (action === 'dash') {
             if (inputNum.value.length > 0 && !inputNum.value.endsWith('-')) {
                 inputNum.value += '-';
             }
         } else if (!action) {
-            if (soloNumeros.length < maxDigitos) {
-                inputNum.value += val;
+            if (soloNumeros.length < 6) {
+                soloNumeros += val;
+                inputNum.value = actualizarAutoDeteccionPOS(soloNumeros);
             }
         }
     }, { capture: true });
 }
 
-// Re-exportar herramientas de ticketManager
 export async function imprimirTicketTermica(ticketData) {
     if (ticketData) await imprimirTermicaManager(ticketData);
 }

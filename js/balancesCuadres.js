@@ -550,3 +550,124 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 1000);
 });
+// ==========================================================
+// GESTIÓN DE GASTOS OPERATIVOS (SUPABASE)
+// ==========================================================
+window.cargarGastosOperativos = async function() {
+    const tbody = document.getElementById('tabla-gastos-body');
+    const totalEl = document.getElementById('total-gastos-kpi');
+    const selectBanca = document.getElementById('gasto-banca');
+    const inputFecha = document.getElementById('gasto-fecha');
+
+    if (inputFecha && !inputFecha.value) {
+        inputFecha.value = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Panama' });
+    }
+
+    if (selectBanca && selectBanca.options.length <= 1 && estadoBalances.vendedores) {
+        estadoBalances.vendedores.forEach(b => {
+            selectBanca.innerHTML += `<option value="${b.id}">${b.nombre_banca || b.vendedor_nombre || 'Banca ' + b.id}</option>`;
+        });
+    }
+
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-emerald-400"><i class="fa-solid fa-spinner fa-spin"></i> Cargando gastos...</td></tr>';
+
+    try {
+        const inquilinoId = localStorage.getItem('inquilino_id');
+        let query = window.supabase.from('gastos').select('*').order('fecha', { ascending: false });
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
+            query = query.eq('inquilino_id', inquilinoId);
+        } else {
+            query = query.is('inquilino_id', null);
+        }
+
+        const { data: gastos, error } = await query;
+        if (error) throw error;
+
+        let total = 0;
+        if (!gastos || gastos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-slate-500">No hay gastos registrados aún.</td></tr>';
+            if (totalEl) totalEl.textContent = '$0.00';
+            return;
+        }
+
+        tbody.innerHTML = gastos.map(g => {
+            const mnt = parseFloat(g.monto || 0);
+            total += mnt;
+            return `
+                <tr class="hover:bg-slate-700/30 border-b border-slate-700/50">
+                    <td class="p-3 pl-4 font-mono text-slate-300">${g.fecha || '-'}</td>
+                    <td class="p-3 font-semibold text-white">${g.banca_nombre || 'General'}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded bg-slate-700 text-slate-200 text-[10px]">${g.categoria || 'Operativo'}</span></td>
+                    <td class="p-3 text-slate-300">${g.concepto}</td>
+                    <td class="p-3 text-right font-mono font-bold text-rose-400">-$${mnt.toFixed(2)}</td>
+                    <td class="p-3 text-center">
+                        <button onclick="window.eliminarGastoOperativo('${g.id}')" class="text-rose-500 hover:text-rose-400 bg-rose-500/10 px-2 py-1 rounded text-xs" title="Eliminar">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        if (totalEl) totalEl.textContent = `$${total.toFixed(2)}`;
+    } catch (e) {
+        console.error("Error cargando gastos:", e);
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-rose-400">Error al cargar gastos: ${e.message}</td></tr>`;
+    }
+};
+
+window.registrarGastoOperativo = async function() {
+    const bancaSelect = document.getElementById('gasto-banca');
+    const bancaId = bancaSelect?.value || null;
+    const bancaNombre = bancaId ? bancaSelect.options[bancaSelect.selectedIndex].text : 'General';
+    const categoria = document.getElementById('gasto-categoria')?.value || 'Operativo';
+    const concepto = document.getElementById('gasto-concepto')?.value.trim();
+    const monto = parseFloat(document.getElementById('gasto-monto')?.value || 0);
+    const fecha = document.getElementById('gasto-fecha')?.value;
+
+    if (!concepto || isNaN(monto) || monto <= 0) {
+        return alert("⚠️ Complete el concepto y un monto válido.");
+    }
+
+    try {
+        const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+        const inquilinoId = localStorage.getItem('inquilino_id');
+
+        const nuevoGasto = {
+            banca_id: bancaId,
+            banca_nombre: bancaNombre,
+            categoria,
+            concepto,
+            monto,
+            fecha,
+            responsable: sesion.nombre || sesion.username || 'Admin'
+        };
+
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
+            nuevoGasto.inquilino_id = inquilinoId;
+        }
+
+        const { error } = await window.supabase.from('gastos').insert([nuevoGasto]);
+        if (error) throw error;
+
+        document.getElementById('form-registrar-gasto').reset();
+        document.getElementById('gasto-fecha').value = fecha;
+        alert("✅ Gasto registrado correctamente.");
+        await window.cargarGastosOperativos();
+    } catch (e) {
+        console.error("Error registrando gasto:", e);
+        alert("❌ Error al guardar gasto: " + e.message);
+    }
+};
+
+window.eliminarGastoOperativo = async function(id) {
+    if (!confirm("¿Eliminar este registro de gasto?")) return;
+    try {
+        const { error } = await window.supabase.from('gastos').delete().eq('id', id);
+        if (error) throw error;
+        await window.cargarGastosOperativos();
+    } catch (e) {
+        alert("❌ Error al eliminar gasto: " + e.message);
+    }
+};

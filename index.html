@@ -1366,14 +1366,7 @@
                             <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-semibold uppercase">Resultado Neto (Balance)</p><h4 id="rep-balance-neto" class="text-2xl font-bold text-sky-400 mt-1">$0.00</h4></div>
                         </div>
 
-                        <style>
-                            #reports-banca-table-body td:nth-child(4) { text-align: center; }
-                            #reports-banca-table-body td:nth-child(5),
-                            #reports-banca-table-body td:nth-child(6),
-                            #reports-banca-table-body td:nth-child(7),
-                            #reports-banca-table-body td:nth-child(8) { text-align: right; font-family: monospace; }
-                            #reports-banca-table-body td:nth-child(9) { text-align: center; }
-                        </style>
+                        
                         <!-- Tabla de Desglose de Auditoría -->
                         <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-lg overflow-hidden">
                             <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/40">
@@ -1412,211 +1405,24 @@
                     </div>
 
                     <!-- PESTAÑA 3: NUEVO CUADRE / PAGOS -->
-                    <div id="tab-nuevo-cuadre" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6 w-full max-w-full">
-                        <!-- PANEL IZQUIERDO: Filtros y Tarjeta de Resultados (4 Columnas) -->
-                        <div class="lg:col-span-4 space-y-4">
-                            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-3">
-                                <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider border-b border-slate-700 pb-2">Configurar Cuadre</h4>
+                    <div id="tab-nuevo-cuadre" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <!-- PANEL IZQUIERDO: Selector de Vendedor y Resumen (4 Columnas) -->
+                        <div class="lg:col-span-4 space-y-6">
+                            <!-- Selector -->
+                            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-4">
+                                <h4 class="text-xs font-bold text-slate-300 uppercase border-b border-slate-700 pb-2">Configurar Cuadre</h4>
                                 <div class="grid grid-cols-2 gap-2">
-                                    <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label><input type="date" id="cuadre-fecha-desde" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-lg p-2 focus:border-emerald-500 outline-none" style="color-scheme: dark;"></div>
-                                    <div><label class="block text-[10px] text-slate-400 mb-1">Hasta</label><input type="date" id="cuadre-fecha-hasta" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-lg p-2 focus:border-emerald-500 outline-none" style="color-scheme: dark;"></div>
+                                    <div><label class="text-[10px] font-bold text-slate-400">Desde</label><input type="date" id="cuadre-fecha-desde" style="color-scheme: dark;" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2 mt-1"></div>
+                                    <div><label class="text-[10px] font-bold text-slate-400">Hasta</label><input type="date" id="cuadre-fecha-hasta" style="color-scheme: dark;" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2 mt-1"></div>
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] text-slate-400 mb-1">Vendedor</label>
-                                    <select id="cuadre-vendedor" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-lg p-2 focus:border-emerald-500 outline-none">
-                                        <option value="">Seleccione Vendedor...</option>
-                                    </select>
+                                    <label class="text-[10px] font-bold text-slate-400">Vendedor</label>
+                                    <select id="cuadre-vendedor" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 mt-1"><option value="">Seleccione Vendedor...</option></select>
                                 </div>
-                                <button onclick="window.generarDetalleCuadre()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-lg text-xs transition-colors mt-2"><i class="fa-solid fa-magnifying-glass mr-1"></i> Buscar Datos</button>
+                                <button onclick="window.generarDetalleCuadre()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2.5 rounded-xl text-xs transition-all"><i class="fa-solid fa-magnifying-glass mr-1"></i> Buscar Datos</button>
                             </div>
-
-                            <!-- PESTAÑA 4: GASTOS OPERATIVOS -->
-                                <div id="tab-gastos" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6">
-                                    <!-- Formulario Registrar Gasto -->
-                                    <div class="lg:col-span-4 bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-4 h-fit">
-                                        <h4 class="text-sm font-bold text-white border-b border-slate-700 pb-2 flex items-center gap-2">
-                                            <i class="fa-solid fa-receipt text-rose-400"></i> Registrar Nuevo Gasto
-                                        </h4>
-                                        <form id="form-registrar-gasto" onsubmit="event.preventDefault(); window.registrarGastoOperativo();" class="space-y-3">
-                                            <div>
-                                                <label class="block text-[10px] font-bold text-slate-400 mb-1">Banca / Punto (Opcional - General si vacío)</label>
-                                                <select id="gasto-banca" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 outline-none focus:border-emerald-500">
-                                                    <option value="">-- Gasto General de Administración --</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label class="block text-[10px] font-bold text-slate-400 mb-1">Categoría</label>
-                                                <select id="gasto-categoria" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 outline-none focus:border-emerald-500">
-                                                    <option value="Operativo">Operativo (Papel, Internet, Luz)</option>
-                                                    <option value="Alquiler">Alquiler / Local</option>
-                                                    <option value="Nómina">Nómina / Adelanto</option>
-                                                    <option value="Mantenimiento">Mantenimiento / Equipo</option>
-                                                    <option value="Otro">Otro Gasto</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label class="block text-[10px] font-bold text-slate-400 mb-1">Concepto / Descripción</label>
-                                                <input type="text" id="gasto-concepto" required placeholder="Ej: Rollos papel térmico 80mm" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 outline-none focus:border-emerald-500">
-                                            </div>
-                                            <div class="grid grid-cols-2 gap-2">
-                                                <div>
-                                                    <label class="block text-[10px] font-bold text-slate-400 mb-1">Monto ($)</label>
-                                                    <input type="number" step="0.01" id="gasto-monto" required placeholder="0.00" class="w-full bg-slate-900 border border-slate-700 text-white text-xs font-mono rounded-xl p-2.5 outline-none focus:border-emerald-500">
-                                                </div>
-                                                <div>
-                                                    <label class="block text-[10px] font-bold text-slate-400 mb-1">Fecha</label>
-                                                    <input type="date" id="gasto-fecha" required style="color-scheme: dark;" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 outline-none focus:border-emerald-500">
-                                                </div>
-                                            </div>
-                                            <button type="submit" class="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-2.5 rounded-xl text-xs shadow-lg transition flex items-center justify-center gap-2">
-                                                <i class="fa-solid fa-plus-circle"></i> Guardar Gasto
-                                            </button>
-                                        </form>
-                                    </div>
-
-                                    <!-- Tabla Historial de Gastos -->
-                                    <div class="lg:col-span-8 bg-slate-800 border border-slate-700 rounded-2xl shadow-lg overflow-hidden">
-                                        <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/40">
-                                            <h4 class="text-sm font-bold text-white flex items-center gap-2">
-                                                <i class="fa-solid fa-file-invoice-dollar text-rose-400"></i> Historial de Gastos Registrados
-                                            </h4>
-                                            <div class="flex items-center gap-3">
-                                                <span class="text-xs text-slate-400">Total Gastos: <b id="total-gastos-kpi" class="text-rose-400 font-mono text-sm">$0.00</b></span>
-                                                <button onclick="window.cargarGastosOperativos()" class="text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-400/10 px-3 py-1.5 rounded-lg"><i class="fa-solid fa-rotate"></i></button>
-                                            </div>
-                                        </div>
-                                        <div class="overflow-x-auto max-h-[450px] custom-scrollbar">
-                                            <table class="w-full text-left text-xs text-slate-300">
-                                                <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-700 sticky top-0">
-                                                    <tr>
-                                                        <th class="p-3 pl-4">Fecha</th>
-                                                        <th class="p-3">Banca</th>
-                                                        <th class="p-3">Categoría</th>
-                                                        <th class="p-3">Concepto</th>
-                                                        <th class="p-3 text-right">Monto</th>
-                                                        <th class="p-3 text-center">Acción</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody id="tabla-gastos-body" class="divide-y divide-slate-700/60">
-                                                    <tr><td colspan="6" class="text-center py-8 text-slate-500">Cargando gastos...</td></tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
 
                             <!-- TARJETA DE BALANCE Y PROCESAR PAGO -->
-                            <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg">
-                                <div class="text-center mb-5 bg-slate-900 p-3 rounded-xl border border-slate-700">
-                                    <h3 id="cuadre-nombre-vendedor" class="text-base font-bold text-white">Vendedor</h3>
-                                    <p id="cuadre-rango-fechas" class="text-[10px] text-slate-400">Seleccione para iniciar</p>
-                                </div>
-                                
-                                <div class="space-y-3 text-xs">
-                                    <div class="flex justify-between text-slate-300"><span class="font-bold">Ventas</span><span id="cuadre-val-ventas" class="font-mono">$0.00</span></div>
-                                    <div class="flex justify-between text-rose-400"><span class="font-bold">Premios</span><span id="cuadre-val-premios" class="font-mono">$0.00</span></div>
-                                    <div class="flex justify-between text-amber-400"><span class="font-bold">Comisión</span><span id="cuadre-val-comision" class="font-mono">$0.00</span></div>
-                                    <div class="flex justify-between text-white border-t border-slate-700 pt-3 mt-1"><span class="font-bold">RESULTADO</span><span id="cuadre-val-resultado" class="font-mono font-bold">$0.00</span></div>
-                                    <div class="flex justify-between text-cyan-400"><span class="font-bold">Pagos Negativos</span><span id="cuadre-val-pagos" class="font-mono">-$0.00</span></div>
-                                </div>
-
-                                <div class="mt-5 pt-4 border-t border-slate-600">
-                                    <div class="flex justify-between items-center">
-                                        <span class="font-black text-slate-200 text-sm">BALANCE NETO</span>
-                                        <span id="cuadre-val-balance" class="font-black font-mono text-xl text-emerald-400">$0.00</span>
-                                    </div>
-                                </div>
-
-                                <div class="grid grid-cols-2 gap-2 mt-5">
-                                    <button onclick="window.procesarPagoVendedor('ingreso')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs shadow-lg transition-all flex justify-center items-center gap-1" title="La banca te entrega dinero">
-                                        <i class="fa-solid fa-arrow-down"></i> Recibí Dinero
-                                    </button>
-                                    <button onclick="window.procesarPagoVendedor('egreso')" class="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-2.5 rounded-xl text-xs shadow-lg transition-all flex justify-center items-center gap-1" title="Tú le pagas a la banca">
-                                        <i class="fa-solid fa-arrow-up"></i> Pagué a Vendedor
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- PANEL DERECHO: Tablas de Detalles (8 Columnas) -->
-                        <div class="lg:col-span-8 space-y-6">
-                            <!-- Detalles de Ventas -->
-                            <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-lg overflow-hidden">
-                                <div class="p-4 border-b border-slate-700 bg-slate-900/40"><h4 class="text-sm font-bold text-slate-200"><i class="fa-solid fa-chart-line text-emerald-400 mr-2"></i>Detalles de Ventas por Día</h4></div>
-                                <div class="overflow-x-auto h-64 custom-scrollbar">
-                                    <table class="w-full text-left text-xs">
-                                        <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] font-bold sticky top-0">
-                                            <tr><th class="p-3 pl-4">Fecha</th><th class="p-3 text-right">Ventas</th><th class="p-3 text-right">Premios</th><th class="p-3 text-right">Comisión</th><th class="p-3 text-right pr-4">Resultado</th></tr>
-                                        </thead>
-                                        <tbody id="tabla-detalles-ventas" class="divide-y divide-slate-700/60 text-slate-300">
-                                            <tr><td colspan="5" class="text-center py-8 text-slate-500">Seleccione un vendedor para ver el desglose.</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            <!-- Pagos Negativos -->
-                            <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-lg overflow-hidden">
-                                <div class="p-4 border-b border-slate-700 bg-slate-900/40"><h4 class="text-sm font-bold text-slate-200"><i class="fa-solid fa-money-bill-transfer text-emerald-400 mr-2"></i>Pagos Negativos Registrados</h4></div>
-                                <div class="overflow-x-auto h-48 custom-scrollbar">
-                                    <table class="w-full text-left text-xs">
-                                        <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] font-bold sticky top-0">
-                                            <tr><th class="p-3 pl-4">Fecha</th><th class="p-3 text-right">Monto</th><th class="p-3 text-center">Registrado por</th><th class="p-3 text-center pr-4">Acción</th></tr>
-                                        </thead>
-                                        <tbody id="tabla-pagos-negativos" class="divide-y divide-slate-700/60 text-slate-300">
-                                            <tr><td colspan="4" class="text-center py-6 text-slate-500">No hay pagos registrados.</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                       </div>
-                    </div>
-
-                    <!-- PESTAÑA 4: GASTOS OPERATIVOS -->
-                    <div id="tab-gastos" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6">
-                        <!-- Formulario Registrar Gasto -->
-                        <div class="lg:col-span-4 bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg space-y-4 h-fit">
-                            <h4 class="text-sm font-bold text-white border-b border-slate-700 pb-2 flex items-center gap-2">
-                                <i class="fa-solid fa-receipt text-rose-400"></i> Registrar Nuevo Gasto
-                            </h4>
-                            <form id="form-registrar-gasto" onsubmit="event.preventDefault(); window.registrarGastoOperativo();" class="space-y-3">
-                                <div>
-                                    <label class="block text-[10px] font-bold text-slate-400 mb-1">Banca / Punto (Opcional - General si vacío)</label>
-                                    <select id="gasto-banca" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 outline-none focus:border-emerald-500">
-                                        <option value="">-- Gasto General de Administración --</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-slate-400 mb-1">Categoría</label>
-                                    <select id="gasto-categoria" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 outline-none focus:border-emerald-500">
-                                        <option value="Operativo">Operativo (Papel, Internet, Luz)</option>
-                                        <option value="Alquiler">Alquiler / Local</option>
-                                        <option value="Nómina">Nómina / Adelanto</option>
-                                        <option value="Mantenimiento">Mantenimiento / Equipo</option>
-                                        <option value="Otro">Otro Gasto</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-slate-400 mb-1">Concepto / Descripción</label>
-                                    <input type="text" id="gasto-concepto" required placeholder="Ej: Rollos papel térmico 80mm" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 outline-none focus:border-emerald-500">
-                                </div>
-                                <div class="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label class="block text-[10px] font-bold text-slate-400 mb-1">Monto ($)</label>
-                                        <input type="number" step="0.01" id="gasto-monto" required placeholder="0.00" class="w-full bg-slate-900 border border-slate-700 text-white text-xs font-mono rounded-xl p-2.5 outline-none focus:border-emerald-500">
-                                    </div>
-                                    <div>
-                                        <label class="block text-[10px] font-bold text-slate-400 mb-1">Fecha</label>
-                                        <input type="date" id="gasto-fecha" required style="color-scheme: dark;" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 outline-none focus:border-emerald-500">
-                                    </div>
-                                </div>
-                                <button type="submit" class="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-2.5 rounded-xl text-xs shadow-lg transition flex items-center justify-center gap-2">
-                                    <i class="fa-solid fa-plus-circle"></i> Guardar Gasto
-                                </button>
-                            </form>
-                        </div>
-
-                        <!-- TARJETA DE BALANCE Y PROCESAR PAGO -->
                             <div class="bg-slate-800 border border-slate-700 p-5 rounded-2xl shadow-lg">
                                 <div class="text-center mb-5 bg-slate-900 p-3 rounded-xl border border-slate-700">
                                     <h3 id="cuadre-nombre-vendedor" class="text-base font-bold text-white">Vendedor</h3>

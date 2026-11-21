@@ -15,10 +15,8 @@ export async function initBalancesCuadresModule() {
     if (btnDesde && !btnDesde.value) btnDesde.value = hoy;
     if (btnHasta && !btnHasta.value) btnHasta.value = hoy;
 
-    // 🔥 NUEVO: INYECTAR OPCIONES DE CHANCE Y BILLETE AL FILTRO DE JUGADAS (Si existe)
     const selectJugada = document.querySelector('select[name="jugada"]') || document.getElementById('filtro-jugada');
     if (selectJugada && !selectJugada.innerHTML.includes('chance')) {
-        // Asegurarnos de no duplicar si ya están
         if(!selectJugada.querySelector('option[value="chance"]')) {
              selectJugada.insertAdjacentHTML('beforeend', '<option value="chance">Chance</option>');
         }
@@ -28,18 +26,16 @@ export async function initBalancesCuadresModule() {
     }
 
     await cargarListaVendedores();
-    await cargarFiltrosAisladosBalances(); // 🔥 Llenar loterías y supervisores de forma segura
+    await cargarFiltrosAisladosBalances();
     await window.cargarResumenBalances();
 }
 window.initBalancesCuadresModule = initBalancesCuadresModule;
-// 🔥 NUEVO: FUNCIÓN PARA AISLAR FILTROS DESPLEGABLES EN BALANCES
+
 async function cargarFiltrosAisladosBalances() {
     try {
         const inquilinoId = localStorage.getItem('inquilino_id');
 
-        // 1. Aislar Supervisores (CORREGIDO: columna 'nombre' en vez de 'nombre_completo')
         let querySuper = window.supabase.from('usuarios').select('id, nombre_banca, username, nombre').eq('rol', 'supervisor');
-        
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             querySuper = querySuper.eq('inquilino_id', inquilinoId);
         } else {
@@ -47,19 +43,17 @@ async function cargarFiltrosAisladosBalances() {
         }
         
         const { data: superData, error: errSuper } = await querySuper;
-        if (errSuper) throw errSuper; // Atrapa el error si la tabla cambia
+        if (errSuper) throw errSuper;
         
         const selectSuper = document.querySelector('select#filtro-supervisor') || document.querySelector('select[name="supervisor"]');
         if (selectSuper) {
             selectSuper.innerHTML = '<option value="TODOS">Todos los supervisores</option>';
             (superData || []).forEach(s => {
-                // Usa 'nombre' en lugar de 'nombre_completo'
                 const nombreMostrar = s.nombre || s.nombre_banca || s.username || 'Supervisor';
                 selectSuper.insertAdjacentHTML('beforeend', `<option value="${s.id}">${nombreMostrar}</option>`);
             });
         }
 
-        // 2. Aislar Loterías
         let queryLot = window.supabase.from('sorteos').select('id, nombre');
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             queryLot = queryLot.eq('inquilino_id', inquilinoId);
@@ -85,8 +79,6 @@ async function cargarFiltrosAisladosBalances() {
 async function cargarListaVendedores() {
     try {
         let query = window.supabase.from('bancas').select('*');
-        
-        // 🔥 ESCUDO MULTI-TENANT ESTRICTO: BANCAS EN BALANCES
         const inquilinoId = localStorage.getItem('inquilino_id');
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             query = query.eq('inquilino_id', inquilinoId);
@@ -97,21 +89,16 @@ async function cargarListaVendedores() {
         const { data: bancas } = await query;
         let bancasData = bancas || [];
 
-        // --- 🚨 INICIO DE FILTRO DE SEGURIDAD POR ROL 🚨 ---
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
-        
-        // CORRECCIÓN: Forzamos minúsculas y quitamos espacios en blanco
         const zonaUsuario = String(sesion.zona || '').trim().toLowerCase();
         const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
 
         if (rol.includes('supervisor')) {
-            // CORRECCIÓN: Comparamos forzando también la zona de la base de datos a minúsculas
             bancasData = bancasData.filter(b => String(b.zona || '').trim().toLowerCase() === zonaUsuario);
         } else if (!rol.includes('admin')) {
             bancasData = bancasData.filter(b => b.nombre_banca === nombreUsuario || b.vendedor_nombre === nombreUsuario);
         }
-        // --- FIN DE FILTRO DE SEGURIDAD ---
 
         estadoBalances.vendedores = bancasData;
         
@@ -126,6 +113,7 @@ async function cargarListaVendedores() {
         console.error("Error cargando vendedores:", e);
     }
 }
+window.cargarListaVendedores = cargarListaVendedores;
 
 window.cargarResumenBalances = async function() {
     const tbody = document.getElementById('tabla-resumen-balances');
@@ -139,16 +127,13 @@ window.cargarResumenBalances = async function() {
             await cargarListaVendedores();
         }
 
-        // 🔥 FILTRO DE SEGURIDAD LOCAL PARA VENDEDORES CARGADOS
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && estadoBalances.vendedores) {
             estadoBalances.vendedores = estadoBalances.vendedores.filter(b => String(b.inquilino_id) === String(inquilinoId));
         }
 
-        // 🚨 FILTRO MATEMÁTICO ABSOLUTO EN LA BASE DE DATOS
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const rol = String(sesion.rol || '').toLowerCase();
         
-        // 🔥 ESCUDO MULTI-TENANT ESTRICTO: TICKETS EN BALANCES
         let queryTickets = window.supabase.from('tickets').select('*');
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
             queryTickets = queryTickets.eq('inquilino_id', inquilinoId);
@@ -158,7 +143,6 @@ window.cargarResumenBalances = async function() {
 
         if (rol.includes('supervisor')) {
             const zonaSup = String(sesion.zona || '').trim().toLowerCase();
-            
             let queryBancasSup = window.supabase.from('bancas').select('id, zona');
             if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
                 queryBancasSup = queryBancasSup.eq('inquilino_id', inquilinoId);
@@ -166,7 +150,6 @@ window.cargarResumenBalances = async function() {
                 queryBancasSup = queryBancasSup.is('inquilino_id', null);
             }
             const { data: bData } = await queryBancasSup;
-            
             const idsPermitidos = (bData || [])
                 .filter(b => String(b.zona || '').trim().toLowerCase() === zonaSup)
                 .map(b => String(b.id));
@@ -174,7 +157,6 @@ window.cargarResumenBalances = async function() {
             queryTickets = queryTickets.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
         } else if (!rol.includes('admin')) {
             const nombreUsuario = sesion.nombre || sesion.nombre_banca || sesion.username;
-            
             let queryBancasCaj = window.supabase.from('bancas').select('id').or(`nombre_banca.eq.${nombreUsuario},vendedor_nombre.eq.${nombreUsuario}`);
             if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
                 queryBancasCaj = queryBancasCaj.eq('inquilino_id', inquilinoId);
@@ -182,17 +164,22 @@ window.cargarResumenBalances = async function() {
                 queryBancasCaj = queryBancasCaj.is('inquilino_id', null);
             }
             const { data: bData } = await queryBancasCaj;
-            
             const idsPermitidos = (bData || []).map(b => String(b.id));
             queryTickets = queryTickets.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
         }
 
         const { data: ticketsData } = await queryTickets;
-
-        // 🔥 SE RETIRA EL ESCUDO DE PAGOS_BANCAS PARA EVITAR EL ERROR 400
         const { data: pagosBD } = await window.supabase.from('pagos_bancas').select('*');
-        
         estadoBalances.pagosLocales = pagosBD || [];
+
+        // Consultar gastos operativos para descontar los asignados a cada banca
+        let queryGastos = window.supabase.from('gastos').select('*');
+        if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && inquilinoId.trim() !== '') {
+            queryGastos = queryGastos.eq('inquilino_id', inquilinoId);
+        } else {
+            queryGastos = queryGastos.is('inquilino_id', null);
+        }
+        const { data: gastosBD } = await queryGastos;
 
         let tickets = ticketsData || [];
         let html = '';
@@ -224,13 +211,15 @@ window.cargarResumenBalances = async function() {
                 }
             });
 
-            // ... (el resto de tu lógica de renderizado HTML de balances sigue aquí abajo)
+            const gastosVendedor = (gastosBD || [])
+                .filter(g => g.banca_id && String(g.banca_id) === String(b.id))
+                .reduce((acc, g) => acc + parseFloat(g.monto || 0), 0);
 
             const pagosVendedor = estadoBalances.pagosLocales.filter(p => String(p.banca_id) === String(b.id));
             const totIngresos = pagosVendedor.filter(p => p.tipo === 'ingreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
             const totEgresos = pagosVendedor.filter(p => p.tipo === 'egreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
 
-            const resultadoNeto = ventas - premios - comisiones;
+            const resultadoNeto = ventas - premios - comisiones - gastosVendedor;
             let balanceFinal = resultadoNeto - totIngresos + totEgresos; 
             balanceFinal = Math.round(balanceFinal * 100) / 100;
             
@@ -374,16 +363,24 @@ window.generarDetalleCuadre = async function() {
         });
         tbodyVentas.innerHTML = htmlVentas || '<tr><td colspan="5" class="text-center py-4 text-slate-500">No hay ventas en este rango.</td></tr>';
 
+        // Consultar gastos asignados a esta banca en el rango de fechas
+        let queryGastosBanca = window.supabase.from('gastos')
+            .select('*')
+            .eq('banca_id', String(bancaId));
+        if (fDesde) queryGastosBanca = queryGastosBanca.gte('fecha', fDesde);
+        if (fHasta) queryGastosBanca = queryGastosBanca.lte('fecha', fHasta);
+
+        const { data: gastosBanca } = await queryGastosBanca;
+        const totGastos = (gastosBanca || []).reduce((acc, g) => acc + parseFloat(g.monto || 0), 0);
+
         const { data: pagosBD } = await window.supabase.from('pagos_bancas').select('*');
         estadoBalances.pagosLocales = pagosBD || [];
 
         const pagosVendedor = estadoBalances.pagosLocales.filter(p => String(p.banca_id) === String(bancaId));
-        
         const totIngresos = pagosVendedor.filter(p => p.tipo === 'ingreso').reduce((a, b) => a + parseFloat(b.monto), 0);
         const totEgresos = pagosVendedor.filter(p => p.tipo === 'egreso').reduce((a, b) => a + parseFloat(b.monto), 0);
 
         const tbodyPagos = document.getElementById('tabla-pagos-negativos');
-        
         tbodyPagos.innerHTML = pagosVendedor.map(p => {
             const esIngreso = p.tipo === 'ingreso';
             const fechaDisplay = p.created_at ? new Date(p.created_at).toLocaleString('es-PA', { dateStyle: 'short', timeStyle: 'short' }) : 'Reciente';
@@ -401,12 +398,14 @@ window.generarDetalleCuadre = async function() {
             </tr>
         `}).join('') || '<tr><td colspan="4" class="text-center py-4 text-slate-500">No hay pagos registrados.</td></tr>';
 
-        const totResultado = totVentas - totPremios - totComision;
+        const totResultado = totVentas - totPremios - totComision - totGastos;
         const balanceNeto = totResultado - totIngresos + totEgresos;
 
         document.getElementById('cuadre-val-ventas').textContent = `$${totVentas.toFixed(2)}`;
         document.getElementById('cuadre-val-premios').textContent = `$${totPremios.toFixed(2)}`;
         document.getElementById('cuadre-val-comision').textContent = `$${totComision.toFixed(2)}`;
+        const elGastosCuadre = document.getElementById('cuadre-val-gastos');
+        if (elGastosCuadre) elGastosCuadre.textContent = `-$${totGastos.toFixed(2)}`;
         document.getElementById('cuadre-val-resultado').textContent = `$${totResultado.toFixed(2)}`;
         
         let displayPagosStr = '$0.00';
@@ -451,7 +450,6 @@ window.procesarPagoVendedor = async function(tipoMovimiento) {
     }
 
     try {
-        // 🚨 CORRECCIÓN 1: LEER EL USUARIO REAL DIRECTO DE LA SESIÓN ACTIVA 🚨
         const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
         const responsable = sesion.nombre || sesion.username || sesion.email || 'Administrador';
 
@@ -481,7 +479,6 @@ window.procesarPagoVendedor = async function(tipoMovimiento) {
     }
 };
 
-// 🚨 CORRECCIÓN 2: FUNCIÓN PARA ELIMINAR EL PAGO (FALTABA EN EL CÓDIGO) 🚨
 window.eliminarPagoRegistrado = async function(pagoId) {
     if (!confirm('¿Está seguro de que desea anular y eliminar este pago registrado?')) return;
     
@@ -550,6 +547,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 1000);
 });
+
 // ==========================================================
 // GESTIÓN DE GASTOS OPERATIVOS (SUPABASE)
 // ==========================================================
@@ -655,6 +653,8 @@ window.registrarGastoOperativo = async function() {
         document.getElementById('gasto-fecha').value = fecha;
         alert("✅ Gasto registrado correctamente.");
         await window.cargarGastosOperativos();
+        if (typeof window.generarReporte === 'function') window.generarReporte();
+        if (typeof window.cargarResumenBalances === 'function') window.cargarResumenBalances();
     } catch (e) {
         console.error("Error registrando gasto:", e);
         alert("❌ Error al guardar gasto: " + e.message);
@@ -667,6 +667,8 @@ window.eliminarGastoOperativo = async function(id) {
         const { error } = await window.supabase.from('gastos').delete().eq('id', id);
         if (error) throw error;
         await window.cargarGastosOperativos();
+        if (typeof window.generarReporte === 'function') window.generarReporte();
+        if (typeof window.cargarResumenBalances === 'function') window.cargarResumenBalances();
     } catch (e) {
         alert("❌ Error al eliminar gasto: " + e.message);
     }

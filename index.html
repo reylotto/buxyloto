@@ -1309,7 +1309,7 @@
                     </div>
                 </section>
 
-                <!-- ================================================================= -->
+               <!-- ================================================================= -->
                 <!-- SECCIÓN 10: BALANCES FINANCIEROS Y CUADRES                        -->
                 <!-- ================================================================= -->
                 <section id="section-reports" class="content-section app-view hidden p-4 md:p-6 bg-slate-900 min-h-screen text-white">
@@ -1358,15 +1358,25 @@
                             </div>
                         </div>
 
-                        <!-- Tarjetas KPI -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-semibold uppercase">Venta Bruta Total</p><h4 id="rep-venta-bruta" class="text-2xl font-bold text-emerald-400 mt-1">$0.00</h4></div>
-                            <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-semibold uppercase">Comisiones Generadas</p><h4 id="rep-comisiones" class="text-2xl font-bold text-amber-400 mt-1">$0.00</h4></div>
-                            <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-semibold uppercase">Premios Ganados</p><h4 id="rep-premios" class="text-2xl font-bold text-rose-400 mt-1">$0.00</h4></div>
-                            <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-semibold uppercase">Resultado Neto (Balance)</p><h4 id="rep-balance-neto" class="text-2xl font-bold text-sky-400 mt-1">$0.00</h4></div>
+                        <!-- Tarjetas KPI (Auditoría General) -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                            <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-semibold uppercase">Venta Bruta Total</p><h4 id="kpi-auditoria-ventas" class="text-2xl font-bold text-cyan-400 mt-1">$0.00</h4></div>
+                            <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-semibold uppercase">Comisiones Generadas</p><h4 id="kpi-auditoria-comision" class="text-2xl font-bold text-amber-400 mt-1">$0.00</h4></div>
+                            <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-semibold uppercase">Premios Ganados</p><h4 id="kpi-auditoria-premios" class="text-2xl font-bold text-rose-400 mt-1">$0.00</h4></div>
+                            <div class="bg-slate-800 border border-rose-500/30 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-rose-400 font-semibold uppercase">Gastos Operativos</p><h4 id="kpi-auditoria-gastos" class="text-2xl font-bold text-rose-400 mt-1">$0.00</h4></div>
+                            <div class="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow-sm"><p class="text-[10px] text-slate-400 font-semibold uppercase">Resultado Neto (Balance)</p><h4 id="kpi-auditoria-neto" class="text-2xl font-bold text-emerald-400 mt-1">$0.00</h4></div>
                         </div>
 
-                        
+                        <style>
+                            #reports-banca-table-body td:nth-child(4) { text-align: center; }
+                            #reports-banca-table-body td:nth-child(5),
+                            #reports-banca-table-body td:nth-child(6),
+                            #reports-banca-table-body td:nth-child(7),
+                            #reports-banca-table-body td:nth-child(8),
+                            #reports-banca-table-body td:nth-child(9) { text-align: right; font-family: monospace; }
+                            #reports-banca-table-body td:nth-child(10) { text-align: center; }
+                        </style>
+
                         <!-- Tabla de Desglose de Auditoría -->
                         <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-lg overflow-hidden">
                             <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900/40">
@@ -1376,10 +1386,21 @@
                             <div class="overflow-x-auto custom-scrollbar">
                                 <table class="w-full text-left text-xs text-slate-300">
                                     <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] tracking-wider font-bold border-b border-slate-700">
-                                        <tr><th class="p-3">Fecha</th><th class="p-3">Banca / Vendedor</th><th class="p-3">Zona / Sup</th><th class="p-3 text-center">Tickets</th><th class="p-3 text-right">Venta Bruta</th><th class="p-3 text-right">Comisión</th><th class="p-3 text-right">Premios</th><th class="p-3 text-right">Balance Neto</th><th class="p-3 text-center">Estatus</th></tr>
+                                        <tr>
+                                            <th class="p-3">Fecha</th>
+                                            <th class="p-3">Banca / Vendedor</th>
+                                            <th class="p-3">Zona / Sup</th>
+                                            <th class="p-3 text-center">Tickets</th>
+                                            <th class="p-3 text-right">Venta Bruta</th>
+                                            <th class="p-3 text-right">Comisión</th>
+                                            <th class="p-3 text-right">Premios</th>
+                                            <th class="p-3 text-right">Gastos</th>
+                                            <th class="p-3 text-right">Balance Neto</th>
+                                            <th class="p-3 text-center">Estatus</th>
+                                        </tr>
                                     </thead>
                                     <tbody id="reports-banca-table-body" class="divide-y divide-slate-700/60">
-                                        <tr><td colspan="9" class="text-center py-8 text-slate-500">Haz clic en "Consultar Auditoría" para ver la información.</td></tr>
+                                        <tr><td colspan="10" class="text-center py-8 text-slate-500">Haz clic en "Consultar Auditoría" para ver la información.</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -1433,6 +1454,7 @@
                                     <div class="flex justify-between text-slate-300"><span class="font-bold">Ventas</span><span id="cuadre-val-ventas" class="font-mono">$0.00</span></div>
                                     <div class="flex justify-between text-rose-400"><span class="font-bold">Premios</span><span id="cuadre-val-premios" class="font-mono">$0.00</span></div>
                                     <div class="flex justify-between text-amber-400"><span class="font-bold">Comisión</span><span id="cuadre-val-comision" class="font-mono">$0.00</span></div>
+                                    <div class="flex justify-between text-rose-400"><span class="font-bold">Gastos Banca</span><span id="cuadre-val-gastos" class="font-mono">-$0.00</span></div>
                                     <div class="flex justify-between text-white border-t border-slate-700 pt-3 mt-1"><span class="font-bold">RESULTADO</span><span id="cuadre-val-resultado" class="font-mono font-bold">$0.00</span></div>
                                     <div class="flex justify-between text-cyan-400"><span class="font-bold">Pagos Negativos</span><span id="cuadre-val-pagos" class="font-mono">-$0.00</span></div>
                                 </div>

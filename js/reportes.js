@@ -15,7 +15,6 @@ function getHoyYMD() {
 async function asegurarBancasCache() {
     if (bancasCache.length > 0) return bancasCache;
 
-    // Obtener sesión del usuario
     const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
     const rol = String(sesion.rol || '').toLowerCase();
     const zonaUsuario = String(sesion.zona || '').trim().toLowerCase();
@@ -23,7 +22,6 @@ async function asegurarBancasCache() {
 
     let bancasData = [];
 
-    // Si ya existen en memoria global, las usamos como base
     if (window.AppState && Array.isArray(window.AppState.bancas) && window.AppState.bancas.length > 0) {
         bancasData = window.AppState.bancas;
     } else {
@@ -45,13 +43,10 @@ async function asegurarBancasCache() {
         }
     }
 
-    // 🚨 FILTRO OBLIGATORIO DE SEGURIDAD POR ROL 🚨
     if (bancasData.length > 0) {
         if (rol.includes('supervisor') && zonaUsuario !== '') {
-            // El supervisor SOLO ve bancas de su zona exacta
             bancasData = bancasData.filter(b => String(b.zona || '').trim().toLowerCase() === zonaUsuario);
         } else if (!rol.includes('admin') && !rol.includes('supervisor')) {
-            // Cajero SOLO se ve a sí mismo
             bancasData = bancasData.filter(b => b.nombre_banca === nombreUsuario || b.vendedor_nombre === nombreUsuario);
         }
     }
@@ -102,7 +97,6 @@ function obtenerNombreBanca(bancaId, ticket = {}) {
         return `Banca ${idBuscar.substring(0, 5).toUpperCase()}`;
     }
 
-    // Corrección quirúrgica: Evitar retornar strings vacíos o "undefined" que generen filas fantasma
     const fallbackId = String(idBuscar || '').trim();
     return fallbackId ? `Banca ${fallbackId}` : null;
 }
@@ -128,7 +122,6 @@ export async function initReportesModule() {
     await cargarFiltrosDesplegables(); 
     await generarReporte();
 
-    // Vincular listeners automáticos para que los filtros funcionen al instante al seleccionarlos
     ['rep-fecha-desde', 'rep-fecha-hasta', 'rep-filtro-vendedor', 'rep-filtro-zona', 'rep-filtro-supervisor', 'rep-filtro-loteria', 'rep-filtro-jugada'].forEach(id => {
         const el = document.getElementById(id);
         if (el && !el.dataset.listenerAttached) {
@@ -166,7 +159,6 @@ async function cargarFiltrosDesplegables() {
             if (sort) loteriasCache = sort;
         }
 
-        // Poblar Vendedores / Bancas
         const selVendedor = document.getElementById('rep-filtro-vendedor');
         if (selVendedor) {
             selVendedor.innerHTML = '<option value="todos">Todos los vendedores</option>';
@@ -176,7 +168,6 @@ async function cargarFiltrosDesplegables() {
             });
         }
 
-        // Poblar Zonas
         const selZona = document.getElementById('rep-filtro-zona');
         if (selZona) {
             const zonas = new Set();
@@ -185,7 +176,6 @@ async function cargarFiltrosDesplegables() {
             zonas.forEach(z => selZona.innerHTML += `<option value="${z}">${z}</option>`);
         }
 
-        // Poblar Supervisores
         const selSupervisor = document.getElementById('rep-filtro-supervisor');
         if (selSupervisor) {
             selSupervisor.innerHTML = '<option value="todos">Todos los supervisores</option>';
@@ -196,7 +186,6 @@ async function cargarFiltrosDesplegables() {
             });
         }
 
-        // Poblar Loterías
         const selLoteria = document.getElementById('rep-filtro-loteria');
         if (selLoteria) {
             selLoteria.innerHTML = '<option value="todas">Todas las loterías</option>';
@@ -209,7 +198,7 @@ async function cargarFiltrosDesplegables() {
 }
 
 // ==========================================================
-// RENDERIZADO DE TABLA CON ESTATUS REAL (Supabase)
+// RENDERIZADO DE TABLA CON ESTATUS REAL Y GASTOS (Supabase)
 // ==========================================================
 
 async function renderizarTablaReporte(datos) {
@@ -222,7 +211,7 @@ async function renderizarTablaReporte(datos) {
     if (badgeRegistros) badgeRegistros.textContent = `${datosValidos.length} Registros`;
 
     if (datosValidos.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-slate-500">No hay ventas registradas con los filtros seleccionados.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-slate-500">No hay ventas ni gastos registrados con los filtros seleccionados.</td></tr>`;
         return;
     }
 
@@ -238,59 +227,48 @@ async function renderizarTablaReporte(datos) {
 
     let html = '';
     datosValidos.forEach(d => {
-        // 1. Cálculo del balance neto del día
-        const resultadoDiaNeto = d.venta - d.comision - d.premios;
+        const gastoDia = parseFloat(d.gastos || 0);
+        const resultadoDiaNeto = d.venta - d.comision - d.premios - gastoDia;
         const balanceClass = resultadoDiaNeto >= 0 ? 'text-emerald-400' : 'text-rose-400';
 
-        // 2. Normalizar la fecha de la tabla (MM/DD/YYYY o DD/MM/YYYY) para compararla con YYYY-MM-DD de la BD
         let isoFechaTabla = d.fecha;
         if (d.fecha && d.fecha.includes('/')) {
             const partes = d.fecha.split('/');
             if (partes.length === 3) {
-                // Detectamos si es DD/MM/YYYY o MM/DD/YYYY basándonos en si el bloque supera el 12
                 let mes = partes[0].padStart(2, '0');
                 let dia = partes[1].padStart(2, '0');
                 let anio = partes[2];
-                
                 if (parseInt(partes[0], 10) > 12) {
                     dia = partes[0].padStart(2, '0');
                     mes = partes[1].padStart(2, '0');
                 }
-                
                 isoFechaTabla = `${anio}-${mes}-${dia}`;
             }
         }
 
-        // 3. Filtrar los pagos EXACTOS de ese día y esa banca
         const pagosDelDia = pagosSupabase.filter(p => {
             const esMismaBanca = String(p.banca_id) === String(d.banca_id || d.vendedor);
             const esMismaFecha = p.fecha === isoFechaTabla;
             return esMismaBanca && esMismaFecha;
         });
 
-        // 4. Sumar ingresos y egresos de esa fecha específica
         const totIngresos = pagosDelDia.filter(p => p.tipo === 'ingreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
         const totEgresos = pagosDelDia.filter(p => p.tipo === 'egreso').reduce((acc, p) => acc + parseFloat(p.monto), 0);
         
-        // 5. Lógica de Cuadre Exacto por Monto
         let estaCuadrado = false;
         
         if (resultadoDiaNeto === 0) {
-            // Si no se vendió nada neto o quedó en 0 cerrado, está cuadrado por defecto
             estaCuadrado = true;
         } else if (resultadoDiaNeto > 0) {
-            // La Banca debe a la Casa. Se cuadra si el Ingreso cubre el resultado (con margen de error de centavos)
             const saldoPagado = totIngresos - totEgresos;
             if (saldoPagado >= (resultadoDiaNeto - 0.05)) estaCuadrado = true; 
         } else if (resultadoDiaNeto < 0) {
-            // La Casa debe a la Banca (Premios superan ventas). Se cuadra si la Casa le pagó (Egreso).
             const deudaCasa = Math.abs(resultadoDiaNeto);
             const saldoPagadoPorCasa = totEgresos - totIngresos;
             if (saldoPagadoPorCasa >= (deudaCasa - 0.05)) estaCuadrado = true;
         }
 
-        // Excepción de visualización para días limpios
-        if(d.ticketsCount === 0 && (resultadoDiaNeto <= 0)) estaCuadrado = true;
+        if(d.ticketsCount === 0 && (resultadoDiaNeto <= 0) && gastoDia === 0) estaCuadrado = true;
 
         const estatusLabel = estaCuadrado ? 'CUADRADO' : 'PENDIENTE DE CUADRE';
         const estatusClass = estaCuadrado 
@@ -303,10 +281,11 @@ async function renderizarTablaReporte(datos) {
                 <td class="p-3 font-bold text-white">${d.vendedor}</td>
                 <td class="p-3 text-slate-400">${d.zona}</td>
                 <td class="p-3 text-center font-mono text-cyan-400">${d.ticketsCount}</td>
-                <td class="p-3 font-mono font-semibold text-white">$${d.venta.toFixed(2)}</td>
-                <td class="p-3 font-mono text-amber-400">$${d.comision.toFixed(2)}</td>
-                <td class="p-3 font-mono text-rose-400">$${d.premios.toFixed(2)}</td>
-                <td class="p-3 font-mono font-bold ${balanceClass}">$${resultadoDiaNeto.toFixed(2)}</td>
+                <td class="p-3 text-right font-mono font-semibold text-white">$${d.venta.toFixed(2)}</td>
+                <td class="p-3 text-right font-mono text-amber-400">$${d.comision.toFixed(2)}</td>
+                <td class="p-3 text-right font-mono text-rose-400">$${d.premios.toFixed(2)}</td>
+                <td class="p-3 text-right font-mono text-rose-400">$${gastoDia.toFixed(2)}</td>
+                <td class="p-3 text-right font-mono font-bold ${balanceClass}">$${resultadoDiaNeto.toFixed(2)}</td>
                 <td class="p-3 text-center">
                     <span class="text-[10px] px-2.5 py-1 rounded-full uppercase ${estatusClass}">
                         ${estatusLabel}
@@ -327,12 +306,13 @@ window.exportarReporteExcel = function() {
     if (!reporteDataCache || reporteDataCache.length === 0) {
         return alert("No hay datos para exportar. Consulte el reporte primero.");
     }
-    let csvContent = "FECHA;BANCA/VENDEDOR;ZONA;TICKETS;VENTA BRUTA;COMISION;PREMIOS;BALANCE NETO\n";
+    let csvContent = "FECHA;BANCA/VENDEDOR;ZONA;TICKETS;VENTA BRUTA;COMISION;PREMIOS;GASTOS;BALANCE NETO\n";
 
     reporteDataCache.forEach(d => {
         if (!d || !d.vendedor || d.vendedor.includes('undefined')) return;
-        const neto = d.venta - d.comision - d.premios;
-        csvContent += `"${d.fecha}";"${d.vendedor}";"${d.zona}";${d.ticketsCount};${d.venta.toFixed(2)};${d.comision.toFixed(2)};${d.premios.toFixed(2)};${neto.toFixed(2)}\n`;
+        const gastos = parseFloat(d.gastos || 0);
+        const neto = d.venta - d.comision - d.premios - gastos;
+        csvContent += `"${d.fecha}";"${d.vendedor}";"${d.zona}";${d.ticketsCount};${d.venta.toFixed(2)};${d.comision.toFixed(2)};${d.premios.toFixed(2)};${gastos.toFixed(2)};${neto.toFixed(2)}\n`;
     });
 
     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -354,7 +334,8 @@ window.imprimirReportePDF = function() {
     let filasHTML = '';
     reporteDataCache.forEach(d => {
         if (!d || !d.vendedor || d.vendedor.includes('undefined')) return;
-        const neto = d.venta - d.comision - d.premios;
+        const gastos = parseFloat(d.gastos || 0);
+        const neto = d.venta - d.comision - d.premios - gastos;
         filasHTML += `
             <tr>
                 <td>${d.fecha}</td>
@@ -364,6 +345,7 @@ window.imprimirReportePDF = function() {
                 <td style="text-align:right;">$${d.venta.toFixed(2)}</td>
                 <td style="text-align:right;">$${d.comision.toFixed(2)}</td>
                 <td style="text-align:right;">$${d.premios.toFixed(2)}</td>
+                <td style="text-align:right;">$${gastos.toFixed(2)}</td>
                 <td style="text-align:right;">$${neto.toFixed(2)}</td>
             </tr>
         `;
@@ -401,6 +383,7 @@ window.imprimirReportePDF = function() {
                         <th style="text-align:right;">Venta Bruta</th>
                         <th style="text-align:right;">Comisión</th>
                         <th style="text-align:right;">Premios</th>
+                        <th style="text-align:right;">Gastos</th>
                         <th style="text-align:right;">Balance Neto</th>
                     </tr>
                 </thead>
@@ -420,7 +403,7 @@ window.imprimirReportePDF = imprimirReportePDF;
 window.exportarReportePDF = imprimirReportePDF;
 
 // ==========================================================
-// CONSULTA PRINCIPAL Y FILTRADO
+// CONSULTA PRINCIPAL Y FILTRADO (CON DESCUENTO DE GASTOS)
 // ==========================================================
 
 export async function generarReporte() {
@@ -428,7 +411,7 @@ export async function generarReporte() {
     const tbody = document.getElementById('reports-banca-table-body') || document.getElementById('reportes-table-body') || document.querySelector('.tabla-balances-body');
     if (!tbody) return;
 
-    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-emerald-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Consultando ventas y balances...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-emerald-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Consultando ventas, gastos y balances...</td></tr>`;
 
     const fechaDesde = document.getElementById('rep-fecha-desde')?.value || document.getElementById('reporte-fecha-desde')?.value;
     const fechaHasta = document.getElementById('rep-fecha-hasta')?.value || document.getElementById('reporte-fecha-hasta')?.value;
@@ -443,20 +426,19 @@ export async function generarReporte() {
     try {
         let query = supabase ? supabase.from('tickets').select('*') : null;
         let resultados = [];
+        let gastosLista = [];
+        const inquilinoId = localStorage.getItem('inquilino_id');
 
-       if (query) {
+        if (query) {
             if (fechaDesde) query = query.gte('created_at', `${fechaDesde}T00:00:00`);
             if (fechaHasta) query = query.lte('created_at', `${fechaHasta}T23:59:59`);
 
-            // 🔥 ESCUDO MULTI-TENANT ESTRICTO: AUDITORÍA GENERAL AISLADA
-            const inquilinoId = localStorage.getItem('inquilino_id');
             if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
                 query = query.eq('inquilino_id', inquilinoId);
             } else {
                 query = query.is('inquilino_id', null);
             }
 
-            // 🚨 FILTRO ESTRICTO DE BASE DE DATOS (BLINDAJE DE ZONAS)
             const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
             const rol = String(sesion.rol || '').toLowerCase();
             
@@ -483,6 +465,18 @@ export async function generarReporte() {
             const { data: tickets, error } = await query;
             if (error) throw error;
             resultados = tickets || [];
+
+            // Consultar gastos operativos dentro del mismo rango de fechas e inquilino
+            let queryGastos = supabase.from('gastos').select('*');
+            if (fechaDesde) queryGastos = queryGastos.gte('fecha', fechaDesde);
+            if (fechaHasta) queryGastos = queryGastos.lte('fecha', fechaHasta);
+            if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
+                queryGastos = queryGastos.eq('inquilino_id', inquilinoId);
+            } else {
+                queryGastos = queryGastos.is('inquilino_id', null);
+            }
+            const { data: gData } = await queryGastos;
+            gastosLista = gData || [];
         } else {
             resultados = window.AppState?.tickets || [];
         }
@@ -491,31 +485,25 @@ export async function generarReporte() {
         let totalVentaBruta = 0;
         let totalComisiones = 0;
         let totalPremios = 0;
+        let totalGastos = 0;
 
         resultados.forEach(t => {
             const estado = String(t.estatus || t.status || t.estado || 'pendiente').toLowerCase();
             if (estado === 'cancelado' || estado === 'anulado') return;
 
-            // Filtro por Vendedor
             if (vendedorFiltro !== 'todos' && vendedorFiltro !== '' && String(t.banca_id) !== String(vendedorFiltro)) return;
-
-            // Filtro por Lotería
             if (loteriaFiltro !== 'todas' && loteriaFiltro !== '' && String(t.sorteo_id) !== String(loteriaFiltro)) return;
 
             const bancaNombre = obtenerNombreBanca(t.banca_id, t);
-            if (!bancaNombre || bancaNombre.includes('undefined')) return; // Descarta registros inválidos o fantasmas
+            if (!bancaNombre || bancaNombre.includes('undefined')) return;
 
             const bancaObj = obtenerObjetoBanca(t.banca_id, t);
             const zonaBanca = bancaObj?.zona || 'Zona General';
             const supervisorBanca = String(bancaObj?.supervisor_id || bancaObj?.supervisor || '').trim();
 
-            // Filtro por Zona
             if (zonaFiltro !== 'todas' && zonaFiltro !== '' && zonaBanca.toLowerCase() !== zonaFiltro.toLowerCase()) return;
-
-            // Filtro por Supervisor
             if (supervisorFiltro !== 'todos' && supervisorFiltro !== '' && supervisorBanca !== String(supervisorFiltro)) return;
 
-            // Filtro por Tipo de Jugada
             const itemsTicket = normalizarItemsTicket(t);
             if (tipoJugadaFiltro !== 'todas' && tipoJugadaFiltro !== '' && tipoJugadaFiltro !== 'todos') {
                 const coincideTipo = itemsTicket.some(j => String(j.tipo || '').toLowerCase() === tipoJugadaFiltro.toLowerCase());
@@ -535,7 +523,8 @@ export async function generarReporte() {
                     ticketsCount: 0,
                     venta: 0,
                     comision: 0,
-                    premios: 0
+                    premios: 0,
+                    gastos: 0
                 };
             }
 
@@ -571,7 +560,47 @@ export async function generarReporte() {
             totalPremios += premio;
         });
 
-        const balanceNetoTotal = totalVentaBruta - totalComisiones - totalPremios;
+        // Procesar gastos operativos (tanto los asignados a una banca como los Generales)
+        gastosLista.forEach(g => {
+            const montoGasto = parseFloat(g.monto || 0);
+            if (isNaN(montoGasto) || montoGasto <= 0) return;
+
+            if (vendedorFiltro !== 'todos' && vendedorFiltro !== '') {
+                if (!g.banca_id || String(g.banca_id) !== String(vendedorFiltro)) return;
+            }
+
+            totalGastos += montoGasto;
+
+            let fechaKeyGasto = g.fecha || getHoyYMD();
+            if (g.fecha && g.fecha.includes('-')) {
+                const [y, m, d] = g.fecha.split('-');
+                const fObj = new Date(Number(y), Number(m) - 1, Number(d));
+                fechaKeyGasto = isNaN(fObj) ? g.fecha : fObj.toLocaleDateString('es-PA');
+            }
+
+            const esGeneral = !g.banca_id;
+            const nombreGrupo = esGeneral ? 'Gasto General (Admin)' : obtenerNombreBanca(g.banca_id, g);
+            const bancaObj = esGeneral ? null : obtenerObjetoBanca(g.banca_id, g);
+            const zonaGrupo = esGeneral ? 'Administración' : (bancaObj?.zona || 'Zona General');
+            const key = `${fechaKeyGasto}_${g.banca_id || 'GENERAL'}`;
+
+            if (!agrupado[key]) {
+                agrupado[key] = {
+                    fecha: fechaKeyGasto,
+                    vendedor: nombreGrupo,
+                    banca_id: g.banca_id || 'GENERAL',
+                    zona: zonaGrupo,
+                    ticketsCount: 0,
+                    venta: 0,
+                    comision: 0,
+                    premios: 0,
+                    gastos: 0
+                };
+            }
+            agrupado[key].gastos += montoGasto;
+        });
+
+        const balanceNetoTotal = totalVentaBruta - totalComisiones - totalPremios - totalGastos;
         
         const actualizarMétricaDOM = (ids, valor) => {
             ids.forEach(id => {
@@ -580,17 +609,18 @@ export async function generarReporte() {
             });
         };
 
-        actualizarMétricaDOM(['rep-venta-bruta', 'kpi-rep-venta-bruta', 'venta-bruta-total', 'reporte-venta-bruta'], totalVentaBruta);
-        actualizarMétricaDOM(['rep-comisiones', 'kpi-rep-comisiones', 'comisiones-generadas', 'reporte-comisiones'], totalComisiones);
-        actualizarMétricaDOM(['rep-premios', 'kpi-rep-premios', 'premios-ganados', 'reporte-premios'], totalPremios);
-        actualizarMétricaDOM(['rep-balance-neto', 'kpi-rep-balance-neto', 'resultado-neto-balance', 'reporte-resultado-neto'], balanceNetoTotal);
+        actualizarMétricaDOM(['kpi-auditoria-ventas', 'rep-venta-bruta', 'kpi-rep-venta-bruta', 'venta-bruta-total', 'reporte-venta-bruta'], totalVentaBruta);
+        actualizarMétricaDOM(['kpi-auditoria-comision', 'rep-comisiones', 'kpi-rep-comisiones', 'comisiones-generadas', 'reporte-comisiones'], totalComisiones);
+        actualizarMétricaDOM(['kpi-auditoria-premios', 'rep-premios', 'kpi-rep-premios', 'premios-ganados', 'reporte-premios'], totalPremios);
+        actualizarMétricaDOM(['kpi-auditoria-gastos', 'rep-gastos', 'kpi-rep-gastos'], totalGastos);
+        actualizarMétricaDOM(['kpi-auditoria-neto', 'rep-balance-neto', 'kpi-rep-balance-neto', 'resultado-neto-balance', 'reporte-resultado-neto'], balanceNetoTotal);
 
         reporteDataCache = Object.values(agrupado);
         renderizarTablaReporte(reporteDataCache);
 
     } catch (err) {
         console.error("❌ Error al consultar reportes:", err);
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-rose-400">Error al consultar los registros.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-rose-400">Error al consultar los registros.</td></tr>`;
     }
 }
 window.generarReporte = generarReporte;
@@ -675,12 +705,11 @@ export async function cargarHistorialTickets() {
 
     if (supabase) {
         try {
-            // 1. Iniciamos la consulta básica
             let query = supabase.from('tickets')
                 .select('*')
                 .gte('created_at', `${dateFromVal}T00:00:00`)
                 .lte('created_at', `${dateToVal}T23:59:59`);
-            // 🔥 FILTRO ESTRICTO DE INQUILINOS (MULTI-TENANT - HISTORIAL TICKETS)
+
             const inquilinoId = localStorage.getItem('inquilino_id');
             if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
                 query = query.eq('inquilino_id', inquilinoId);
@@ -688,7 +717,6 @@ export async function cargarHistorialTickets() {
                 query = query.is('inquilino_id', null);
             }
 
-            // 2. 🚨 APLICAMOS EL BLINDAJE DE ZONAS DIRECTO EN LA BASE DE DATOS 🚨
             const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
             const rol = String(sesion.rol || '').toLowerCase();
             
@@ -704,7 +732,6 @@ export async function cargarHistorialTickets() {
                 query = query.in('banca_id', idsPermitidos.length > 0 ? idsPermitidos : ['-1']);
             }
 
-            // 3. Ejecutamos la consulta ya filtrada y ordenada
             const { data, error } = await query.order('created_at', { ascending: false });
 
             if (!error && data) {
@@ -942,7 +969,6 @@ window.imprimirTicketHistorial = async function(uniqueId) {
     window.verTicketHistorial(uniqueId);
 };
 
-// Corrección robusta para prevenir que la sección se quede colgada o flotando en otras vistas
 document.addEventListener('DOMContentLoaded', () => {
     const ticketSection = document.getElementById('section-reports');
     if (ticketSection) {
@@ -957,7 +983,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// 🔥 BLINDAJE DE FILTROS DE AUDITORÍA (MULTI-INQUILINO)
 window.cargarFiltrosAuditoriaAislados = async function() {
     const inquilinoId = localStorage.getItem('inquilino_id');
     const esInquilino = (inquilinoId && inquilinoId !== 'null' && String(inquilinoId).trim() !== '');
@@ -965,8 +990,7 @@ window.cargarFiltrosAuditoriaAislados = async function() {
     if (!supabase) return;
 
     try {
-        // 1. Aislar Supervisores
-       let qSup = supabase.from('usuarios').select('id, nombre, username').eq('rol', 'supervisor');
+        let qSup = supabase.from('usuarios').select('id, nombre, username').eq('rol', 'supervisor');
         if (esInquilino) qSup = qSup.eq('inquilino_id', inquilinoId);
         else qSup = qSup.is('inquilino_id', null);
 
@@ -979,8 +1003,7 @@ window.cargarFiltrosAuditoriaAislados = async function() {
             });
         }
 
-        // 2. Aislar Vendedores / Bancas
-        let qVen = supabase.from('bancas').select('id, nombre_banca, vendedor_nombre');
+        let qVen = supabase.from('bancas').select('id, nombre_banca, vendedor_nombre, zona');
         if (esInquilino) qVen = qVen.eq('inquilino_id', inquilinoId);
         else qVen = qVen.is('inquilino_id', null);
 
@@ -993,18 +1016,15 @@ window.cargarFiltrosAuditoriaAislados = async function() {
             });
         }
 
-        // 🔥 NUEVO: 2.5 AISLAR LAS ZONAS BASADO EN LOS VENDEDORES PERMITIDOS
         const selZona = document.getElementById('rep-filtro-zona');
         if (selZona) {
             selZona.innerHTML = '<option value="todas">Todas las zonas</option>';
-            // Extraer solo las zonas únicas de las bancas que este admin tiene permitido ver
             const zonasUnicas = [...new Set((vendedores || []).map(v => v.zona).filter(Boolean))];
             zonasUnicas.forEach(z => {
                 selZona.insertAdjacentHTML('beforeend', `<option value="${z}">${z}</option>`);
             });
         }
 
-        // 3. Aislar Loterías
         let qLot = supabase.from('sorteos').select('id, nombre');
         if (esInquilino) qLot = qLot.eq('inquilino_id', inquilinoId);
         else qLot = qLot.is('inquilino_id', null);
@@ -1022,7 +1042,6 @@ window.cargarFiltrosAuditoriaAislados = async function() {
     }
 };
 
-// Activar la carga segura apenas el documento esté listo
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         if (typeof window.cargarFiltrosAuditoriaAislados === 'function') {
@@ -1031,7 +1050,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1000);
 });
 
-// Asignaciones globales
 window.initReportesModule = initReportesModule;
 window.generarReporte = generarReporte;
 window.limpiarFiltrosReportes = limpiarFiltrosReportes;

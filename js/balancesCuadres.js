@@ -272,13 +272,18 @@ window.cargarResumenBalances = async function() {
     }
 };
 
-window.irACuadreDetalle = function(bancaId) {
+window.irACuadreDetalle = async function(bancaId) {
     const select = document.getElementById('cuadre-vendedor');
-    if (select) select.value = bancaId;
+    if (select) {
+        if (select.options.length <= 1) {
+            await cargarListaVendedores();
+        }
+        select.value = String(bancaId);
+    }
     if (typeof window.mostrarTabFinanzas === 'function') {
         window.mostrarTabFinanzas('nuevo-cuadre');
     }
-    window.generarDetalleCuadre();
+    await window.generarDetalleCuadre();
 };
 
 window.generarDetalleCuadre = async function() {

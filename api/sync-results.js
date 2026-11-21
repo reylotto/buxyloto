@@ -116,7 +116,7 @@ REGLAS ESTRICTAS DE EXTRACCIÓN (SOLO PARA LA FECHA DE HOY):
 2. SEPARACIÓN ESTRICTA DE FUENTES POR PAÍS (PROHIBIDO CRUZAR PAÍSES O INVENTAR):
    - Para HONDURAS:
      * p1 (La Diaria de Honduras): léelo de LOTERIAS_HONDURAS_DIRECTO, LOTERIAS_HONDURAS_MD, KINGARROBA_HN o LOTERIAS_CR (únicamente bajo la etiqueta explícita "HONDURAS 11 AM" / "HONDURAS 3 PM" / "HONDURAS 9 PM").
-     * p2 y p3 (Premia 2 de Honduras): léelos EXCLUSIVAMENTE de LOTERIAS_HONDURAS_DIRECTO, LOTERIAS_HONDURAS_P2_DIRECTO, LOTERIAS_HONDURAS_MD, LOTERIAS_HONDURAS_P2_MD, KINGARROBA_HN, NACIONALLOTERIA_HN_P2 o YELU_HN_P2. Busca la fecha de hoy ("${infoFecha.dia}-${infoFecha.mes}" o "${infoFecha.diaNum} Nov") junto a "Premia 2 11:00 AM" (toma los 2 números de 2 dígitos para HONDURAS 12PM), "Premia 2 3:00 PM" (toma los 2 números de 2 dígitos para HONDURAS 4PM) y "Premia 2 9:00 PM" (toma los 2 números de 2 dígitos para HONDURAS 10PM). JAMÁS uses LOTERIAS_CR para p2/p3 de Honduras (en LOTERIAS_CR, "PREMIA2" es de Nicaragua).
+     * p2 y p3 (Premia 2 de Honduras): léelos EXCLUSIVAMENTE de LOTERIAS_HONDURAS_DIRECTO, LOTERIAS_HONDURAS_P2_DIRECTO, LOTERIAS_HONDURAS_MD, LOTERIAS_HONDURAS_P2_MD, KINGARROBA_HN, NACIONALLOTERIA_HN_P2 o YELU_HN_P2. En Premia 2 SIEMPRE salen DOS números de 2 dígitos por cada sorteo (ejemplo: "34 - 89" o "34 89", donde p2="34" y p3="89"). Busca la fecha de hoy ("${infoFecha.dia}-${infoFecha.mes}", "${infoFecha.dia}/${infoFecha.mes}" o "${infoFecha.diaNum} Nov") junto al turno: "11:00 AM" / "11:00" corresponde a HONDURAS 12PM; "3:00 PM" / "15:00" corresponde a HONDURAS 4PM; "9:00 PM" / "21:00" corresponde a HONDURAS 10PM. Si encuentras La Diaria (p1) pero en la web aún no han publicado los 2 números de Premia 2 de ese turno, devuelve p2: null y p3: null sin inventar.
      * Horarios Honduras (1 hora atrás respecto a Panamá): "HONDURAS 12PM" = sorteo 11:00 AM Honduras; "HONDURAS 4PM" = 3:00 PM Honduras; "HONDURAS 10PM" = 9:00 PM Honduras.
    - Para NICA (Nicaragua): Lee NUEVAYA_NICA y LOTERIAS_CR (etiquetas NICA / PREMIA2).
      * "NICA 12PM" = 11:00 AM Nicaragua (p1 = La Diaria 11:00 AM; p2 y p3 = los 2 números de Premia 2 11:00 AM).
@@ -273,7 +273,7 @@ export default async function handler(req, res) {
             .filter(f => f.texto)
             .map(f => {
                 // Para páginas exclusivas de Premia 2 Honduras o Markdown, dar más margen sin cortar las tarjetas
-                const limite = f.nombre.includes('HONDURAS') ? 16000 : 12000;
+                const limite = f.nombre.includes('HONDURAS') ? 28000 : 14000;
                 return `=== FUENTE: ${f.nombre} ===\n${f.texto.slice(0, limite)}`;
             })
             .join('\n\n');

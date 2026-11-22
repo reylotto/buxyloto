@@ -55,16 +55,24 @@ function yaPasoHoraRealSorteo(sorteo, infoFecha) {
         }
     }
     if (n.includes('ANGUILLA')) {
-        if (n.includes('9AM') || n.includes('10')) return infoFecha.horaRD24 >= '10:05:00';
-        if (n.includes('12') || n.includes('1PM') || n.includes('TARDE')) return infoFecha.horaRD24 >= '13:05:00';
+        // Horarios oficiales de Anguilla (AST / Santo Domingo = +1h respecto a Panamá)
+        if (n.includes('9AM') || n.includes('9:00') || n.includes('10')) return infoFecha.horaRD24 >= '10:05:00';
+        if (n.includes('12') || n.includes('1PM') || n.includes('1:00') || n.includes('TARDE')) return infoFecha.horaRD24 >= '13:05:00';
         if (n.includes('5') || n.includes('6')) return infoFecha.horaRD24 >= '18:05:00';
-        if (n.includes('8') || n.includes('9PM') || n.includes('NOCHE')) return infoFecha.horaRD24 >= '21:05:00';
+        if (n.includes('8') || n.includes('9PM') || n.includes('9:00') || n.includes('NOCHE')) return infoFecha.horaRD24 >= '21:05:00';
+    }
+    if (n.includes('NICA') || n.includes('HONDURAS')) {
+        // Esperar al menos 12 minutos tras el cierre para que publiquen tanto La Diaria como Premia 2
+        if (n.includes('12')) return infoFecha.hora24 >= '12:12:00';
+        if (n.includes('4')) return infoFecha.hora24 >= '16:12:00';
+        if (n.includes('7')) return infoFecha.hora24 >= '19:12:00';
+        if (n.includes('10')) return infoFecha.hora24 >= '22:12:00';
     }
 
     return !sorteo.hora_cierre || infoFecha.hora24 >= sorteo.hora_cierre;
 }
 
-async function descargarFuente(nombre, url, timeoutMs = 7000) {
+async function descargarFuente(nombre, url, timeoutMs = 7500) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -113,22 +121,23 @@ Hora actual Panamá: ${infoFecha.hora24}, Hora RD/Anguilla: ${infoFecha.horaRD24
 
 REGLAS ESTRICTAS DE EXTRACCIÓN (SOLO PARA LA FECHA DE HOY):
 1. Si un sorteo aún no ha jugado hoy o solo aparece con fecha de ayer, devuelve null en sus premios. NUNCA uses resultados de ayer ni mezcles países o turnos horarios.
-2. SEPARACIÓN ESTRICTA DE FUENTES POR PAÍS (PROHIBIDO CRUZAR PAÍSES O INVENTAR):
-   - Para HONDURAS:
-     * p1 (La Diaria de Honduras): léelo de LOTERIAS_HONDURAS_DIRECTO, LOTERIAS_HONDURAS_MD, KINGARROBA_HN o LOTERIAS_CR (únicamente bajo la etiqueta explícita "HONDURAS 11 AM" / "HONDURAS 3 PM" / "HONDURAS 9 PM").
-     * p2 y p3 (Premia 2 de Honduras): léelos EXCLUSIVAMENTE de LOTERIAS_HONDURAS_DIRECTO, LOTERIAS_HONDURAS_P2_DIRECTO, LOTERIAS_HONDURAS_MD, LOTERIAS_HONDURAS_P2_MD, KINGARROBA_HN, NACIONALLOTERIA_HN_P2 o YELU_HN_P2. En Premia 2 SIEMPRE salen DOS números de 2 dígitos por cada sorteo (ejemplo: "34 - 89" o "34 89", donde p2="34" y p3="89"). Busca la fecha de hoy ("${infoFecha.dia}-${infoFecha.mes}", "${infoFecha.dia}/${infoFecha.mes}" o "${infoFecha.diaNum} Nov") junto al turno: "11:00 AM" / "11:00" corresponde a HONDURAS 12PM; "3:00 PM" / "15:00" corresponde a HONDURAS 4PM; "9:00 PM" / "21:00" corresponde a HONDURAS 10PM. Si encuentras La Diaria (p1) pero en la web aún no han publicado los 2 números de Premia 2 de ese turno, devuelve p2: null y p3: null sin inventar.
-     * Horarios Honduras (1 hora atrás respecto a Panamá): "HONDURAS 12PM" = sorteo 11:00 AM Honduras; "HONDURAS 4PM" = 3:00 PM Honduras; "HONDURAS 10PM" = 9:00 PM Honduras.
-   - Para NICA (Nicaragua): Lee NUEVAYA_NICA y LOTERIAS_CR (etiquetas NICA / PREMIA2).
-     * "NICA 12PM" = 11:00 AM Nicaragua (p1 = La Diaria 11:00 AM; p2 y p3 = los 2 números de Premia 2 11:00 AM).
-     * "NICA 4PM" = 3:00 PM Nicaragua; "NICA 7PM" = 6:00 PM Nicaragua; "NICA 10PM" = 9:00 PM Nicaragua.
+2. SEPARACIÓN ESTRICTA DE FUENTES POR PAÍS Y TURNO HORARIO (PROHIBIDO CRUZAR HORARIOS O INVENTAR):
+   - Para ANGUILLA (Atención: Anguilla tiene 4 sorteos principales y 1 hora adelante respecto a Panamá; NO confundas nunca un horario con otro):
+     * "ANGUILLA 9AM" o "ANGUILLA 10AM" -> corresponde EXCLUSIVAMENTE al sorteo de las **10:00 AM** de Anguilla (3 premios: p1, p2, p3).
+     * "ANGUILLA 12PM" o "ANGUILLA 1PM" -> corresponde EXCLUSIVAMENTE al sorteo de la **1:00 PM** (13:00) de Anguilla. PROHIBIDO usar el de las 10:00 AM o 12:00 PM.
+     * "ANGUILLA 5PM" o "ANGUILLA 6PM" -> corresponde EXCLUSIVAMENTE al sorteo de las **6:00 PM** (18:00) de Anguilla. PROHIBIDO usar el de la 1:00 PM o 5:00 PM.
+     * "ANGUILLA 8PM" o "ANGUILLA 9PM" -> corresponde EXCLUSIVAMENTE al sorteo nocturno de las **9:00 PM** (21:00) de Anguilla (el último sorteo del día de Anguilla). PROHIBIDO usar los resultados de las 6:00 PM, 7:00 PM u 8:00 PM. Si el sorteo de las 9:00 PM de Anguilla aún no está publicado hoy, devuelve p1: null, p2: null, p3: null.
+   - Para HONDURAS (1 hora atrás respecto a Panamá):
+     * "HONDURAS 12PM" = sorteo 11:00 AM Honduras; "HONDURAS 4PM" = 3:00 PM Honduras; "HONDURAS 10PM" = 9:00 PM Honduras.
+     * p1 (La Diaria de Honduras): léelo de LOTERIAS_HONDURAS_DIRECTO, LOTERIAS_HONDURAS_MD, KINGARROBA_HN o LOTERIAS_CR (bajo etiqueta explícita "HONDURAS 11 AM" / "3 PM" / "9 PM").
+     * p2 y p3 (Premia 2 de Honduras): léelos EXCLUSIVAMENTE de LOTERIAS_HONDURAS_DIRECTO, LOTERIAS_HONDURAS_P2_DIRECTO, LOTERIAS_HONDURAS_MD, LOTERIAS_HONDURAS_P2_MD, KINGARROBA_HN, NACIONALLOTERIA_HN_P2, YELU_HN_P2 o LOTERIAS_CR (sección Premia 2 Honduras del mismo turno). En Premia 2 SIEMPRE salen DOS números de 2 dígitos por cada turno (ejemplo: "34 - 89", donde p2="34" y p3="89"). Si encuentras p1 pero Premia 2 de ese turno aún no está publicado hoy, devuelve p2: null y p3: null sin inventar.
+   - Para NICA (Nicaragua, 1 hora atrás respecto a Panamá):
+     * "NICA 12PM" = 11:00 AM Nicaragua; "NICA 4PM" = 3:00 PM Nicaragua; "NICA 7PM" = 6:00 PM Nicaragua; "NICA 10PM" = 9:00 PM Nicaragua.
+     * p1 = La Diaria de ese turno; p2 y p3 = los 2 números de Premia 2 de ese MISMO turno (léelos de NUEVAYA_NICA, NUEVAYA_NICA_MD, KINGARROBA_NI y LOTERIAS_CR). Si Premia 2 de ese turno aún no aparece publicado hoy, devuelve p2: null y p3: null sin inventar.
    - Para TICA (Costa Rica): Lee EXCLUSIVAMENTE LOTERIAS_CR para el turno correspondiente (Mediodía / Tarde / Noche).
      * p1 = número de 2 dígitos de Nuevos Tiempos / Reventados de ese turno exacto.
-     * p2 y p3 = ÚNICAMENTE salen del número de 3 dígitos (XYZ) de "3 Monazos" de ese MISMO turno exacto, donde p2 = primeros dos dígitos (XY) y p3 = últimos dos dígitos (YZ). Por ejemplo, si 3 Monazos Noche es "482", p2 = "48" y p3 = "82". PROHIBIDO tomar números de Lotto, Chances u otro turno para p2/p3 de Tica; si 3 Monazos de ese turno aún no está publicado hoy, devuelve p2: null y p3: null.
-   - Para ANGUILLA (1 hora adelante respecto a Panamá): Lee ENLOTERIA y KINGARROBA.
-     * "ANGUILLA 9AM" = Anguilla 10:00 AM (3 premios: p1, p2, p3).
-     * "ANGUILLA 12PM" = Anguilla 1:00 PM (3 premios: p1, p2, p3). NUNCA uses el de las 10:00 AM ni 12:00 PM.
-     * "ANGUILLA 5PM" = Anguilla 6:00 PM; "ANGUILLA 8PM" = Anguilla 9:00 PM.
-   - Para LA PRIMERA / FLORIDA / NEW YORK: Lee ENLOTERIA y KINGARROBA (3 premios: 1ro, 2do, 3ro del turno).
+     * p2 y p3 = ÚNICAMENTE salen del número de 3 dígitos (XYZ) de "3 Monazos" de ese MISMO turno exacto, donde p2 = primeros dos dígitos (XY) y p3 = últimos dos dígitos (YZ).
+   - Para LA PRIMERA / FLORIDA / NEW YORK: Lee ENLOTERIA y KINGARROBA (3 premios: 1ro, 2do, 3ro del turno exacto).
 
 SORTEOS A BUSCAR:
 ${JSON.stringify(listaSorteos)}
@@ -250,7 +259,11 @@ export default async function handler(req, res) {
             tareasDescarga.push(descargarFuente('LOTERIAS_CR', 'https://loteriascostarica.com/'));
         }
         if (/NICA/.test(nombresPend)) {
-            tareasDescarga.push(descargarFuente('NUEVAYA_NICA', 'https://nuevaya.com.ni/loto-diaria-de-nicaragua/'));
+            tareasDescarga.push(
+                descargarFuente('NUEVAYA_NICA', 'https://nuevaya.com.ni/loto-diaria-de-nicaragua/'),
+                descargarFuente('NUEVAYA_NICA_MD', 'https://r.jina.ai/https://nuevaya.com.ni/loto-diaria-de-nicaragua/', 9000),
+                descargarFuente('KINGARROBA_NI', 'https://www.kingarrobanumeros.com/nicaragua-hoy')
+            );
         }
         if (/HONDURAS/.test(nombresPend)) {
             tareasDescarga.push(
@@ -272,8 +285,7 @@ export default async function handler(req, res) {
         const bloquesTexto = fuentes
             .filter(f => f.texto)
             .map(f => {
-                // Para páginas exclusivas de Premia 2 Honduras o Markdown, dar más margen sin cortar las tarjetas
-                const limite = f.nombre.includes('HONDURAS') ? 28000 : 14000;
+                const limite = /HONDURAS|NICA/.test(f.nombre) ? 28000 : 16000;
                 return `=== FUENTE: ${f.nombre} ===\n${f.texto.slice(0, limite)}`;
             })
             .join('\n\n');
@@ -306,6 +318,14 @@ export default async function handler(req, res) {
             const p3Final = limpiar2Digitos(hallado.p3) || previo?.p3 || null;
 
             if (!p1Final) continue;
+
+            // 🔥 CANDADO DE 3 PREMIOS COMPLETOS:
+            // Si aún faltan p2 o p3, esperamos al siguiente ciclo para que no guarde resultados incompletos (45 | -- | --)
+            if (!p2Final || !p3Final) {
+                diagnostico.push(`⏳ Esperando 2do/3er premio completo para ${sorteo.nombre} (actual: ${p1Final}-${p2Final || '--'}-${p3Final || '--'})`);
+                continue;
+            }
+
             if (previo && previo.p1 === p1Final && previo.p2 === p2Final && previo.p3 === p3Final) continue;
 
             aInsertar.push({
@@ -320,13 +340,13 @@ export default async function handler(req, res) {
                 tercero: p3Final,
                 updated_at: new Date().toISOString()
             });
-            diagnostico.push(`IA detectó ${sorteo.nombre}: ${p1Final}-${p2Final || '--'}-${p3Final || '--'}`);
+            diagnostico.push(`✅ IA detectó ${sorteo.nombre}: ${p1Final}-${p2Final}-${p3Final}`);
         }
 
         if (aInsertar.length === 0) {
             return res.status(200).json({
                 success: true,
-                message: 'Escaneo con IA completado. Sin premios nuevos disponibles todavía.',
+                message: 'Escaneo con IA completado. Esperando resultados completos.',
                 diagnostico
             });
         }

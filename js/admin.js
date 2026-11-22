@@ -9,13 +9,16 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Si el usuario logueado es el administrador de la plataforma (Maestro) sin inquilino asignado:
     if ((rolActual === 'admin' || rolActual === 'admin_maestro' || rolActual === 'administrador') && !sesionUsuario.inquilino_id) {
-        localStorage.removeItem('inquilino_id'); // Destruye el rastro del inquilino anterior
+        localStorage.removeItem('inquilino_id');
     }
+
+    inicializarModalPerfilAdmin();
 });
 
 export function initAdminModule() {
     console.log("🚀 Módulo Admin Inicializado.");
     ejecutarCargaSeguraAdmin();
+    inicializarModalPerfilAdmin();
     window.addEventListener('hashchange', ejecutarCargaSeguraAdmin);
 }
 window.initAdminModule = initAdminModule;
@@ -37,6 +40,157 @@ window.cerrarTodosLosModales = function() {
 window.cerrarModalUsuario = window.cerrarTodosLosModales;
 window.cerrarModalBanca = window.cerrarTodosLosModales;
 window.cerrarModal = window.cerrarTodosLosModales; 
+
+// ==========================================================
+// 0. ACTUALIZACIÓN DE PERFIL Y CONTRASEÑA DEL ADMINISTRADOR
+// ==========================================================
+function localizarModalPerfil() {
+    // Busca el modal por ID común o por el texto "Perfil de Administrador Central"
+    const porId = document.getElementById('modal-perfil-admin') || 
+                  document.getElementById('modal-perfil') || 
+                  document.getElementById('admin-profile-modal');
+    if (porId) return porId;
+
+    const candidatos = Array.from(document.querySelectorAll('.fixed, [role="dialog"], form'));
+    return candidatos.find(el => el.textContent && el.textContent.includes('Perfil de Administrador Central')) || null;
+}
+
+function inicializarModalPerfilAdmin() {
+    const modal = localizarModalPerfil();
+    if (!modal || modal.dataset.perfilVinculado === 'true') return;
+    modal.dataset.perfilVinculado = 'true';
+
+    // Rellenar datos actuales de la sesión al abrir
+    const rellenarDatosSesion = () => {
+        const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+        const inputsTexto = Array.from(modal.querySelectorAll('input:not([type="password"]):not([type="hidden"])'));
+        if (inputsTexto[0] && sesion.nombre) inputsTexto[0].value = sesion.nombre;
+        if (inputsTexto[1] && (sesion.username || sesion.email)) inputsTexto[1].value = sesion.username || sesion.email;
+        modal.querySelectorAll('input[type="password"]').forEach(p => p.value = '');
+    };
+
+    // Observar cuando el modal se hace visible
+    const obs = new MutationObserver(() => {
+        if (!modal.classList.contains('hidden')) rellenarDatosSesion();
+    });
+    obs.observe(modal, { attributes: true, attributeFilter: ['class', 'style'] });
+
+    // Vincular formulario o botón "Actualizar Mis Datos"
+    const form = modal.tagName === 'FORM' ? modal : modal.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            window.guardarPerfilAdministrador();
+        });
+    }
+
+    const btnGuardar = Array.from(modal.querySelectorAll('button')).find(b => 
+        b.textContent.toLowerCase().includes('actualizar') || b.type === 'submit'
+    );
+    if (btnGuardar && !form) {
+        btnGuardar.onclick = (e) => {
+            e.preventDefault();
+            window.guardarPerfilAdministrador();
+        };
+    }
+}
+
+window.guardarPerfilAdministrador = async function(e) {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+
+    const supabase = window.supabaseClient || window.supabase;
+    if (!supabase) return alert("❌ No hay conexión con Supabase.");
+
+    const modal = localizarModalPerfil();
+    if (!modal) return alert("❌ No se encontró el formulario de perfil.");
+
+    const inputsTexto = Array.from(modal.querySelectorAll('input:not([type="password"]):not([type="hidden"])'));
+    const inputsPass = Array.from(modal.querySelectorAll('input[type="password"]'));
+
+    const nuevoNombre = inputsTexto[0]?.value.trim() || '';
+    const nuevoUsername = inputsTexto[1]?.value.trim() || '';
+    const nuevaPass = inputsPass[0]?.value || '';
+    const confirmarPass = inputsPass[1]?.value || '';
+
+    // 1. Validaciones de contraseña si el usuario escribió algo
+    if (nuevaPass !== '' || confirmarPass !== '') {
+        if (nuevaPass.length < 6) {
+            return alert("⚠️ La nueva contraseña debe tener al menos 6 caracteres.");
+        }
+        if (nuevaPass !== confirmarPass) {
+            return alert("❌ Las contraseñas no coinciden. Verifica ambos campos.");
+        }
+    }
+
+    const btnGuardar = Array.from(modal.querySelectorAll('button')).find(b => 
+        b.textContent.toLowerCase().includes('actualizar') || b.type === 'submit'
+    );
+    const textoOriginalBtn = btnGuardar ? btnGuardar.innerHTML : '';
+    if (btnGuardar) {
+        btnGuardar.disabled = true;
+        btnGuardar.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+    }
+
+    try {
+        const sesion = JSON.parse(localStorage.getItem('usuario_sesion') || '{}');
+        const { data: authData } = await supabase.auth.getUser();
+        const authUser = authData?.user || null;
+
+        // 2. Si es usuario autenticado por Supabase Auth (admin@buxyloto.com o dueño inquilino)
+        if (authUser || (sesion.email && sesion.email.includes('@'))) {
+            if (nuevaPass !== '') {
+                const { error: authErr } = await supabase.auth.updateUser({
+                    password: nuevaPass
+                });
+                if (authErr) {
+                    throw new Error("Supabase Auth: " + authErr.message);
+                }
+            }
+
+            const userId = authUser?.id || sesion.id;
+            if (userId) {
+                const updateProfile = {};
+                if (nuevoNombre) updateProfile.nombre_completo = nuevoNombre;
+                if (nuevoUsername) updateProfile.nombre_usuario = nuevoUsername;
+
+                if (Object.keys(updateProfile).length > 0) {
+                    await supabase.from('profiles').update(updateProfile).eq('id', userId);
+                }
+            }
+        } else if (sesion.id) {
+            // 3. Si es un usuario de la tabla pública 'usuarios'
+            const updateUsuario = {};
+            if (nuevoNombre) updateUsuario.nombre = nuevoNombre;
+            if (nuevoUsername) updateUsuario.username = nuevoUsername;
+            if (nuevaPass !== '') updateUsuario.password = nuevaPass;
+
+            if (Object.keys(updateUsuario).length > 0) {
+                const { error: usrErr } = await supabase.from('usuarios').update(updateUsuario).eq('id', sesion.id);
+                if (usrErr) throw usrErr;
+            }
+        }
+
+        // 4. Actualizar sesión local y UI
+        if (nuevoNombre) sesion.nombre = nuevoNombre;
+        if (nuevoUsername) sesion.username = nuevoUsername;
+        localStorage.setItem('usuario_sesion', JSON.stringify(sesion));
+        window.currentUserProfile = sesion;
+
+        // Limpiar campos de contraseña
+        inputsPass.forEach(p => p.value = '');
+
+        alert("✅ ¡Perfil y contraseña actualizados correctamente!");
+        window.cerrarTodosLosModales();
+    } catch (err) {
+        console.error("Error actualizando perfil admin:", err);
+        alert("❌ No se pudo actualizar: " + err.message);
+    } finally {
+        if (btnGuardar) {
+            btnGuardar.disabled = false;
+            btnGuardar.innerHTML = textoOriginalBtn;
+        }
+    }
+};
 
 // ==========================================================
 // 1. GESTIÓN DE USUARIOS Y SUPERVISORES DE ZONA
@@ -98,7 +252,6 @@ window.guardarUsuarioSistema = async function(e) {
 
     const payload = { nombre, username, rol, estatus, zona };
 
-    // 🔥 INYECCIÓN DE CREACIÓN MULTI-TENANT
     const inquilinoId = localStorage.getItem('inquilino_id');
     if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
         payload.inquilino_id = inquilinoId;
@@ -148,12 +301,11 @@ export async function cargarUsuariosSistema() {
     try {
         let query = supabase.from('usuarios').select('*').order('created_at', { ascending: false });
         
-        // 🔥 CANDADO ESTRICTO MULTI-TENANT PARA USUARIOS
         const inquilinoId = localStorage.getItem('inquilino_id');
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
             query = query.eq('inquilino_id', inquilinoId);
         } else {
-            query = query.is('inquilino_id', null); // 🔥 TÚ (ADMIN) SOLO VES TUS USUARIOS
+            query = query.is('inquilino_id', null);
         }
 
         const { data: usuarios, error } = await query;
@@ -305,7 +457,6 @@ window.guardarBancaSistema = async function(e) {
         zona: zonaVal
     };
 
-    // 🔥 INYECCIÓN DE SEGURIDAD MULTI-TENANT PARA BANCAS
     const inquilinoId = localStorage.getItem('inquilino_id');
     if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined') {
         payload.inquilino_id = inquilinoId;
@@ -324,7 +475,6 @@ window.guardarBancaSistema = async function(e) {
         }
         window.cerrarTodosLosModales();
 
-        // Le damos 1.5 segundos a Supabase para que enlace el nombre correctamente
         setTimeout(() => {
             cargarBancasSistema();
         }, 1500);
@@ -348,12 +498,11 @@ export async function cargarBancasSistema() {
 
         let query = supabase.from('bancas').select('*');
         
-        // 🔥 CANDADO ESTRICTO MULTI-TENANT PARA BANCAS
         const inquilinoId = localStorage.getItem('inquilino_id');
         if (inquilinoId && inquilinoId !== 'null' && inquilinoId !== 'undefined' && String(inquilinoId).trim() !== '') {
-            query = query.eq('inquilino_id', inquilinoId); // El inquilino solo ve lo suyo
+            query = query.eq('inquilino_id', inquilinoId);
         } else {
-            query = query.is('inquilino_id', null); // 🔥 TÚ (ADMIN) SOLO VES TUS BANCAS GLOBALES
+            query = query.is('inquilino_id', null);
         }
 
         if (!esAdmin && zonaUsuario) {

@@ -35,44 +35,92 @@ function getInfoFechaPanama() {
     return { fechaISO, hora24, horaNY24, horaRD24, anio, mes, dia, diaNum: String(parseInt(dia, 10)) };
 }
 
+function detectarTurnoAnguilla(sorteo) {
+    const n = normalizar(sorteo.nombre);
+    const hc = String(sorteo.hora_cierre || '');
+    if (n.includes('9AM') || n.includes('9:00') || n.includes('10') || hc.startsWith('09:') || hc.startsWith('10:')) return '10AM';
+    if (n.includes('12') || n.includes('1PM') || n.includes('1:00') || n.includes('DIA') || hc.startsWith('12:') || hc.startsWith('13:')) return '1PM';
+    if (n.includes('5') || n.includes('6') || n.includes('TARDE') || hc.startsWith('17:') || hc.startsWith('18:')) return '6PM';
+    if (n.includes('8') || n.includes('9PM') || n.includes('9:00') || n.includes('NOCHE') || hc.startsWith('20:') || hc.startsWith('21:')) return '9PM';
+    return null;
+}
+
 function yaPasoHoraRealSorteo(sorteo, infoFecha) {
     const n = normalizar(sorteo.nombre);
 
     if (n.includes('FLORIDA')) {
         if (n.includes('12') || n.includes('1') || n.includes('DIA') || n.includes('TARDE') || n.includes('AM')) {
-            return infoFecha.horaNY24 >= '13:30:00';
+            return infoFecha.horaNY24 >= '13:35:00';
         }
         if (n.includes('6') || n.includes('8') || n.includes('9') || n.includes('10') || n.includes('NOCHE') || n.includes('PM')) {
-            return infoFecha.horaNY24 >= '21:45:00';
+            return infoFecha.horaNY24 >= '21:50:00';
         }
     }
     if (n.includes('YORK')) {
         if (n.includes('1') || n.includes('2') || n.includes('DIA') || n.includes('TARDE') || n.includes('AM')) {
-            return infoFecha.horaNY24 >= '14:30:00';
+            return infoFecha.horaNY24 >= '14:35:00';
         }
         if (n.includes('9') || n.includes('10') || n.includes('11') || n.includes('NOCHE') || n.includes('PM')) {
-            return infoFecha.horaNY24 >= '22:30:00';
+            return infoFecha.horaNY24 >= '22:35:00';
         }
     }
-    if (n.includes('ANGUILLA')) {
-        // Horarios oficiales de Anguilla (AST / Santo Domingo = +1h respecto a Panamá)
-        if (n.includes('9AM') || n.includes('9:00') || n.includes('10')) return infoFecha.horaRD24 >= '10:05:00';
-        if (n.includes('12') || n.includes('1PM') || n.includes('1:00') || n.includes('TARDE')) return infoFecha.horaRD24 >= '13:05:00';
-        if (n.includes('5') || n.includes('6')) return infoFecha.horaRD24 >= '18:05:00';
-        if (n.includes('8') || n.includes('9PM') || n.includes('9:00') || n.includes('NOCHE')) return infoFecha.horaRD24 >= '21:05:00';
+    if (n.includes('ANGUILLA') || n.includes('ANGUILA')) {
+        const turno = detectarTurnoAnguilla(sorteo);
+        if (turno === '10AM') return infoFecha.horaRD24 >= '10:08:00';
+        if (turno === '1PM') return infoFecha.horaRD24 >= '13:08:00';
+        if (turno === '6PM') return infoFecha.horaRD24 >= '18:08:00';
+        if (turno === '9PM') return infoFecha.horaRD24 >= '21:08:00';
+    }
+    if (n.includes('TICA')) {
+        if (n.includes('12') || n.includes('1') || n.includes('2') || n.includes('DIA') || n.includes('MEDIODIA')) return infoFecha.hora24 >= '14:05:00';
+        if (n.includes('4') || n.includes('5') || n.includes('TARDE')) return infoFecha.hora24 >= '17:35:00';
+        if (n.includes('7') || n.includes('8') || n.includes('NOCHE')) return infoFecha.hora24 >= '20:35:00';
     }
     if (n.includes('NICA') || n.includes('HONDURAS')) {
-        // Esperar al menos 12 minutos tras el cierre para que publiquen tanto La Diaria como Premia 2
-        if (n.includes('12')) return infoFecha.hora24 >= '12:12:00';
-        if (n.includes('4')) return infoFecha.hora24 >= '16:12:00';
-        if (n.includes('7')) return infoFecha.hora24 >= '19:12:00';
-        if (n.includes('10')) return infoFecha.hora24 >= '22:12:00';
+        if (n.includes('12')) return infoFecha.hora24 >= '12:10:00';
+        if (n.includes('4')) return infoFecha.hora24 >= '16:10:00';
+        if (n.includes('7')) return infoFecha.hora24 >= '19:10:00';
+        if (n.includes('10')) return infoFecha.hora24 >= '22:10:00';
     }
 
     return !sorteo.hora_cierre || infoFecha.hora24 >= sorteo.hora_cierre;
 }
 
-async function descargarFuente(nombre, url, timeoutMs = 7500) {
+// 🔥 EXTRACTOR DETERMINÍSTICO PARA ANGUILLA DESDE CONECTATE / ENLOTERIA
+function extraerAnguillaDirecto(textoFuentes, infoFecha) {
+    const resultadosAnguilla = {};
+    if (!textoFuentes) return resultadosAnguilla;
+
+    const textoUp = normalizar(textoFuentes);
+    // Verificar que la fecha de hoy esté presente en el bloque
+    const patronesFechaHoy = [
+        `${infoFecha.dia}-${infoFecha.mes}`,
+        `${infoFecha.dia}/${infoFecha.mes}`,
+        `${infoFecha.diaNum}-${infoFecha.mes}`,
+        `${infoFecha.diaNum}/${infoFecha.mes}`,
+        infoFecha.fechaISO
+    ];
+    const tieneFechaHoy = patronesFechaHoy.some(f => textoUp.includes(f));
+    if (!tieneFechaHoy) return resultadosAnguilla;
+
+    const patronesTurno = [
+        { clave: '10AM', regex: /ANGUILL?A\s*(?:LOTTERY\s*)?(?:10:00\s*AM|10\s*AM|MANANA)[^0-9]{0,45}?(\d{2})[^0-9]{1,15}(\d{2})[^0-9]{1,15}(\d{2})/g },
+        { clave: '1PM',  regex: /ANGUILL?A\s*(?:LOTTERY\s*)?(?:1:00\s*PM|13:00|1\s*PM|MEDIODIA)[^0-9]{0,45}?(\d{2})[^0-9]{1,15}(\d{2})[^0-9]{1,15}(\d{2})/g },
+        { clave: '6PM',  regex: /ANGUILL?A\s*(?:LOTTERY\s*)?(?:6:00\s*PM|18:00|6\s*PM|TARDE)[^0-9]{0,45}?(\d{2})[^0-9]{1,15}(\d{2})[^0-9]{1,15}(\d{2})/g },
+        { clave: '9PM',  regex: /ANGUILL?A\s*(?:LOTTERY\s*)?(?:9:00\s*PM|21:00|9\s*PM|NOCHE)[^0-9]{0,45}?(\d{2})[^0-9]{1,15}(\d{2})[^0-9]{1,15}(\d{2})/g }
+    ];
+
+    for (const pt of patronesTurno) {
+        const match = pt.regex.exec(textoUp);
+        if (match) {
+            resultadosAnguilla[pt.clave] = { p1: match[1], p2: match[2], p3: match[3] };
+        }
+    }
+
+    return resultadosAnguilla;
+}
+
+async function descargarFuente(nombre, url, timeoutMs = 8000) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -112,32 +160,37 @@ async function extraerConGemini(sorteosPendientes, bloquesTexto, infoFecha) {
 
     const listaSorteos = sorteosPendientes.map(s => ({
         id: String(s.id),
-        nombre: s.nombre
+        nombre: s.nombre,
+        hora_cierre_panama: s.hora_cierre || null
     }));
 
     const prompt = `Eres un extractor experto de resultados oficiales de loterías para el sistema BuxyLoto.
-Fecha de hoy (hora Panamá): ${infoFecha.fechaISO} (en los portales web la fecha de hoy puede aparecer escrita como "${infoFecha.fechaISO}", "${infoFecha.dia}-${infoFecha.mes}", "${infoFecha.dia}/${infoFecha.mes}", "${infoFecha.diaNum} Nov", "Nov ${infoFecha.diaNum}" o "${infoFecha.diaNum} de noviembre").
+Fecha de hoy (hora Panamá): ${infoFecha.fechaISO} (en las webs la fecha de hoy puede aparecer como "${infoFecha.fechaISO}", "${infoFecha.dia}-${infoFecha.mes}", "${infoFecha.dia}/${infoFecha.mes}", "${infoFecha.diaNum}-${infoFecha.mes}", "${infoFecha.diaNum}/${infoFecha.mes}" o "${infoFecha.diaNum} Nov").
 Hora actual Panamá: ${infoFecha.hora24}, Hora RD/Anguilla: ${infoFecha.horaRD24}, Hora NY/Florida: ${infoFecha.horaNY24}.
 
-REGLAS ESTRICTAS DE EXTRACCIÓN (SOLO PARA LA FECHA DE HOY):
-1. Si un sorteo aún no ha jugado hoy o solo aparece con fecha de ayer, devuelve null en sus premios. NUNCA uses resultados de ayer ni mezcles países o turnos horarios.
-2. SEPARACIÓN ESTRICTA DE FUENTES POR PAÍS Y TURNO HORARIO (PROHIBIDO CRUZAR HORARIOS O INVENTAR):
-   - Para ANGUILLA (Atención: Anguilla tiene 4 sorteos principales y 1 hora adelante respecto a Panamá; NO confundas nunca un horario con otro):
-     * "ANGUILLA 9AM" o "ANGUILLA 10AM" -> corresponde EXCLUSIVAMENTE al sorteo de las **10:00 AM** de Anguilla (3 premios: p1, p2, p3).
-     * "ANGUILLA 12PM" o "ANGUILLA 1PM" -> corresponde EXCLUSIVAMENTE al sorteo de la **1:00 PM** (13:00) de Anguilla. PROHIBIDO usar el de las 10:00 AM o 12:00 PM.
-     * "ANGUILLA 5PM" o "ANGUILLA 6PM" -> corresponde EXCLUSIVAMENTE al sorteo de las **6:00 PM** (18:00) de Anguilla. PROHIBIDO usar el de la 1:00 PM o 5:00 PM.
-     * "ANGUILLA 8PM" o "ANGUILLA 9PM" -> corresponde EXCLUSIVAMENTE al sorteo nocturno de las **9:00 PM** (21:00) de Anguilla (el último sorteo del día de Anguilla). PROHIBIDO usar los resultados de las 6:00 PM, 7:00 PM u 8:00 PM. Si el sorteo de las 9:00 PM de Anguilla aún no está publicado hoy, devuelve p1: null, p2: null, p3: null.
-   - Para HONDURAS (1 hora atrás respecto a Panamá):
-     * "HONDURAS 12PM" = sorteo 11:00 AM Honduras; "HONDURAS 4PM" = 3:00 PM Honduras; "HONDURAS 10PM" = 9:00 PM Honduras.
-     * p1 (La Diaria de Honduras): léelo de LOTERIAS_HONDURAS_DIRECTO, LOTERIAS_HONDURAS_MD, KINGARROBA_HN o LOTERIAS_CR (bajo etiqueta explícita "HONDURAS 11 AM" / "3 PM" / "9 PM").
-     * p2 y p3 (Premia 2 de Honduras): léelos EXCLUSIVAMENTE de LOTERIAS_HONDURAS_DIRECTO, LOTERIAS_HONDURAS_P2_DIRECTO, LOTERIAS_HONDURAS_MD, LOTERIAS_HONDURAS_P2_MD, KINGARROBA_HN, NACIONALLOTERIA_HN_P2, YELU_HN_P2 o LOTERIAS_CR (sección Premia 2 Honduras del mismo turno). En Premia 2 SIEMPRE salen DOS números de 2 dígitos por cada turno (ejemplo: "34 - 89", donde p2="34" y p3="89"). Si encuentras p1 pero Premia 2 de ese turno aún no está publicado hoy, devuelve p2: null y p3: null sin inventar.
-   - Para NICA (Nicaragua, 1 hora atrás respecto a Panamá):
+REGLAS ESTRICTAS DE EXTRACCIÓN (PROHIBIDO INVENTAR O CRUZAR HORARIOS):
+1. Verifica SIEMPRE que los números correspondan a la fecha de HOY (${infoFecha.dia}-${infoFecha.mes} o ${infoFecha.dia}/${infoFecha.mes}). Si el sorteo de hoy aún no sale y en la página solo figura el de ayer, devuelve null en p1, p2 y p3.
+2. MAPEO EXACTO POR PAÍS Y TURNO HORARIO:
+   - **TICA (Costa Rica)** — Lee EXCLUSIVAMENTE LOTERIAS_CR o LOTERIAS_CR_MD:
+     * Costa Rica tiene 3 sorteos diarios: **Mediodía** (~12:55 PM CR = 1:55 PM Panamá), **Tarde** (~4:30 PM CR = 5:30 PM Panamá) y **Noche** (~7:30 PM CR = 8:30 PM Panamá).
+     * Si el sorteo se llama **"TICA DIA 2PM"**, **"TICA 2:30PM"**, **"TICA 2PM"**, **"TICA 12PM"** o **"TICA MEDIODIA"** -> corresponde EXCLUSIVAMENTE al sorteo de **MEDIODÍA** de Costa Rica. NUNCA uses el de Tarde ni Noche.
+     * Si el sorteo se llama **"TICA TARDE 5:30PM"** o **"TICA TARDE"** -> corresponde EXCLUSIVAMENTE al sorteo de **TARDE** (4:30 PM CR) de Costa Rica.
+     * Si el sorteo se llama **"TICA NOCHE 8:30PM"** o **"TICA NOCHE"** -> corresponde EXCLUSIVAMENTE al sorteo de **NOCHE** (7:30 PM CR) de Costa Rica.
+     * Cómo formar los 3 premios de Tica en ese turno exacto:
+       - p1 = número de 2 dígitos de **Nuevos Tiempos** de ese turno exacto.
+       - p2 y p3 = salen del número de 3 dígitos (XYZ) de **3 Monazos** de ese MISMO turno exacto: p2 = primeros dos dígitos (XY) y p3 = últimos dos dígitos (YZ). (Ejemplo: si 3 Monazos Mediodía es "519", p2="51" y p3="19").
+   - **ANGUILLA** — Lee CONECTATE_RD, ENLOTERIA y KINGARROBA (Anguilla va +1h respecto a Panamá):
+     * "ANGUILLA 9AM" / "10AM" -> EXCLUSIVAMENTE **Anguilla 10:00 AM** (3 premios: 1ro, 2do, 3ro).
+     * "ANGUILLA 12PM" / "1PM" -> EXCLUSIVAMENTE **Anguilla 1:00 PM** (3 premios: 1ro, 2do, 3ro).
+     * "ANGUILLA 5PM" / "6PM" -> EXCLUSIVAMENTE **Anguilla 6:00 PM** (3 premios: 1ro, 2do, 3ro). NUNCA uses 1:00 PM ni 9:00 PM.
+     * "ANGUILLA 8PM" / "9PM" -> EXCLUSIVAMENTE **Anguilla 9:00 PM** (3 premios: 1ro, 2do, 3ro). NUNCA uses 6:00 PM.
+   - **HONDURAS** (-1h respecto a Panamá):
+     * "HONDURAS 12PM" = 11:00 AM Honduras; "HONDURAS 4PM" = 3:00 PM Honduras; "HONDURAS 10PM" = 9:00 PM Honduras.
+     * p1 = La Diaria de ese turno; p2 y p3 = los 2 números de 2 dígitos de **Premia 2** de ese MISMO turno (léelos de LOTERIAS_HONDURAS_DIRECTO, LOTERIAS_HONDURAS_MD, LOTERIAS_HONDURAS_P2_MD, KINGARROBA_HN, NACIONALLOTERIA_HN_P2 o LOTERIAS_CR). Si Premia 2 de ese turno aún no aparece publicado hoy, devuelve p2: null, p3: null.
+   - **NICA (Nicaragua)** (-1h respecto a Panamá):
      * "NICA 12PM" = 11:00 AM Nicaragua; "NICA 4PM" = 3:00 PM Nicaragua; "NICA 7PM" = 6:00 PM Nicaragua; "NICA 10PM" = 9:00 PM Nicaragua.
-     * p1 = La Diaria de ese turno; p2 y p3 = los 2 números de Premia 2 de ese MISMO turno (léelos de NUEVAYA_NICA, NUEVAYA_NICA_MD, KINGARROBA_NI y LOTERIAS_CR). Si Premia 2 de ese turno aún no aparece publicado hoy, devuelve p2: null y p3: null sin inventar.
-   - Para TICA (Costa Rica): Lee EXCLUSIVAMENTE LOTERIAS_CR para el turno correspondiente (Mediodía / Tarde / Noche).
-     * p1 = número de 2 dígitos de Nuevos Tiempos / Reventados de ese turno exacto.
-     * p2 y p3 = ÚNICAMENTE salen del número de 3 dígitos (XYZ) de "3 Monazos" de ese MISMO turno exacto, donde p2 = primeros dos dígitos (XY) y p3 = últimos dos dígitos (YZ).
-   - Para LA PRIMERA / FLORIDA / NEW YORK: Lee ENLOTERIA y KINGARROBA (3 premios: 1ro, 2do, 3ro del turno exacto).
+     * p1 = La Diaria de ese turno; p2 y p3 = los 2 números de 2 dígitos de **Premia 2** de ese MISMO turno (léelos de NUEVAYA_NICA, NUEVAYA_NICA_MD, KINGARROBA_NI o LOTERIAS_CR). Si Premia 2 de ese turno aún no aparece publicado hoy, devuelve p2: null, p3: null.
+   - **LA PRIMERA / FLORIDA / NEW YORK**: Lee CONECTATE_RD, ENLOTERIA y KINGARROBA (3 premios: 1ro, 2do, 3ro del turno exacto).
 
 SORTEOS A BUSCAR:
 ${JSON.stringify(listaSorteos)}
@@ -249,14 +302,18 @@ export default async function handler(req, res) {
         const nombresPend = pendientes.map(s => normalizar(s.nombre)).join(' ');
         const tareasDescarga = [];
 
-        if (/PRIMERA|ANGUILLA|FLORIDA|YORK/.test(nombresPend)) {
+        if (/PRIMERA|ANGUILLA|ANGUILA|FLORIDA|YORK/.test(nombresPend)) {
             tareasDescarga.push(
+                descargarFuente('CONECTATE_RD', 'https://www.conectate.com.do/loterias/'),
                 descargarFuente('ENLOTERIA', 'https://enloteria.com/'),
                 descargarFuente('KINGARROBA', 'https://www.kingarrobanumeros.com/resultados')
             );
         }
         if (/TICA|NICA|HONDURAS/.test(nombresPend)) {
-            tareasDescarga.push(descargarFuente('LOTERIAS_CR', 'https://loteriascostarica.com/'));
+            tareasDescarga.push(
+                descargarFuente('LOTERIAS_CR', 'https://loteriascostarica.com/'),
+                descargarFuente('LOTERIAS_CR_MD', 'https://r.jina.ai/https://loteriascostarica.com/', 9000)
+            );
         }
         if (/NICA/.test(nombresPend)) {
             tareasDescarga.push(
@@ -268,12 +325,10 @@ export default async function handler(req, res) {
         if (/HONDURAS/.test(nombresPend)) {
             tareasDescarga.push(
                 descargarFuente('LOTERIAS_HONDURAS_DIRECTO', 'https://loteriasdehonduras.com/'),
-                descargarFuente('LOTERIAS_HONDURAS_P2_DIRECTO', 'https://loteriasdehonduras.com/premia-2/'),
                 descargarFuente('LOTERIAS_HONDURAS_MD', 'https://r.jina.ai/https://loteriasdehonduras.com/', 9000),
                 descargarFuente('LOTERIAS_HONDURAS_P2_MD', 'https://r.jina.ai/https://loteriasdehonduras.com/premia-2/', 9000),
                 descargarFuente('KINGARROBA_HN', 'https://www.kingarrobanumeros.com/honduras-hoy'),
-                descargarFuente('NACIONALLOTERIA_HN_P2', 'https://www.nacionalloteria.com/honduras/loto-premia2.php'),
-                descargarFuente('YELU_HN_P2', 'https://www.yelu.hn/lottery/results/premia-dos')
+                descargarFuente('NACIONALLOTERIA_HN_P2', 'https://www.nacionalloteria.com/honduras/loto-premia2.php')
             );
         }
 
@@ -282,10 +337,17 @@ export default async function handler(req, res) {
             diagnostico.push(`${f.nombre}: ${f.estado}`);
         }
 
+        // 1. Extracción determinística directa para Anguilla (evita cruce de horarios 10AM/1PM/6PM/9PM)
+        const textoFuentesAnguilla = fuentes
+            .filter(f => ['CONECTATE_RD', 'ENLOTERIA', 'KINGARROBA'].includes(f.nombre) && f.texto)
+            .map(f => f.texto)
+            .join('\n');
+        const anguillaDirecto = extraerAnguillaDirecto(textoFuentesAnguilla, infoFecha);
+
         const bloquesTexto = fuentes
             .filter(f => f.texto)
             .map(f => {
-                const limite = /HONDURAS|NICA/.test(f.nombre) ? 28000 : 16000;
+                const limite = /HONDURAS|NICA|LOTERIAS_CR/.test(f.nombre) ? 24000 : 15000;
                 return `=== FUENTE: ${f.nombre} ===\n${f.texto.slice(0, limite)}`;
             })
             .join('\n\n');
@@ -298,7 +360,19 @@ export default async function handler(req, res) {
             });
         }
 
-        const extraidosIA = await extraerConGemini(pendientes, bloquesTexto, infoFecha);
+        // Filtrar los sorteos que ya resolvió el extractor directo de Anguilla antes de llamar a Gemini
+        const pendientesParaIA = pendientes.filter(s => {
+            const n = normalizar(s.nombre);
+            if (n.includes('ANGUILLA') || n.includes('ANGUILA')) {
+                const turno = detectarTurnoAnguilla(s);
+                if (turno && anguillaDirecto[turno]) return false;
+            }
+            return true;
+        });
+
+        const extraidosIA = pendientesParaIA.length > 0
+            ? await extraerConGemini(pendientesParaIA, bloquesTexto, infoFecha)
+            : [];
         const mapaIA = new Map(extraidosIA.map(item => [String(item.id), item]));
 
         const limpiar2Digitos = (val) => {
@@ -309,7 +383,18 @@ export default async function handler(req, res) {
 
         const aInsertar = [];
         for (const sorteo of pendientes) {
-            const hallado = mapaIA.get(String(sorteo.id));
+            const n = normalizar(sorteo.nombre);
+            let hallado = null;
+
+            if (n.includes('ANGUILLA') || n.includes('ANGUILA')) {
+                const turno = detectarTurnoAnguilla(sorteo);
+                if (turno && anguillaDirecto[turno]) {
+                    hallado = anguillaDirecto[turno];
+                }
+            }
+            if (!hallado) {
+                hallado = mapaIA.get(String(sorteo.id));
+            }
             if (!hallado) continue;
 
             const previo = mapaRegistrados.get(String(sorteo.id));
@@ -319,10 +404,9 @@ export default async function handler(req, res) {
 
             if (!p1Final) continue;
 
-            // 🔥 CANDADO DE 3 PREMIOS COMPLETOS:
-            // Si aún faltan p2 o p3, esperamos al siguiente ciclo para que no guarde resultados incompletos (45 | -- | --)
+            // Exigir 3 premios completos antes de guardar y escrutar
             if (!p2Final || !p3Final) {
-                diagnostico.push(`⏳ Esperando 2do/3er premio completo para ${sorteo.nombre} (actual: ${p1Final}-${p2Final || '--'}-${p3Final || '--'})`);
+                diagnostico.push(`⏳ Esperando 3 premios completos para ${sorteo.nombre} (actual: ${p1Final}-${p2Final || '--'}-${p3Final || '--'})`);
                 continue;
             }
 
@@ -340,13 +424,13 @@ export default async function handler(req, res) {
                 tercero: p3Final,
                 updated_at: new Date().toISOString()
             });
-            diagnostico.push(`✅ IA detectó ${sorteo.nombre}: ${p1Final}-${p2Final}-${p3Final}`);
+            diagnostico.push(`✅ Detectado ${sorteo.nombre}: ${p1Final}-${p2Final}-${p3Final}`);
         }
 
         if (aInsertar.length === 0) {
             return res.status(200).json({
                 success: true,
-                message: 'Escaneo con IA completado. Esperando resultados completos.',
+                message: 'Escaneo completado. Esperando resultados completos.',
                 diagnostico
             });
         }
@@ -377,7 +461,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({
             success: true,
-            message: `Actualizados ${aInsertar.length} sorteos automáticamente con IA.`,
+            message: `Actualizados ${aInsertar.length} sorteos automáticamente.`,
             data: aInsertar,
             diagnostico
         });
